@@ -1,0 +1,34 @@
+node_modules
+dist
+dist-ssr
+*.local
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.swp
+.DS_Store
+
+# vite
+.vite/
+
+# tests / coverage
+coverage/
+
+# env (garder l'exemple)
+.env
+.env.*
+!.env.example
+
+# pwa generated
+public/sw.js
+public/workbox-*.js
+public/manifest.webmanifest

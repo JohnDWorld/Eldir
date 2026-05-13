@@ -1,0 +1,52 @@
+name: types-drift
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/src/lib/types/**'
+      - 'scripts/export_openapi.py'
+      - 'scripts/gen-types*.sh'
+      - 'shared/**'
+  push:
+    branches: [main]
+
+jobs:
+  check-drift:
+    name: Vérifie que api-generated.ts est synchro avec le backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install backend deps
+        working-directory: backend
+        run: uv sync
+
+      - name: Setup Node 20 + pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable && corepack prepare pnpm@9.12.0 --activate
+
+      - name: Run gen-types
+        run: ./scripts/gen-types.sh
+
+      - name: Detect drift
+        run: |
+          git diff --exit-code -- \
+            shared/openapi.json \
+            frontend/src/lib/types/api-generated.ts \
+            || (
+              echo "::error::api-generated.ts est désynchronisé. Exécute ./scripts/gen-types.sh et commit."
+              exit 1
+            )

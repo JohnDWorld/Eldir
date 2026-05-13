@@ -1,0 +1,24 @@
+# Eldir — reverse proxy prod (cf. docker-compose.yml)
+# Adapter le hostname avant le déploiement.
+
+{$ELDIR_HOSTNAME:eldir.local} {
+    encode zstd gzip
+
+    # API REST
+    handle_path /api/* {
+        reverse_proxy backend:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # WebSocket (sessions)
+    handle_path /ws/* {
+        reverse_proxy backend:8000
+    }
+
+    # SPA + PWA (static)
+    handle {
+        reverse_proxy frontend:80
+    }
+}

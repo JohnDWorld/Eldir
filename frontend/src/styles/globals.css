@@ -1,0 +1,52 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-eldir-paper text-eldir-ink font-sans antialiased;
+    font-feature-settings:
+      'ss01',
+      'cv11';
+  }
+  /* Tap targets ≥ 44×44 (cf. AGENTS.md règle mobile-first) */
+  button,
+  [role='button'],
+  a[role='button'] {
+    @apply min-h-[44px] min-w-[44px];
+  }
+}
+
+@layer components {
+  /* Status dot — état d'une session (cf. DA shared.jsx) */
+  .eldir-dot {
+    @apply inline-block h-2 w-2 rounded-full;
+  }
+  .eldir-dot--idle {
+    @apply bg-eldir-gray-2;
+  }
+  .eldir-dot--thinking {
+    @apply animate-pulse-orange bg-eldir-orange;
+  }
+  .eldir-dot--tool {
+    @apply bg-eldir-gold;
+  }
+  .eldir-dot--input {
+    @apply bg-eldir-amber;
+  }
+  .eldir-dot--blocked {
+    @apply bg-eldir-red;
+  }
+
+  /* Label caps mono — utilisé partout dans Mission Control */
+  .eldir-caps {
+    @apply font-mono text-2xs uppercase tracking-caps text-eldir-gray;
+  }
+}

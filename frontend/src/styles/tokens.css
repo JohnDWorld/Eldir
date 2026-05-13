@@ -1,0 +1,51 @@
+/**
+ * Eldir — design tokens.
+ * Source de vérité : DA/tokens.css (Direction 1 · Mission Control).
+ * Format HSL pour compat Tailwind v3 alpha-value.
+ */
+@layer base {
+  :root {
+    /* ── Eldir palette ─────────────────────────────────────── */
+    --eldir-orange: 15 63% 60%;
+    --eldir-orange-soft: 14 71% 69%;
+    --eldir-cream: 42 31% 94%;
+    --eldir-cream-2: 41 31% 90%;
+    --eldir-paper: 43 47% 97%;
+    --eldir-ink: 0 0% 10%;
+    --eldir-ink-2: 30 8% 15%;
+    --eldir-gray: 33 5% 52%;
+    --eldir-gray-2: 37 8% 70%;
+    --eldir-gray-3: 39 16% 82%;
+    --eldir-gold: 34 42% 64%;
+    --eldir-green: 118 21% 45%;
+    --eldir-amber: 37 65% 57%;
+    --eldir-red: 7 44% 50%;
+    --eldir-blue: 210 26% 48%;
+
+    /* ── shadcn/ui aliases mappés sur Eldir ────────────────── */
+    --background: var(--eldir-paper);
+    --foreground: var(--eldir-ink);
+
+    --card: var(--eldir-cream);
+    --card-foreground: var(--eldir-ink);
+
+    --primary: var(--eldir-orange);
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: var(--eldir-cream-2);
+    --secondary-foreground: var(--eldir-ink);
+
+    --muted: var(--eldir-cream-2);
+    --muted-foreground: var(--eldir-gray);
+
+    --accent: var(--eldir-gold);
+    --accent-foreground: var(--eldir-ink);
+
+    --destructive: var(--eldir-red);
+    --destructive-foreground: 0 0% 100%;
+
+    --border: var(--eldir-gray-3);
+    --input: var(--eldir-gray-3);
+    --ring: var(--eldir-orange);
+  }
+}

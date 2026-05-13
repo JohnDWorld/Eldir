@@ -1,0 +1,83 @@
+name: eldir-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eldir-postgres
+    environment:
+      POSTGRES_USER: eldir
+      POSTGRES_PASSWORD: eldir
+      POSTGRES_DB: eldir
+    ports:
+      - "55432:5432"
+    volumes:
+      - eldir_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eldir -d eldir"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: eldir-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "56379:6379"
+    volumes:
+      - eldir_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eldir-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://eldir:eldir@postgres:5432/eldir
+      REDIS_URL: redis://redis:6379/0
+      WORKSPACES_ROOT: /var/eldir/workspaces
+      APP_ENV: dev
+      APP_DEBUG: "true"
+    command:
+      - "sh"
+      - "-c"
+      - "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - eldir_workspaces:/var/eldir/workspaces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: eldir-frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  eldir_pg_data:
+  eldir_redis_data:
+  eldir_workspaces:
