@@ -23,9 +23,8 @@
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
 
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     "types": ["vite/client", "vite-plugin-pwa/client"]
