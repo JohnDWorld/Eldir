@@ -51,6 +51,19 @@ class Settings(BaseSettings):
     # ── Workspaces ──────────────────────────────────────────────
     workspaces_root: Path = Path("/var/eldir/workspaces")
 
+    # ── Frontend (pour redirections OAuth) ──────────────────────
+    frontend_base_url: str = "http://localhost:5173"
+
+    # ── GitHub OAuth App (optionnel — flow "Connect with GitHub") ──
+    github_oauth_client_id: str | None = None
+    github_oauth_client_secret: SecretStr | None = None
+    # Doit matcher l'Authorization callback URL configurée sur l'OAuth App GitHub.
+    github_oauth_redirect_url: str = (
+        "http://localhost:8000/api/v1/auth/github/oauth/callback"
+    )
+    # Scopes : `repo` pour les repos privés, `read:user` pour le username.
+    github_oauth_scopes: str = "repo read:user"
+
     # ── Claude ──────────────────────────────────────────────────
     anthropic_api_key: SecretStr | None = None
     claude_default_model: str = "claude-sonnet-4-6"
@@ -66,6 +79,14 @@ class Settings(BaseSettings):
     @property
     def is_test(self) -> bool:
         return self.app_env == "test"
+
+    @property
+    def github_oauth_enabled(self) -> bool:
+        return bool(
+            self.github_oauth_client_id
+            and self.github_oauth_client_secret
+            and self.github_oauth_client_secret.get_secret_value()
+        )
 
 
 @lru_cache(maxsize=1)

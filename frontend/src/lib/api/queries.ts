@@ -36,6 +36,7 @@ export const queryKeys = {
   me: ['auth', 'me'] as const,
   claudeCredentials: ['settings', 'claude-credentials'] as const,
   gitCredentials: ['settings', 'git-credentials'] as const,
+  githubOauthConfig: ['auth', 'github-oauth', 'config'] as const,
   remoteRepos: (provider: Provider) => ['providers', provider, 'repos'] as const,
   projects: ['projects'] as const,
   project: (id: string) => ['projects', id] as const,
@@ -137,6 +138,29 @@ export function useDeleteGitCredential() {
     mutationFn: (id: string) =>
       apiClient.delete<void>(`/settings/git-credentials/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.gitCredentials }),
+  });
+}
+
+// ── GitHub OAuth ───────────────────────────────────────────────
+export type GitHubOauthConfig = { enabled: boolean; client_id: string | null };
+export type GitHubOauthStartResponse = { authorize_url: string };
+
+export function useGitHubOauthConfig() {
+  return useQuery({
+    queryKey: queryKeys.githubOauthConfig,
+    queryFn: ({ signal }) =>
+      apiClient.get<GitHubOauthConfig>('/auth/github/oauth/config', { signal }),
+    staleTime: 60_000,
+  });
+}
+
+export function useGitHubOauthStart() {
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<GitHubOauthStartResponse, Record<string, never>>(
+        '/auth/github/oauth/start',
+        {},
+      ),
   });
 }
 
