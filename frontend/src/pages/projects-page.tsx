@@ -161,7 +161,7 @@ function AddProjectDialog({ onClose }: { onClose: () => void }): JSX.Element {
     const errors: CloneFailure[] = [];
     // Séquentiel : un worktree à la fois pour éviter la pression I/O et les collisions de slug.
     for (let i = 0; i < targets.length; i++) {
-      const full_name = targets[i];
+      const full_name = targets[i]!;
       try {
         await createProject.mutateAsync({ provider, repo_full_name: full_name });
       } catch (err) {

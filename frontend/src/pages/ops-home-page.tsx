@@ -30,13 +30,6 @@ import type { ProjectRead, SessionRead } from '@/lib/types/api';
 import type { SessionState } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
-const TABS = [
-  { key: 'ops', label: 'Ops', active: true },
-  { key: 'projects', label: 'Projects' },
-  { key: 'builds', label: 'Builds' },
-  { key: 'settings', label: 'Settings' },
-];
-
 const ACTIVE_STATES: ReadonlySet<SessionState> = new Set([
   'thinking',
   'tool_use',
@@ -101,7 +94,7 @@ export function OpsHomePage(): JSX.Element {
     }));
 
   return (
-    <OpsShell tabs={TABS} telemetry={telemetry}>
+    <OpsShell telemetry={telemetry}>
       <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[260px_1fr_320px]">
         {/* ── Projects rail ───────────────────────────────────── */}
         <aside className="flex flex-col overflow-y-auto border-eldir-gray-3 py-2.5 md:border-r">
@@ -153,7 +146,7 @@ export function OpsHomePage(): JSX.Element {
                 <SessionCard
                   key={card.id}
                   data={card}
-                  onClick={() => navigate(`/sessions/${sessions.data![idx].id}`)}
+                  onClick={() => navigate(`/sessions/${sessions.data![idx]!.id}`)}
                 />
               ))}
             </div>
