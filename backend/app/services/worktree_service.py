@@ -217,6 +217,64 @@ class WorktreeService:
             args += [remote, branch]
         await self._run_git(*args, cwd=repo_path)
 
+    async def fetch_remote(
+        self,
+        repo_path: Path,
+        *,
+        remote: str = "origin",
+        token: str | None = None,
+    ) -> None:
+        """Fetch un remote, en réécrivant son URL si un token plus frais est dispo.
+
+        Ainsi un rotation de PAT n'invalide pas la sync : on remet le token
+        courant dans l'URL de l'origine avant de fetch.
+        """
+        if token:
+            remote_url = await self._run_git(
+                "remote", "get-url", remote, cwd=repo_path
+            )
+            new_url = _inject_token(remote_url, token)
+            if new_url != remote_url:
+                await self._run_git(
+                    "remote", "set-url", remote, new_url, cwd=repo_path
+                )
+        await self._run_git("fetch", remote, "--prune", cwd=repo_path)
+
+    async def branch_ahead_behind(
+        self,
+        repo_path: Path,
+        *,
+        local: str,
+        remote: str,
+    ) -> tuple[int, int]:
+        """Retourne (ahead, behind) entre `local` et `remote` (refs git)."""
+        try:
+            out = await self._run_git(
+                "rev-list",
+                "--left-right",
+                "--count",
+                f"{local}...{remote}",
+                cwd=repo_path,
+            )
+        except WorkspaceError:
+            return (0, 0)
+        parts = out.split()
+        if len(parts) != 2:
+            return (0, 0)
+        try:
+            return (int(parts[0]), int(parts[1]))
+        except ValueError:
+            return (0, 0)
+
+    async def fast_forward_merge(
+        self,
+        repo_path: Path,
+        *,
+        upstream_ref: str,
+    ) -> None:
+        """Fast-forward la branche courante sur `upstream_ref`. Échoue sinon."""
+        await self._run_git("merge", "--ff-only", upstream_ref, cwd=repo_path)
+
     async def checkout_new_branch(
         self,
         repo_path: Path,

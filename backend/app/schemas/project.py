@@ -59,3 +59,15 @@ class RemoteRepoCreate(EldirModel):
     private: bool = True
     description: str | None = Field(default=None, max_length=512)
     create_project: bool = True
+
+
+class ProjectSyncRead(EldirModel):
+    """Résultat d'un POST /projects/{id}/sync."""
+
+    fetched: bool
+    fast_forwarded: bool
+    ahead: int
+    behind: int
+    branch: str
+    has_local_changes: bool
+    message: str | None = None

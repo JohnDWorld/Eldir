@@ -6,13 +6,15 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { Avatar } from '@/components/eldir/avatar';
 import { StatePill } from '@/components/eldir/state-pill';
 import { SessionGitActions } from '@/features/sessions/git-actions';
 import { useSessionStream } from '@/hooks/use-session-stream';
 import {
+  useDeleteSession,
+  useProjects,
   useSendMessage,
   useSession,
   useSessionEvents,
@@ -26,10 +28,29 @@ export function SessionPage(): JSX.Element {
   const { sessionId = '' } = useParams<{ sessionId: string }>();
   const session = useSession(sessionId);
   const sessions = useSessions();
+  const projects = useProjects();
   const historical = useSessionEvents(sessionId);
   const live = useSessionStream(sessionId, { enabled: Boolean(sessionId) });
   const sendMessage = useSendMessage(sessionId);
   const stopMut = useStopSession();
+  const deleteMut = useDeleteSession();
+  const navigate = useNavigate();
+
+  const handleDelete = async () => {
+    if (!sessionId) return;
+    if (
+      !confirm(
+        'Supprimer cette session ? L\'historique et les events seront effacés.',
+      )
+    )
+      return;
+    try {
+      await deleteMut.mutateAsync(sessionId);
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur suppression');
+    }
+  };
 
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -107,10 +128,18 @@ export function SessionPage(): JSX.Element {
         >
           stop
         </button>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleteMut.isPending}
+          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+        >
+          {deleteMut.isPending ? 'suppr…' : 'supprimer'}
+        </button>
         <Avatar size={24}>J</Avatar>
       </header>
 
-      <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[200px_1fr_1fr_240px]">
+      <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[200px_1fr_320px]">
         {/* Sidebar sessions */}
         <aside className="hidden flex-col overflow-y-auto border-r border-eldir-gray-3 py-2.5 md:flex">
           <div className="px-3 pb-2 eldir-caps">Sessions</div>
@@ -158,27 +187,37 @@ export function SessionPage(): JSX.Element {
           </form>
         </section>
 
-        {/* Logs panel (live stream) */}
-        <section className="hidden flex-col overflow-y-auto bg-eldir-ink md:flex">
-          <div className="border-b border-eldir-ink-2 px-3 py-2 font-mono text-2xs text-eldir-gray-2">
-            // live · {live.state}
+        {/* Right rail : Session meta (top) + Logs live stream (bottom) */}
+        <aside className="hidden min-h-0 flex-col border-l border-eldir-gray-3 md:flex">
+          <div className="flex flex-col gap-3 border-b border-eldir-gray-3 bg-eldir-paper p-4">
+            <div className="eldir-caps">Session meta</div>
+            <Kv k="id" v={session.data.id.slice(0, 12)} />
+            {(() => {
+              const project = projects.data?.find((p) => p.id === session.data.project_id);
+              return (
+                <>
+                  <Kv k="project" v={project?.name ?? '—'} />
+                  <Kv k="repo" v={project?.repo_full_name ?? '—'} />
+                </>
+              );
+            })()}
+            <Kv k="branch" v={session.data.branch} />
+            <Kv k="state" v={session.data.state} />
+            <Kv k="model" v={session.data.model ?? '—'} />
+            <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '—'} />
+            <Kv k="created" v={new Date(session.data.created_at).toLocaleTimeString()} />
           </div>
-          <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-cream">
-            {events.map((e) => (
-              <LogLine key={e.key} event={e} />
-            ))}
-          </div>
-        </section>
 
-        {/* Meta */}
-        <aside className="hidden flex-col gap-3 overflow-y-auto border-l border-eldir-gray-3 p-4 md:flex">
-          <div className="eldir-caps">Session meta</div>
-          <Kv k="id" v={session.data.id.slice(0, 12)} />
-          <Kv k="branch" v={session.data.branch} />
-          <Kv k="state" v={session.data.state} />
-          <Kv k="model" v={session.data.model ?? '—'} />
-          <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '—'} />
-          <Kv k="created" v={new Date(session.data.created_at).toLocaleTimeString()} />
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-eldir-ink">
+            <div className="border-b border-eldir-ink-2 px-3 py-2 font-mono text-2xs text-eldir-gray-2">
+              // live · {live.state}
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-cream">
+              {events.map((e) => (
+                <LogLine key={e.key} event={e} />
+              ))}
+            </div>
+          </section>
         </aside>
       </div>
     </div>

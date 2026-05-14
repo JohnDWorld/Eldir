@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +14,7 @@ from app.core.exceptions import (
     ConflictError,
     GitProviderError,
     NotFoundError,
+    WorkspaceError,
 )
 from app.core.logging import get_logger
 from app.db.models import Project
@@ -19,6 +23,17 @@ from app.services.git_providers import make_provider
 from app.services.worktree_service import worktree_service
 
 logger = get_logger(__name__)
+
+
+@dataclass(slots=True, frozen=True)
+class SyncResult:
+    fetched: bool
+    fast_forwarded: bool
+    ahead: int
+    behind: int
+    branch: str
+    has_local_changes: bool
+    message: str | None = None
 
 
 class ProjectService:
@@ -121,6 +136,104 @@ class ProjectService:
         if project.workspace_path:
             await worktree_service.remove_repo(user_id, project.slug)
         await db.delete(project)
+
+    async def sync_with_remote(
+        self,
+        db: AsyncSession,
+        *,
+        project_id: str,
+        user_id: str,
+    ) -> SyncResult:
+        """Fetch le remote du projet et fast-forward si possible (no-op safe).
+
+        Stratégie :
+        - fetch toujours (impact zéro sur le working tree).
+        - fast-forward la branche par défaut uniquement si :
+            * la branche courante est la branche par défaut,
+            * il n'y a pas de modifications locales non commitées,
+            * la branche locale est en retard.
+
+        Sinon on remonte un `message` explicatif et on ne touche pas au working tree.
+        """
+        project = await self.get(db, project_id, user_id)
+        if not project.workspace_path:
+            raise WorkspaceError(
+                f"Projet {project_id} n'a pas de workspace cloné.",
+            )
+
+        repo_path = Path(project.workspace_path)
+        token = await git_credential_service.get_active_token(
+            db, user_id, project.provider
+        )
+        default_branch = project.default_branch
+        upstream_ref = f"origin/{default_branch}"
+
+        try:
+            await worktree_service.fetch_remote(repo_path, token=token)
+        except WorkspaceError as exc:
+            logger.warning(
+                "project.sync.fetch_failed",
+                project_id=project_id,
+                error=exc.message,
+            )
+            current = await worktree_service.current_branch(repo_path)
+            return SyncResult(
+                fetched=False,
+                fast_forwarded=False,
+                ahead=0,
+                behind=0,
+                branch=current,
+                has_local_changes=False,
+                message=f"fetch impossible : {exc.message}",
+            )
+
+        current = await worktree_service.current_branch(repo_path)
+        has_changes = await worktree_service.has_changes(repo_path)
+        ahead, behind = await worktree_service.branch_ahead_behind(
+            repo_path, local=default_branch, remote=upstream_ref
+        )
+
+        fast_forwarded = False
+        message: str | None = None
+        if behind > 0:
+            if has_changes:
+                message = (
+                    f"{behind} commit(s) en retard mais working tree sale "
+                    "— pull skippé pour préserver le travail en cours."
+                )
+            elif current != default_branch:
+                message = (
+                    f"{behind} commit(s) en retard mais branche courante = "
+                    f"`{current}` (≠ `{default_branch}`) — pull skippé."
+                )
+            else:
+                try:
+                    await worktree_service.fast_forward_merge(
+                        repo_path, upstream_ref=upstream_ref
+                    )
+                    fast_forwarded = True
+                    ahead, behind = await worktree_service.branch_ahead_behind(
+                        repo_path, local=default_branch, remote=upstream_ref
+                    )
+                except WorkspaceError as exc:
+                    message = f"fast-forward impossible : {exc.message}"
+
+        logger.info(
+            "project.sync.done",
+            project_id=project_id,
+            fast_forwarded=fast_forwarded,
+            ahead=ahead,
+            behind=behind,
+        )
+        return SyncResult(
+            fetched=True,
+            fast_forwarded=fast_forwarded,
+            ahead=ahead,
+            behind=behind,
+            branch=current,
+            has_local_changes=has_changes,
+            message=message,
+        )
 
 
 project_service = ProjectService()

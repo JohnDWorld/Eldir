@@ -5,7 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 
 from app.core.deps import CurrentUserId, DbDep
-from app.schemas.project import ProjectCreateFromRepo, ProjectRead
+from app.schemas.project import (
+    ProjectCreateFromRepo,
+    ProjectRead,
+    ProjectSyncRead,
+)
 from app.services.project_service import project_service
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -54,3 +58,21 @@ async def delete_project(
 ) -> None:
     await project_service.delete(db, project_id, user_id)
     await db.commit()
+
+
+@router.post("/{project_id}/sync", response_model=ProjectSyncRead)
+async def sync_project(
+    project_id: str, user_id: CurrentUserId, db: DbDep
+) -> ProjectSyncRead:
+    result = await project_service.sync_with_remote(
+        db, project_id=project_id, user_id=user_id
+    )
+    return ProjectSyncRead(
+        fetched=result.fetched,
+        fast_forwarded=result.fast_forwarded,
+        ahead=result.ahead,
+        behind=result.behind,
+        branch=result.branch,
+        has_local_changes=result.has_local_changes,
+        message=result.message,
+    )

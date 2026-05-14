@@ -25,7 +25,7 @@ import {
   MOCK_SPEND_7D,
   MOCK_TOKENS_TODAY,
 } from '@/features/sessions/mock-data';
-import { useProjects, useSessions } from '@/lib/api/queries';
+import { useDeleteSession, useProjects, useSessions } from '@/lib/api/queries';
 import type { ProjectRead, SessionRead } from '@/lib/types/api';
 import type { SessionState } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -41,7 +41,15 @@ export function OpsHomePage(): JSX.Element {
   const navigate = useNavigate();
   const projects = useProjects();
   const sessions = useSessions();
+  const deleteSession = useDeleteSession();
   const [addOpen, setAddOpen] = useState(false);
+
+  const handleDelete = (sessionId: string, label: string) => {
+    if (!confirm(`Supprimer la session ${label} ? L'historique sera effacé.`)) {
+      return;
+    }
+    deleteSession.mutate(sessionId);
+  };
 
   const activeSessions = useMemo(
     () => (sessions.data ?? []).filter((s) => ACTIVE_STATES.has(s.state)),
@@ -142,13 +150,30 @@ export function OpsHomePage(): JSX.Element {
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-              {cards.map((card, idx) => (
-                <SessionCard
-                  key={card.id}
-                  data={card}
-                  onClick={() => navigate(`/sessions/${sessions.data![idx]!.id}`)}
-                />
-              ))}
+              {cards.map((card, idx) => {
+                const sessionId = sessions.data![idx]!.id;
+                return (
+                  <div key={card.id} className="group relative">
+                    <SessionCard
+                      data={card}
+                      onClick={() => navigate(`/sessions/${sessionId}`)}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(sessionId, card.id);
+                      }}
+                      disabled={deleteSession.isPending}
+                      aria-label="Supprimer la session"
+                      title="Supprimer la session"
+                      className="absolute right-2 top-2 rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-2 py-1 font-mono text-2xs uppercase tracking-caps text-eldir-red opacity-0 transition-opacity hover:bg-eldir-red/10 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
           <LogsPanel

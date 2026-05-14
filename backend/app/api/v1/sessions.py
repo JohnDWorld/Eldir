@@ -111,6 +111,18 @@ async def stop_session(
     await db.commit()
 
 
+@router.delete(
+    "/{session_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_session(
+    session_id: str, user_id: CurrentUserId, db: DbDep
+) -> None:
+    await get_session_service().delete(
+        db, user_id=user_id, session_id=session_id
+    )
+    await db.commit()
+
+
 # ── Git ops (chantier 5) ────────────────────────────────────────
 @router.get("/{session_id}/git-status", response_model=GitStatusResponse)
 async def git_status(

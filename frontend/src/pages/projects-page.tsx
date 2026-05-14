@@ -12,7 +12,9 @@ import {
   useDeleteProject,
   useProjects,
   useRemoteRepos,
+  useSyncProject,
 } from '@/lib/api/queries';
+import type { ProjectSyncResult } from '@/lib/api/queries';
 import type { Provider } from '@/lib/constants';
 import { PROVIDERS } from '@/lib/constants';
 import type { ProjectRead } from '@/lib/types/api';
@@ -74,33 +76,90 @@ export function ProjectsPage(): JSX.Element {
 
 function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
   const deleteMut = useDeleteProject();
+  const syncMut = useSyncProject();
+  const [syncFeedback, setSyncFeedback] = useState<
+    { kind: 'success' | 'error'; text: string } | null
+  >(null);
+
+  const handleSync = async () => {
+    setSyncFeedback(null);
+    try {
+      const result = await syncMut.mutateAsync(project.id);
+      setSyncFeedback({ kind: 'success', text: formatSyncResult(result) });
+    } catch (err) {
+      setSyncFeedback({
+        kind: 'error',
+        text: err instanceof ApiError ? err.message : 'Échec sync.',
+      });
+    }
+  };
+
   return (
-    <li className="flex items-center justify-between gap-3 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <GitMark provider={project.provider} size={14} className="text-eldir-gray" />
-        <div>
-          <div className="font-mono text-sm font-semibold text-eldir-ink">
-            {project.repo_full_name}
-          </div>
-          <div className="mt-0.5 font-mono text-xs text-eldir-gray">
-            slug: {project.slug} · branch: {project.default_branch}
+    <li className="flex flex-col gap-1 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <GitMark provider={project.provider} size={14} className="text-eldir-gray" />
+          <div>
+            <div className="font-mono text-sm font-semibold text-eldir-ink">
+              {project.repo_full_name}
+            </div>
+            <div className="mt-0.5 font-mono text-xs text-eldir-gray">
+              slug: {project.slug} · branch: {project.default_branch}
+            </div>
           </div>
         </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={syncMut.isPending}
+            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+          >
+            {syncMut.isPending ? 'sync…' : 'sync'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm(`Supprimer ${project.repo_full_name} ? Le workspace local sera détruit.`)) {
+                deleteMut.mutate(project.id);
+              }
+            }}
+            disabled={deleteMut.isPending}
+            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+          >
+            supprimer
+          </button>
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          if (confirm(`Supprimer ${project.repo_full_name} ? Le workspace local sera détruit.`)) {
-            deleteMut.mutate(project.id);
-          }
-        }}
-        disabled={deleteMut.isPending}
-        className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
-      >
-        supprimer
-      </button>
+      {syncFeedback && (
+        <div
+          className={cn(
+            'mt-1 font-mono text-[11px]',
+            syncFeedback.kind === 'success' ? 'text-eldir-gray' : 'text-eldir-red',
+          )}
+        >
+          {syncFeedback.text}
+        </div>
+      )}
     </li>
   );
+}
+
+function formatSyncResult(r: ProjectSyncResult): string {
+  if (!r.fetched) return r.message ?? 'fetch impossible.';
+  if (r.fast_forwarded) {
+    return `synchronisé · à jour avec origin/${r.branch}`;
+  }
+  if (r.behind === 0 && r.ahead === 0) {
+    return `déjà à jour avec origin/${r.branch}`;
+  }
+  if (r.behind > 0 && r.message) {
+    return `${r.behind} commit(s) en retard — ${r.message}`;
+  }
+  if (r.ahead > 0) {
+    return `${r.ahead} commit(s) local(aux) non poussé(s)`;
+  }
+  return r.message ?? 'sync terminée.';
 }
 
 type CloneFailure = { full_name: string; message: string };

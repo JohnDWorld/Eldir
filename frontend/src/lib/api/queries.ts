@@ -192,6 +192,26 @@ export function useCreateProject() {
   });
 }
 
+export type ProjectSyncResult = {
+  fetched: boolean;
+  fast_forwarded: boolean;
+  ahead: number;
+  behind: number;
+  branch: string;
+  has_local_changes: boolean;
+  message: string | null;
+};
+
+export function useSyncProject() {
+  return useMutation({
+    mutationFn: (projectId: string) =>
+      apiClient.post<ProjectSyncResult, Record<string, never>>(
+        `/projects/${projectId}/sync`,
+        {},
+      ),
+  });
+}
+
 export function useCreateRemoteRepo() {
   const qc = useQueryClient();
   return useMutation({
@@ -273,6 +293,18 @@ export function useStopSession() {
       apiClient.post<void>(`/sessions/${id}/stop`),
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: queryKeys.session(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.sessions });
+    },
+  });
+}
+
+export function useDeleteSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete<void>(`/sessions/${id}`),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: queryKeys.session(id) });
+      qc.removeQueries({ queryKey: queryKeys.sessionEvents(id) });
       qc.invalidateQueries({ queryKey: queryKeys.sessions });
     },
   });

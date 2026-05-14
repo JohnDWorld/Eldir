@@ -125,10 +125,33 @@ class SessionService:
                 f"Projet {project_id} n'a pas de workspace cloné."
             )
 
+        repo_path = Path(project.workspace_path)
+
         # 2. Injecte les credentials Claude dans os.environ (V1 mono-user)
         await self._inject_claude_env(db, user_id)
 
-        # 3. Crée la row Session
+        # 2bis. Best-effort : fetch + fast-forward pour partir d'une base à jour.
+        # On ne bloque jamais une session si la sync échoue (pas de réseau,
+        # token rotaté, etc.). Le résultat est loggé pour debug.
+        try:
+            from app.services.project_service import project_service
+
+            sync_result = await project_service.sync_with_remote(
+                db, project_id=project_id, user_id=user_id
+            )
+            if sync_result.message:
+                logger.info(
+                    "session.create.sync.note",
+                    project_id=project_id,
+                    message=sync_result.message,
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "session.create.sync.failed", project_id=project_id
+            )
+
+        # 3. Crée la row Session (avec worktree_path provisoire — on le mettra
+        # à jour après création du worktree git).
         session = Session(
             project_id=project_id,
             user_id=user_id,
@@ -138,17 +161,56 @@ class SessionService:
             system_prompt=system_prompt,
         )
         db.add(session)
+        await db.flush()  # capture session.id pour nommer le worktree
+
+        # 4. Crée un worktree git isolé pour cette session, partant de
+        # `origin/{default_branch}` pour bénéficier du fetch fait en 2bis
+        # même si le default branch local était sale.
+        try:
+            worktree_ref = await worktree_service.create_worktree(
+                repo_path=repo_path,
+                user_id=user_id,
+                repo_slug=project.slug,
+                session_id=session.id,
+                base_branch=f"origin/{project.default_branch}",
+            )
+        except WorkspaceError:
+            # Pas de remote origin/<branch> (repo fraîchement cloné sans push),
+            # fallback sur le default_branch local.
+            worktree_ref = await worktree_service.create_worktree(
+                repo_path=repo_path,
+                user_id=user_id,
+                repo_slug=project.slug,
+                session_id=session.id,
+                base_branch=project.default_branch,
+            )
+        session.worktree_path = str(worktree_ref.path)
+        session.branch = worktree_ref.branch
         await db.flush()
 
-        # 4. Démarre le ClaudeSDKClient (via le manager)
-        await self._manager.start(
-            session_id=session.id,
-            project_id=project.id,
-            user_id=user_id,
-            cwd=project.workspace_path,
-            system_prompt=system_prompt,
-            model=session.model,
-        )
+        # 5. Démarre le ClaudeSDKClient sur le worktree. Si ça échoue, on
+        # nettoie le worktree pour ne pas laisser de squelette orphelin sur
+        # disque (la row DB sera rollbackée par get_db).
+        try:
+            await self._manager.start(
+                session_id=session.id,
+                project_id=project.id,
+                user_id=user_id,
+                cwd=str(worktree_ref.path),
+                system_prompt=system_prompt,
+                model=session.model,
+            )
+        except Exception:
+            try:
+                await worktree_service.remove_worktree(
+                    repo_path, worktree_ref.path
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "session.create.worktree.cleanup.failed",
+                    session_id=session.id,
+                )
+            raise
         return session
 
     async def resume(
@@ -198,6 +260,45 @@ class SessionService:
         await self.get(db, session_id, user_id)
         if self._manager.is_active(session_id):
             await self._manager.stop(session_id)
+
+    async def delete(
+        self, db: AsyncSession, *, user_id: str, session_id: str
+    ) -> None:
+        """Stoppe la session si active, supprime son worktree, puis la row DB.
+
+        Les SessionEvent et SessionCost partent en cascade via la FK
+        `ondelete=CASCADE`. Le worktree git n'est retiré que s'il diffère du
+        clone canonique du projet (sécurité pour les sessions anciennes créées
+        avant l'introduction des worktrees, qui pointaient sur le clone).
+        """
+        session = await self.get(db, session_id, user_id)
+        if self._manager.is_active(session_id):
+            try:
+                await self._manager.stop(session_id)
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "session.delete.stop.failed", session_id=session_id
+                )
+
+        project = await db.get(Project, session.project_id)
+        if (
+            project is not None
+            and project.workspace_path
+            and session.worktree_path
+            and session.worktree_path != project.workspace_path
+        ):
+            try:
+                await worktree_service.remove_worktree(
+                    Path(project.workspace_path), Path(session.worktree_path)
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "session.delete.worktree.cleanup.failed",
+                    session_id=session_id,
+                    worktree=session.worktree_path,
+                )
+
+        await db.delete(session)
 
     # ── git ops (chantier 5) ─────────────────────────────────────
     async def git_status(
