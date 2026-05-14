@@ -92,6 +92,26 @@ class OpenPullRequestResponse(EldirModel):
     title: str
 
 
+# ── Diff ──────────────────────────────────────────────────────
+class SessionDiffFile(EldirModel):
+    path: str
+    status: str  # A | M | D | R | C | U | T
+    additions: int
+    deletions: int
+
+
+class SessionDiffSummary(EldirModel):
+    base_ref: str
+    head_branch: str
+    files: list[SessionDiffFile]
+
+
+class SessionDiffFilePatch(EldirModel):
+    path: str
+    base_ref: str
+    patch: str
+
+
 # ── WS events ───────────────────────────────────────────────────
 class SessionEventOut(EldirModel):
     """Event diffusé sur le channel `session:{id}` (Redis pubsub → WS)."""

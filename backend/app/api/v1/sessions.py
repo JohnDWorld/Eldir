@@ -12,6 +12,8 @@ from app.schemas.session import (
     OpenPullRequestRequest,
     OpenPullRequestResponse,
     SessionCreate,
+    SessionDiffFilePatch,
+    SessionDiffSummary,
     SessionEventRead,
     SessionMessageInput,
     SessionRead,
@@ -155,6 +157,33 @@ async def commit_push(
     return CommitPushResponse(
         branch=result.branch, sha=result.sha, pushed=result.pushed
     )
+
+
+@router.get(
+    "/{session_id}/diff", response_model=SessionDiffSummary
+)
+async def session_diff(
+    session_id: str, user_id: CurrentUserId, db: DbDep
+) -> SessionDiffSummary:
+    data = await get_session_service().diff_summary(
+        db, user_id=user_id, session_id=session_id
+    )
+    return SessionDiffSummary.model_validate(data)
+
+
+@router.get(
+    "/{session_id}/diff/file", response_model=SessionDiffFilePatch
+)
+async def session_diff_file(
+    session_id: str,
+    path: str,
+    user_id: CurrentUserId,
+    db: DbDep,
+) -> SessionDiffFilePatch:
+    data = await get_session_service().diff_file(
+        db, user_id=user_id, session_id=session_id, path=path
+    )
+    return SessionDiffFilePatch.model_validate(data)
 
 
 @router.post(

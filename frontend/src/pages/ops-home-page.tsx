@@ -145,9 +145,33 @@ export function OpsHomePage(): JSX.Element {
             </button>
           </div>
           {cards.length === 0 ? (
-            <p className="rounded-eldir border border-dashed border-eldir-gray-3 bg-eldir-cream py-6 text-center font-mono text-xs text-eldir-gray">
-              Aucune session. Clique "+ NEW SESSION" pour démarrer.
-            </p>
+            <div className="flex flex-col items-center gap-3 rounded-eldir border border-dashed border-eldir-gray-3 bg-eldir-cream px-4 py-10 text-center">
+              <span className="text-3xl text-eldir-gray-2" aria-hidden="true">
+                ◌
+              </span>
+              <div className="font-mono text-sm font-semibold text-eldir-ink">
+                Aucune session active
+              </div>
+              <p className="max-w-md text-xs text-eldir-ink-2">
+                {(projects.data ?? []).length === 0 ? (
+                  <>
+                    Commence par <a href="/projects" className="text-eldir-orange">cloner un projet</a>,
+                    puis lance ta première session Claude.
+                  </>
+                ) : (
+                  <>Clique "+ new session" pour démarrer Claude sur un de tes projets.</>
+                )}
+              </p>
+              {(projects.data ?? []).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+                >
+                  + new session
+                </button>
+              )}
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
               {cards.map((card, idx) => {

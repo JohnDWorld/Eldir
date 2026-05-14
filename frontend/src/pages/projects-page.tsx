@@ -56,9 +56,37 @@ export function ProjectsPage(): JSX.Element {
         {projects.isPending ? (
           <p className="px-4 py-6 font-mono text-xs text-eldir-gray">chargement…</p>
         ) : (projects.data ?? []).length === 0 ? (
-          <p className="px-4 py-6 font-mono text-xs text-eldir-gray">
-            Aucun projet. Ajoute-en un depuis GitHub ou Forgejo.
-          </p>
+          <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+            <span className="text-3xl text-eldir-gray-2" aria-hidden="true">
+              ⌥
+            </span>
+            <div className="font-mono text-sm font-semibold text-eldir-ink">
+              Aucun projet pour l'instant
+            </div>
+            <p className="max-w-md text-xs text-eldir-ink-2">
+              Connecte GitHub ou Forgejo dans{' '}
+              <a href="/settings/git" className="text-eldir-orange underline">
+                Settings → Git
+              </a>{' '}
+              puis ajoute un repo existant ou crées-en un nouveau.
+            </p>
+            <div className="mt-1 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+              >
+                + ajouter un repo
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewRepoOpen(true)}
+                className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+              >
+                + nouveau repo
+              </button>
+            </div>
+          </div>
         ) : (
           <ul className="divide-y divide-eldir-gray-3">
             {(projects.data ?? []).map((p) => (

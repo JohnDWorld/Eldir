@@ -44,6 +44,9 @@ export const queryKeys = {
   session: (id: string) => ['sessions', id] as const,
   sessionEvents: (id: string) => ['sessions', id, 'events'] as const,
   sessionGitStatus: (id: string) => ['sessions', id, 'git-status'] as const,
+  sessionDiff: (id: string) => ['sessions', id, 'diff'] as const,
+  sessionDiffFile: (id: string, path: string) =>
+    ['sessions', id, 'diff', 'file', path] as const,
 };
 
 export function useHealth() {
@@ -307,6 +310,54 @@ export function useDeleteSession() {
       qc.removeQueries({ queryKey: queryKeys.sessionEvents(id) });
       qc.invalidateQueries({ queryKey: queryKeys.sessions });
     },
+  });
+}
+
+// ── Session diff ─────────────────────────────────────────────
+export type SessionDiffFile = {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+};
+
+export type SessionDiffSummary = {
+  base_ref: string;
+  head_branch: string;
+  files: SessionDiffFile[];
+};
+
+export type SessionDiffFilePatch = {
+  path: string;
+  base_ref: string;
+  patch: string;
+};
+
+export function useSessionDiff(sessionId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.sessionDiff(sessionId),
+    queryFn: ({ signal }) =>
+      apiClient.get<SessionDiffSummary>(`/sessions/${sessionId}/diff`, {
+        signal,
+      }),
+    enabled: enabled && Boolean(sessionId),
+    staleTime: 5_000,
+  });
+}
+
+export function useSessionDiffFile(
+  sessionId: string,
+  path: string | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.sessionDiffFile(sessionId, path ?? ''),
+    queryFn: ({ signal }) =>
+      apiClient.get<SessionDiffFilePatch>(
+        `/sessions/${sessionId}/diff/file?path=${encodeURIComponent(path!)}`,
+        { signal },
+      ),
+    enabled: Boolean(sessionId && path),
+    staleTime: 5_000,
   });
 }
 

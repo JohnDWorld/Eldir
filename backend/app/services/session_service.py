@@ -300,6 +300,68 @@ class SessionService:
 
         await db.delete(session)
 
+    # ── diff (chantier 5) ───────────────────────────────────────
+    async def diff_summary(
+        self, db: AsyncSession, *, user_id: str, session_id: str
+    ) -> dict[str, Any]:
+        session = await self.get(db, session_id, user_id)
+        project = await self._require_project(db, session)
+        repo_path = self._require_workspace(session)
+        base_ref = await self._diff_base_ref(project, repo_path)
+        files = await worktree_service.diff_summary(repo_path, base_ref=base_ref)
+        head_branch = await worktree_service.current_branch(repo_path)
+        return {
+            "base_ref": base_ref,
+            "head_branch": head_branch,
+            "files": [
+                {
+                    "path": f.path,
+                    "status": f.status,
+                    "additions": f.additions,
+                    "deletions": f.deletions,
+                }
+                for f in files
+            ],
+        }
+
+    async def diff_file(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: str,
+        session_id: str,
+        path: str,
+    ) -> dict[str, Any]:
+        session = await self.get(db, session_id, user_id)
+        project = await self._require_project(db, session)
+        repo_path = self._require_workspace(session)
+        base_ref = await self._diff_base_ref(project, repo_path)
+        patch = await worktree_service.diff_file(
+            repo_path, base_ref=base_ref, path=path
+        )
+        return {"path": path, "base_ref": base_ref, "patch": patch}
+
+    async def _diff_base_ref(self, project: Project, repo_path: Path) -> str:
+        """Référence de base pour calculer le diff d'une session.
+
+        Préfère le merge-base avec `origin/<default_branch>` pour montrer
+        exactement ce que la session a ajouté (et ignorer les commits qui
+        ont atterri sur main depuis). Fallback sur la branche locale puis
+        sur HEAD~0 (= zéro diff) si rien d'autre.
+        """
+        upstream = f"origin/{project.default_branch}"
+        mb = await worktree_service.merge_base(
+            repo_path, a="HEAD", b=upstream
+        )
+        if mb:
+            return mb
+        mb_local = await worktree_service.merge_base(
+            repo_path, a="HEAD", b=project.default_branch
+        )
+        if mb_local:
+            return mb_local
+        return project.default_branch
+
     # ── git ops (chantier 5) ─────────────────────────────────────
     async def git_status(
         self, db: AsyncSession, *, user_id: str, session_id: str

@@ -10,8 +10,17 @@ import type { ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { Avatar } from '@/components/eldir/avatar';
+import { useSessions } from '@/lib/api/queries';
+import type { SessionState } from '@/lib/constants';
 import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+
+const ACTIVE_STATES: ReadonlySet<SessionState> = new Set([
+  'thinking',
+  'tool_use',
+  'waiting_input',
+  'blocked',
+]);
 
 interface TopNavItem {
   to: string;
@@ -32,6 +41,10 @@ interface AppTopbarProps {
 
 export function AppTopbar({ rightInfo }: AppTopbarProps): JSX.Element {
   const { pathname } = useLocation();
+  const sessions = useSessions();
+  const activeCount = (sessions.data ?? []).filter((s) =>
+    ACTIVE_STATES.has(s.state),
+  ).length;
   return (
     <header className="flex h-[42px] items-center gap-3.5 border-b border-eldir-gray-3 bg-eldir-cream-2 px-4">
       <NavLink
@@ -66,6 +79,20 @@ export function AppTopbar({ rightInfo }: AppTopbarProps): JSX.Element {
         })}
       </nav>
       <div className="flex-1" />
+      {activeCount > 0 && (
+        <NavLink
+          to="/"
+          end
+          className="hidden items-center gap-1.5 rounded-eldir border border-eldir-orange/60 bg-eldir-orange/10 px-2 py-1 font-mono text-2xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-orange/20 md:inline-flex"
+          aria-label={`${activeCount} session(s) active(s)`}
+        >
+          <span className="relative inline-flex h-1.5 w-1.5">
+            <span className="absolute inset-0 animate-ping rounded-full bg-eldir-orange opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-eldir-orange" />
+          </span>
+          {activeCount} actif{activeCount > 1 ? 's' : ''}
+        </NavLink>
+      )}
       {rightInfo && (
         <div className="hidden font-mono text-[11px] text-eldir-gray md:block">
           {rightInfo}

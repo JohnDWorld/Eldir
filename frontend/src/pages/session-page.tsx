@@ -10,6 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { Avatar } from '@/components/eldir/avatar';
 import { StatePill } from '@/components/eldir/state-pill';
+import { DiffPanel } from '@/features/sessions/diff-panel';
 import { SessionGitActions } from '@/features/sessions/git-actions';
 import { useSessionStream } from '@/hooks/use-session-stream';
 import {
@@ -35,6 +36,7 @@ export function SessionPage(): JSX.Element {
   const stopMut = useStopSession();
   const deleteMut = useDeleteSession();
   const navigate = useNavigate();
+  const [rightTab, setRightTab] = useState<'live' | 'diff'>('live');
 
   const handleDelete = async () => {
     if (!sessionId) return;
@@ -55,21 +57,42 @@ export function SessionPage(): JSX.Element {
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Fusionne historique + live (live override les events postés avant).
+  // Fusionne historique (DB) + live (WS). Le même event arrive d'abord
+  // par WS (timestamp = moment du publish) puis par la requête /events
+  // refetchée (timestamp = created_at SQL), les deux différant de quelques
+  // ms. On dédupe par (type, payload) en n'écartant que les doublons
+  // proches dans le temps (< 2s) pour ne pas écraser des events légitimes
+  // qui répèteraient le même payload entre deux tours.
   const events = useMemo(() => {
-    const baseline: NormalizedEvent[] = (historical.data ?? []).map((e) => ({
-      key: `db-${e.id}`,
-      type: e.type,
-      timestamp: e.created_at,
-      data: e.payload,
-    }));
-    const liveItems: NormalizedEvent[] = live.events.map((e, i) => ({
-      key: `live-${i}-${e.timestamp}`,
-      type: e.type,
-      timestamp: e.timestamp,
-      data: e.data,
-    }));
-    return [...baseline, ...liveItems];
+    const seen: { fingerprint: string; ts: number }[] = [];
+    const merged: NormalizedEvent[] = [];
+    const consider = (item: NormalizedEvent) => {
+      const fingerprint = `${item.type}|${JSON.stringify(item.data)}`;
+      const ts = Date.parse(item.timestamp);
+      const dup = seen.some(
+        (s) => s.fingerprint === fingerprint && Math.abs(s.ts - ts) < 2000,
+      );
+      if (dup) return;
+      seen.push({ fingerprint, ts });
+      merged.push(item);
+    };
+    for (const e of historical.data ?? []) {
+      consider({
+        key: `db-${e.id}`,
+        type: e.type,
+        timestamp: e.created_at,
+        data: e.payload,
+      });
+    }
+    live.events.forEach((e, i) => {
+      consider({
+        key: `live-${i}-${e.timestamp}`,
+        type: e.type,
+        timestamp: e.timestamp,
+        data: e.data,
+      });
+    });
+    return merged;
   }, [historical.data, live.events]);
 
   const handleSend = async (e: React.FormEvent) => {
@@ -139,29 +162,45 @@ export function SessionPage(): JSX.Element {
         <Avatar size={24}>J</Avatar>
       </header>
 
-      <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[200px_1fr_320px]">
+      <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[220px_1fr_320px]">
         {/* Sidebar sessions */}
         <aside className="hidden flex-col overflow-y-auto border-r border-eldir-gray-3 py-2.5 md:flex">
           <div className="px-3 pb-2 eldir-caps">Sessions</div>
-          {(sessions.data ?? []).map((s) => (
-            <a
-              key={s.id}
-              href={`/sessions/${s.id}`}
-              className={cn(
-                'flex items-center gap-2 border-l-2 px-3 py-2 font-mono text-xs',
-                s.id === sessionId
-                  ? 'border-l-eldir-orange bg-eldir-cream text-eldir-ink'
-                  : 'border-l-transparent text-eldir-gray hover:bg-eldir-cream-2',
-              )}
-            >
-              <StatePill state={s.state} />
-              <span className="truncate">{s.id.slice(0, 8)}</span>
-            </a>
-          ))}
+          {(sessions.data ?? []).map((s) => {
+            const project = projects.data?.find((p) => p.id === s.project_id);
+            const active = s.id === sessionId;
+            return (
+              <a
+                key={s.id}
+                href={`/sessions/${s.id}`}
+                className={cn(
+                  'flex flex-col gap-0.5 border-l-2 px-3 py-2 font-mono text-xs',
+                  active
+                    ? 'border-l-eldir-orange bg-eldir-cream text-eldir-ink'
+                    : 'border-l-transparent text-eldir-gray hover:bg-eldir-cream-2',
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <StatePill state={s.state} />
+                  <span
+                    className={cn(
+                      'truncate font-semibold',
+                      active ? 'text-eldir-ink' : 'text-eldir-ink-2',
+                    )}
+                  >
+                    {project?.name ?? 'projet inconnu'}
+                  </span>
+                </div>
+                <span className="ml-5 truncate text-eldir-gray">
+                  {s.id.slice(0, 8)}
+                </span>
+              </a>
+            );
+          })}
         </aside>
 
         {/* Chat */}
-        <section className="flex min-h-0 flex-col border-r border-eldir-gray-3">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-eldir-gray-3">
           <ChatStream events={events} />
           {error && (
             <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red">
@@ -188,7 +227,7 @@ export function SessionPage(): JSX.Element {
         </section>
 
         {/* Right rail : Session meta (top) + Logs live stream (bottom) */}
-        <aside className="hidden min-h-0 flex-col border-l border-eldir-gray-3 md:flex">
+        <aside className="hidden min-h-0 min-w-0 flex-col overflow-hidden border-l border-eldir-gray-3 md:flex">
           <div className="flex flex-col gap-3 border-b border-eldir-gray-3 bg-eldir-paper p-4">
             <div className="eldir-caps">Session meta</div>
             <Kv k="id" v={session.data.id.slice(0, 12)} />
@@ -208,16 +247,30 @@ export function SessionPage(): JSX.Element {
             <Kv k="created" v={new Date(session.data.created_at).toLocaleTimeString()} />
           </div>
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-eldir-ink">
-            <div className="border-b border-eldir-ink-2 px-3 py-2 font-mono text-2xs text-eldir-gray-2">
-              // live · {live.state}
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-cream">
-              {events.map((e) => (
-                <LogLine key={e.key} event={e} />
-              ))}
-            </div>
-          </section>
+          <div className="flex border-b border-eldir-gray-3 bg-eldir-cream-2">
+            <RightTab
+              label={`live · ${live.state}`}
+              active={rightTab === 'live'}
+              onClick={() => setRightTab('live')}
+            />
+            <RightTab
+              label="diff"
+              active={rightTab === 'diff'}
+              onClick={() => setRightTab('diff')}
+            />
+          </div>
+
+          {rightTab === 'live' ? (
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-eldir-ink">
+              <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-cream">
+                {events.map((e) => (
+                  <LogLine key={e.key} event={e} />
+                ))}
+              </div>
+            </section>
+          ) : (
+            <DiffPanel sessionId={sessionId} />
+          )}
         </aside>
       </div>
     </div>
@@ -309,10 +362,12 @@ function ClaudeBubble({ children }: { children: React.ReactNode }): JSX.Element 
 
 function ToolRow({ name, arg }: { name: string; arg: string }): JSX.Element {
   return (
-    <div className="flex items-center gap-2 rounded-eldir border border-dashed border-eldir-gray-2 px-2.5 py-1.5 font-mono text-2xs text-eldir-gray">
-      <span className="text-eldir-gold">◇</span>
-      <span className="text-eldir-ink">{name}</span>
-      {arg && <span className="truncate opacity-70">({arg})</span>}
+    <div className="flex min-w-0 max-w-full items-center gap-2 rounded-eldir border border-dashed border-eldir-gray-2 px-2.5 py-1.5 font-mono text-2xs text-eldir-gray">
+      <span className="shrink-0 text-eldir-gold">◇</span>
+      <span className="shrink-0 text-eldir-ink">{name}</span>
+      {arg && (
+        <span className="min-w-0 flex-1 truncate opacity-70">({arg})</span>
+      )}
     </div>
   );
 }
@@ -356,5 +411,30 @@ function Kv({ k, v }: { k: string; v: string }): JSX.Element {
       <span className="text-eldir-gray">{k}</span>
       <span className="truncate text-eldir-ink">{v}</span>
     </div>
+  );
+}
+
+function RightTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex-1 px-3 py-2 font-mono text-2xs uppercase tracking-caps transition-colors',
+        active
+          ? 'border-b-2 border-eldir-orange bg-eldir-paper text-eldir-ink'
+          : 'border-b-2 border-transparent text-eldir-gray hover:text-eldir-ink',
+      )}
+    >
+      {label}
+    </button>
   );
 }

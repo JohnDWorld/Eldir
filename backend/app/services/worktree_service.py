@@ -49,6 +49,16 @@ class CloneResult:
     repo_slug: str
 
 
+@dataclass(slots=True, frozen=True)
+class FileChange:
+    """Un fichier modifié dans un diff (committed ou working tree)."""
+
+    path: str
+    status: str  # A | M | D | R | C | U | T (cf. git diff --name-status)
+    additions: int
+    deletions: int
+
+
 def _inject_token(clone_url: str, token: str) -> str:
     """Injecte un PAT dans l'URL HTTPS pour le clone."""
     parsed = urlparse(clone_url)
@@ -274,6 +284,70 @@ class WorktreeService:
     ) -> None:
         """Fast-forward la branche courante sur `upstream_ref`. Échoue sinon."""
         await self._run_git("merge", "--ff-only", upstream_ref, cwd=repo_path)
+
+    async def merge_base(
+        self, repo_path: Path, *, a: str, b: str
+    ) -> str | None:
+        """Retourne le SHA du merge-base entre `a` et `b`, ou None si absent."""
+        try:
+            return await self._run_git("merge-base", a, b, cwd=repo_path)
+        except WorkspaceError:
+            return None
+
+    async def diff_summary(
+        self, repo_path: Path, *, base_ref: str
+    ) -> list[FileChange]:
+        """Liste les fichiers modifiés depuis `base_ref` (committed + working tree).
+
+        Combine `git diff --name-status` et `git diff --numstat` pour avoir
+        à la fois le statut (A/M/D/R/C) et les stats de lignes.
+        """
+        try:
+            name_status = await self._run_git(
+                "diff", "--name-status", base_ref, cwd=repo_path
+            )
+            numstat = await self._run_git(
+                "diff", "--numstat", base_ref, cwd=repo_path
+            )
+        except WorkspaceError:
+            return []
+
+        stats: dict[str, tuple[int, int]] = {}
+        for line in numstat.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 3:
+                continue
+            adds_raw, dels_raw, path = parts[0], parts[1], parts[-1]
+            # Pour binaires, git met `-` au lieu de chiffres.
+            adds = int(adds_raw) if adds_raw.isdigit() else 0
+            dels = int(dels_raw) if dels_raw.isdigit() else 0
+            stats[path] = (adds, dels)
+
+        changes: list[FileChange] = []
+        for line in name_status.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            status_code = parts[0][:1]
+            path = parts[-1]
+            adds, dels = stats.get(path, (0, 0))
+            changes.append(
+                FileChange(
+                    path=path, status=status_code, additions=adds, deletions=dels
+                )
+            )
+        return changes
+
+    async def diff_file(
+        self, repo_path: Path, *, base_ref: str, path: str
+    ) -> str:
+        """Diff unifié d'un fichier vs `base_ref`. Retourne '' si pas de changement."""
+        try:
+            return await self._run_git(
+                "diff", base_ref, "--", path, cwd=repo_path
+            )
+        except WorkspaceError:
+            return ""
 
     async def checkout_new_branch(
         self,
