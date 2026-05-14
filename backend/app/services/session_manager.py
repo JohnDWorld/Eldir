@@ -151,24 +151,21 @@ class SessionManager:
             )
             return {}
 
-        async def _stop_hook(
-            input_data: dict[str, Any],
-            _tool_use_id: str | None,
-            _context: Any,
-        ) -> dict[str, Any]:
-            await self._publish(
-                session_id,
-                EVENT_TYPE_STOP,
-                {"reason": input_data.get("reason", "stop")},
-            )
-            return {}
-
+        # Note : pas de Stop hook ici — `_consume_response` publie déjà un
+        # EVENT_TYPE_STOP {"reason": "turn_complete"} quand un ResultMessage
+        # arrive. Doubler la publication faisait apparaître "TOUR TERMINÉ"
+        # deux fois côté UI.
         options_kwargs: dict[str, Any] = {
             "cwd": cwd,
+            # Pas de TTY côté serveur → le mode "default" bloque toute action
+            # qui demande approbation. Chaque session vit dans son worktree
+            # isolé et l'UI Eldir streame chaque tool_use en temps réel, donc
+            # on bypass pour rester utilisable. Un vrai flow d'approbation
+            # via WS arrivera en Phase 4.
+            "permission_mode": "bypassPermissions",
             "hooks": {
                 "PreToolUse": [HookMatcher(hooks=[_pre_tool_hook])],
                 "PostToolUse": [HookMatcher(hooks=[_post_tool_hook])],
-                "Stop": [HookMatcher(hooks=[_stop_hook])],
             },
         }
         if system_prompt:

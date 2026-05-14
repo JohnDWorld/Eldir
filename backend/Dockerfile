@@ -37,6 +37,17 @@ RUN apt-get update \
 RUN npm install -g @anthropic-ai/claude-code@latest \
  && command -v claude
 
+# Utilisateur non-root : le Claude CLI refuse `bypassPermissions` en root
+# ("--dangerously-skip-permissions cannot be used with root/sudo privileges").
+# UID/GID alignés sur l'utilisateur hôte pour que les bind-mounts (`./backend`)
+# restent lisibles/écrivables sans `sudo`.
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g $GID eldir \
+ && useradd -u $UID -g eldir -m -s /bin/bash eldir \
+ && mkdir -p /var/eldir/workspaces \
+ && chown -R eldir:eldir /var/eldir
+
 WORKDIR /app
 
 # Étape 1 : résolution des deps avec cache mount.
@@ -47,7 +58,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Étape 2 : code applicatif.
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --all-groups
+    uv sync --all-groups \
+ && chown -R eldir:eldir /app
+
+USER eldir
 
 EXPOSE 8000
 

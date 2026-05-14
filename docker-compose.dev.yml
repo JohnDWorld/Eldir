@@ -36,6 +36,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      # UID/GID hôte ⇒ permissions cohérentes sur les bind-mounts.
+      args:
+        UID: "1000"
+        GID: "1000"
+    user: "1000:1000"
     container_name: eldir-backend
     env_file:
       - ./backend/.env
