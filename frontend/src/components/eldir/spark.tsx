@@ -1,5 +1,5 @@
 /**
- * Spark — sparkline minimaliste sans dépendance.
+ * Spark - sparkline minimaliste sans dépendance.
  * Cf. DA/shared.jsx · Spark.
  */
 

@@ -1,4 +1,4 @@
-"""GitCredentialService — CRUD des PAT GitHub/Forgejo chiffrés."""
+"""GitCredentialService - CRUD des PAT GitHub/Forgejo chiffrés."""
 
 from __future__ import annotations
 

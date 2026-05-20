@@ -1,4 +1,4 @@
-# 🔥 Eldir — Roadmap
+# 🔥 Eldir - Roadmap
 
 > **Eldir** : du vieux norrois, "feu". Hub multi-agents Claude qui allume et orchestre plusieurs sessions Claude Code en parallèle sur tes repos.
 
@@ -16,18 +16,18 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 
 ## 🧭 Principes directeurs (non-négociables)
 
-1. **Self-hosted first** — conçu pour tourner sur le serveur de l'utilisateur, pas en SaaS centralisé
-2. **Multi-Git-provider** — GitHub et Forgejo natifs en V1, autres providers via plugins communautaires
-3. **Claude only** — pas de support pour OpenAI, Gemini ou autres LLM cloud (sauf Ollama local en complément)
-4. **Token-conscious by design** — chaque feature pensée pour minimiser la consommation de tokens
-5. **L'utilisateur reste maître** — alertes, jamais de blocages forcés
-6. **Easy install** — Docker Compose + setup wizard web, sans expertise DevOps requise
-7. **Documentation > code** — chaque feature livrée avec sa doc utilisateur ET sa doc dev
-8. **Open governance** — l'install propose Headscale + Forgejo pour souveraineté complète
-9. **Identité visuelle Claude** — palette aux couleurs Anthropic (orange `#D97757`, crème, noir)
-10. **Mobile-first** 📱 — chaque interface conçue pour mobile en premier, puis adaptée
-11. **Progressive Web App** 📲 — installable, mode hors-ligne, expérience native dès la Phase 0
-12. **DRY strict** 🔁 — aucune duplication tolérée, factorisation systématique, types partagés générés depuis le backend
+1. **Self-hosted first** - conçu pour tourner sur le serveur de l'utilisateur, pas en SaaS centralisé
+2. **Multi-Git-provider** - GitHub et Forgejo natifs en V1, autres providers via plugins communautaires
+3. **Claude only** - pas de support pour OpenAI, Gemini ou autres LLM cloud (sauf Ollama local en complément)
+4. **Token-conscious by design** - chaque feature pensée pour minimiser la consommation de tokens
+5. **L'utilisateur reste maître** - alertes, jamais de blocages forcés
+6. **Easy install** - Docker Compose + setup wizard web, sans expertise DevOps requise
+7. **Documentation > code** - chaque feature livrée avec sa doc utilisateur ET sa doc dev
+8. **Open governance** - l'install propose Headscale + Forgejo pour souveraineté complète
+9. **Identité visuelle Claude** - palette aux couleurs Anthropic (orange `#D97757`, crème, noir)
+10. **Mobile-first** 📱 - chaque interface conçue pour mobile en premier, puis adaptée
+11. **Progressive Web App** 📲 - installable, mode hors-ligne, expérience native dès la Phase 0
+12. **DRY strict** 🔁 - aucune duplication tolérée, factorisation systématique, types partagés générés depuis le backend
 
 ---
 
@@ -68,7 +68,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 
 ## 📦 Phasage
 
-### Phase 0 — Fondations (semaine 1-2)
+### Phase 0 - Fondations (semaine 1-2)
 
 **Objectif** : poser les bases techniques et identitaires.
 
@@ -98,7 +98,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [ ] Templates de PR et issues GitHub
 - [ ] `CONTRIBUTING.md` et `CODE_OF_CONDUCT.md`
 
-### Phase 1 — MVP : 1 user, 1 projet, 1 session (semaine 3-5)
+### Phase 1 - MVP : 1 user, 1 projet, 1 session (semaine 3-5)
 
 **Objectif** : pouvoir lancer une session Claude sur un repo et chatter avec depuis le web.
 
@@ -116,7 +116,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [ ] Bouton "Commit & Push" → git ops via le SDK
 - [ ] Documentation utilisateur de la phase (`docs/getting-started.md`)
 
-### Phase 2 — Multi-sessions parallèles (semaine 6-7)
+### Phase 2 - Multi-sessions parallèles (semaine 6-7)
 
 **Objectif** : le cœur du projet. Bosser sur 3 repos en même temps.
 
@@ -130,7 +130,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [ ] Background tasks : sessions qui continuent même quand tab fermé, avec notifications au retour
 - [ ] Indicateur "X agents actifs" dans le header
 
-### Phase 3 — Multi-provider Git (semaine 8)
+### Phase 3 - Multi-provider Git (semaine 8)
 
 **Objectif** : élargir aux utilisateurs Forgejo et offrir une vue unifiée.
 
@@ -143,7 +143,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [ ] Gestion multi-providers simultanés (un user peut avoir GitHub + Forgejo connectés)
 - [ ] Documentation provider Forgejo (`docs/providers/forgejo.md`)
 
-### Phase 4 — Mission Templates & Skills (semaine 9-10)
+### Phase 4 - Mission Templates & Skills (semaine 9-10)
 
 **Objectif** : rendre le hub vraiment puissant pour l'usage quotidien.
 
@@ -155,7 +155,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [ ] Versionnage des templates dans Postgres (rollback possible)
 - [ ] Library publique de skills partagée par la communauté (V2)
 
-### Phase 5 — Optimisation tokens (semaine 11)
+### Phase 5 - Optimisation tokens (semaine 11)
 
 **Objectif** : rendre Eldir économe en tokens par défaut.
 
@@ -168,7 +168,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [ ] **Sub-agents Haiku** pour tâches déterministes (recherche, classification)
 - [ ] Export CSV des coûts pour facturation/comptabilité
 
-### Phase 6 — Intégration Ollama (semaine 12)
+### Phase 6 - Intégration Ollama (semaine 12)
 
 **Objectif** : tirer parti d'Ollama local pour économies et données sensibles.
 
@@ -181,7 +181,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [ ] Routes spécifiques : "résumer ce gros fichier en local avant de l'envoyer à Claude"
 - [ ] Documentation des modes (`docs/ollama-integration.md`)
 
-### Phase 7 — Souveraineté complète (V2/V3)
+### Phase 7 - Souveraineté complète (V2/V3)
 
 **Objectif** : l'install d'Eldir devient une porte d'entrée vers la souveraineté numérique.
 
@@ -199,13 +199,13 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 
 Ces idées sont à intégrer au bon moment dans le phasage :
 
-1. **Mission Templates par repo** — Phase 4 ✅
-2. **Cross-session awareness** — Phase 5/6 — un agent peut consulter (read-only) le state d'un autre
-3. **Mode "supervisor"** — V2 — un agent chef d'orchestre qui délègue aux agents-projets selon des instructions de haut niveau
-4. **Library de skills communautaires** — V2 — partage et installation de skills depuis une marketplace open-source
-5. **Setup wizard souveraineté** — Phase 7 ✅
-6. **Mode données sensibles via Ollama** — Phase 6 ✅
-7. **Templates téléchargeables par stack** — Phase 4 ✅
+1. **Mission Templates par repo** - Phase 4 ✅
+2. **Cross-session awareness** - Phase 5/6 - un agent peut consulter (read-only) le state d'un autre
+3. **Mode "supervisor"** - V2 - un agent chef d'orchestre qui délègue aux agents-projets selon des instructions de haut niveau
+4. **Library de skills communautaires** - V2 - partage et installation de skills depuis une marketplace open-source
+5. **Setup wizard souveraineté** - Phase 7 ✅
+6. **Mode données sensibles via Ollama** - Phase 6 ✅
+7. **Templates téléchargeables par stack** - Phase 4 ✅
 
 ---
 

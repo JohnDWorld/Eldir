@@ -1,4 +1,4 @@
-"""Routes /sessions — CRUD + messages + stop."""
+"""Routes /sessions - CRUD + messages + stop."""
 
 from __future__ import annotations
 

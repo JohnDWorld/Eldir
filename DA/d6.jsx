@@ -1,4 +1,4 @@
-// Direction 6 — D1 × D3 mix
+// Direction 6 - D1 × D3 mix
 // Top: D1's fast-read cockpit (telemetry strip + tight session table).
 // Body: D3's tactile cork-board with post-its in Past / Now / Next columns.
 
@@ -128,7 +128,7 @@ function D6MobileHome() {
           </PostIt>
           {/* NEXT */}
           <PostIt kind="next" tilt={-1} pin="#3A6D9C" label="kiln · queued" w="100%"
-            footer={<><span>—</span><span>0.4</span></>}>
+            footer={<><span>-</span><span>0.4</span></>}>
             Cut release notes for v0.4
           </PostIt>
           <PostIt kind="done" tilt={1} pin="#3A2D22" label="lumen · 09:18" w="100%"
@@ -137,7 +137,7 @@ function D6MobileHome() {
           </PostIt>
           <PostIt kind="input" tilt={-1.5} pin="#D9A24A" label="lumen · s3" w="100%"
             footer={<><StatePill s="input" textColor="#9C6F1B"/><span>3m</span></>}>
-            Tailwind purge — confirm safelist?
+            Tailwind purge - confirm safelist?
           </PostIt>
           <PostIt kind="next" tilt={2} pin="#3A6D9C" label="mire · idea" w="100%">
             Notebook export to MDX
@@ -273,7 +273,7 @@ function D6DeskHome() {
               ['ACTIVE','3','sessions'],
               ['INPUT','1','awaiting you'],
               ['IDLE','2','projects'],
-              ['BLOCKED','0','—'],
+              ['BLOCKED','0','-'],
               ['TOKENS','419k','today',true],
               ['SPEND','$1.61','$8 cap',true],
             ].map(([l,v,s,k],i)=>(
@@ -309,7 +309,7 @@ function D6DeskHome() {
               <div style={{display:'flex',flexDirection:'column',gap:18}}>
                 <PostIt kind="done" tilt={-1.5} pin="#3A6D9C" label="atelier · 09:33"
                   footer={<><span>32m · 132k</span><span>$0.74</span></>}>
-                  Auth token rotation — shipped to staging, manual smoke ok
+                  Auth token rotation - shipped to staging, manual smoke ok
                 </PostIt>
                 <PostIt kind="done" tilt={1} pin="#3A2D22" label="lumen · 09:18"
                   footer={<><span>11m</span><span>$0.09</span></>}>
@@ -320,7 +320,7 @@ function D6DeskHome() {
                   Spike: ring-buffer perf bench (256 vs 1024)
                 </PostIt>
                 <PostIt kind="done" tilt={1.5} pin="#3A6D9C" label="kiln · 08:11"
-                  footer={<><span>2m</span><span>—</span></>}>
+                  footer={<><span>2m</span><span>-</span></>}>
                   Bump tsup to 8.4
                 </PostIt>
                 <PostIt kind="done" tilt={-2} pin="#3A2D22" label="eldir · 07:46"
@@ -332,7 +332,7 @@ function D6DeskHome() {
               <div style={{display:'flex',flexDirection:'column',gap:18}}>
                 <PostIt kind="now" tilt={1.5} pin="#C13E2E" label="eldir · s1 · 14:22"
                   footer={<><StatePill s="thinking" textColor="#9C7E1B"/><span>$0.21</span></>}>
-                  Refactor session router for SSE reconnect — switching to per-session ring buffer
+                  Refactor session router for SSE reconnect - switching to per-session ring buffer
                 </PostIt>
                 <PostIt kind="now" tilt={-1} pin="#C13E2E" label="eldir · s2 · 14:21"
                   footer={<><StatePill s="tool" textColor="#9C7E1B"/><span>$0.04</span></>}>
@@ -340,17 +340,17 @@ function D6DeskHome() {
                 </PostIt>
                 <PostIt kind="input" tilt={2} pin="#D9A24A" label="lumen · s3 · 09:38"
                   footer={<><StatePill s="input" textColor="#9C6F1B"/><span>$0.21</span></>}>
-                  Tailwind purge — confirm safelist? 3 candidates flagged
+                  Tailwind purge - confirm safelist? 3 candidates flagged
                 </PostIt>
               </div>
               {/* NEXT */}
               <div style={{display:'flex',flexDirection:'column',gap:18}}>
                 <PostIt kind="next" tilt={-1} pin="#3A6D9C" label="kiln · queued"
-                  footer={<><span>v0.4</span><span>—</span></>}>
+                  footer={<><span>v0.4</span><span>-</span></>}>
                   Cut release notes for v0.4 (changelog draft ready)
                 </PostIt>
                 <PostIt kind="next" tilt={1.5} pin="#3A6D9C" label="atelier · queued"
-                  footer={<><span>after auth</span><span>—</span></>}>
+                  footer={<><span>after auth</span><span>-</span></>}>
                   Add OAuth flow for Forgejo
                 </PostIt>
                 <PostIt kind="next" tilt={-1.5} pin="#3A6D9C" label="eldir · idea">
@@ -397,11 +397,11 @@ function D6DeskHome() {
               ['09:40:14','s1','tool','read_file router.ts'],
               ['09:39:50','s1','thinking','investigating buffer keys'],
               ['09:33:11','s4','idle','session ended (rotation done)'],
-              ['09:18:02','—', 'event','forgejo webhook · push'],
+              ['09:18:02','-', 'event','forgejo webhook · push'],
             ].map((e,i)=>(
               <div key={i} style={{display:'flex',gap:7,padding:'1px 0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                 <span style={{color:'#9c948a'}}>{e[0]}</span>
-                <span style={{color:e[1]==='—'?'#9c948a':'var(--orange)',width:18}}>{e[1]}</span>
+                <span style={{color:e[1]==='-'?'#9c948a':'var(--orange)',width:18}}>{e[1]}</span>
                 <span style={{color:STATES[e[2]]?STATES[e[2]].color:'#9c948a',width:60}}>{STATES[e[2]]?STATES[e[2]].label:e[2]}</span>
                 <span style={{color:'var(--cream)',flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e[3]}</span>
               </div>
@@ -477,7 +477,7 @@ function D6DeskSession() {
             <UserBubble>The session router drops SSE messages when the client reconnects mid-stream. Investigate.</UserBubble>
             <ClaudeBubble>Reading the router to see how it buffers messages between connections.</ClaudeBubble>
             <ToolRow name="read_file" arg="src/server/sessions/router.ts" meta="142 lines"/>
-            <ClaudeBubble>The buffer is keyed on socket id, not session id — switching to a per-session ring buffer.</ClaudeBubble>
+            <ClaudeBubble>The buffer is keyed on socket id, not session id - switching to a per-session ring buffer.</ClaudeBubble>
             <ToolRow name="edit_file" arg="router.ts" meta="+18 −7"/>
             <ToolRow name="run_bash" arg="pnpm test --filter=core" meta="running…" running/>
           </div>

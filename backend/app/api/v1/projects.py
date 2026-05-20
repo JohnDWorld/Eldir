@@ -1,4 +1,4 @@
-"""Routes /projects — list, get, create (from existing repo), delete."""
+"""Routes /projects - list, get, create (from existing repo), delete."""
 
 from __future__ import annotations
 

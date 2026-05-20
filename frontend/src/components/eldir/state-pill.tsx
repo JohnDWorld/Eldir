@@ -1,5 +1,5 @@
 /**
- * StatePill — dot + label pour annoncer l'état d'une session inline.
+ * StatePill - dot + label pour annoncer l'état d'une session inline.
  */
 
 import { StateDot } from '@/components/eldir/state-dot';

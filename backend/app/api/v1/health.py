@@ -1,4 +1,4 @@
-"""Route /health — sonde de santé pour Docker / monitoring."""
+"""Route /health - sonde de santé pour Docker / monitoring."""
 
 from __future__ import annotations
 

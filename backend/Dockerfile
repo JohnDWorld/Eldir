@@ -21,7 +21,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
 # Node 20 (LTS) + outils système requis par git et le SDK Claude.
 # Le Claude Agent SDK Python lance `claude` en subprocess (Node binary)
-# pour communiquer avec l'API Anthropic — il DOIT être dans le PATH.
+# pour communiquer avec l'API Anthropic - il DOIT être dans le PATH.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       git curl ca-certificates gnupg \
@@ -30,7 +30,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && node --version && npm --version
 
-# CLI officiel @anthropic-ai/claude-code — disponible pour debug et override
+# CLI officiel @anthropic-ai/claude-code - disponible pour debug et override
 # du binaire bundlé par le SDK Python (cf. docs/installation.md).
 # Note : on évite `claude --version` ici car certaines versions tentent un
 # onboarding interactif au premier lancement.

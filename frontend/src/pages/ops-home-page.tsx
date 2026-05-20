@@ -1,5 +1,5 @@
 /**
- * OpsHomePage — D1 Mission Control desktop, branchée sur les vraies données.
+ * OpsHomePage - D1 Mission Control desktop, branchée sur les vraies données.
  *
  * Layout (≥ md): 260px (projects) | 1fr (sessions + logs) | 320px (spend + events)
  * Layout (< md): stack verticale.
@@ -82,10 +82,10 @@ export function OpsHomePage(): JSX.Element {
     { label: 'Active', value: String(activeSessions.length), sub: 'sessions' },
     { label: 'Projects', value: String((projects.data ?? []).length), sub: 'cloned' },
     { label: 'Input', value: String(waitingInput), sub: 'awaiting you' },
-    { label: 'Blocked', value: String(blocked), sub: '—' },
+    { label: 'Blocked', value: String(blocked), sub: '-' },
     // Tokens et Spend restent en mock jusqu'à intégration OTel (Phase 5).
-    { label: 'Tokens', value: '—', sub: 'today', spark: MOCK_TOKENS_TODAY },
-    { label: 'Spend', value: '—', sub: '$8 cap', spark: MOCK_SPEND_7D },
+    { label: 'Tokens', value: '-', sub: 'today', spark: MOCK_TOKENS_TODAY },
+    { label: 'Spend', value: '-', sub: '$8 cap', spark: MOCK_SPEND_7D },
   ];
 
   const cards: SessionCardData[] = (sessions.data ?? [])
@@ -97,8 +97,8 @@ export function OpsHomePage(): JSX.Element {
       state: s.state,
       summary: s.summary ?? null,
       duration: durationSince(s.created_at),
-      tokens: '—',
-      cost: '—',
+      tokens: '-',
+      cost: '-',
     }));
 
   return (
@@ -220,8 +220,8 @@ export function OpsHomePage(): JSX.Element {
                 className="px-2.5"
               />
               <div className="flex justify-between px-2.5 pt-1 font-mono text-2xs text-eldir-gray">
-                <span>Phase 5 — OTel</span>
-                <span>—</span>
+                <span>Phase 5 - OTel</span>
+                <span>-</span>
               </div>
             </div>
           </div>

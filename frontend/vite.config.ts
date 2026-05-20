@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
           'icons/icon-maskable-512.png',
         ],
         manifest: {
-          name: 'Eldir — Mission Control',
+          name: 'Eldir - Mission Control',
           short_name: 'Eldir',
           description:
             'Hub multi-agents Claude pour orchestrer plusieurs sessions Claude Code.',

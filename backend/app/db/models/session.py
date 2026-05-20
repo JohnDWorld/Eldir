@@ -1,4 +1,4 @@
-"""Modèles Session et SessionEvent — coeur du domaine Eldir."""
+"""Modèles Session et SessionEvent - coeur du domaine Eldir."""
 
 from __future__ import annotations
 

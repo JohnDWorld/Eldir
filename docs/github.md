@@ -46,7 +46,7 @@ Aucune clé SSH n'est requise.
 
 ## Créer un nouveau repo depuis Eldir
 
-> Phase 1 — UI à venir. L'API est déjà prête.
+> Phase 1 - UI à venir. L'API est déjà prête.
 
 ```bash
 POST /api/v1/providers/github/repos
@@ -75,7 +75,7 @@ Si `create_project=true`, Eldir crée le repo distant **puis** le clone et le pe
 - Le PAT n'est **jamais** affiché en clair via l'API d'Eldir. Seuls les 4 derniers caractères sont visibles (`…aB12`).
 - Le token est chiffré au repos avec ta clé `ENCRYPTION_KEY` (Fernet, AES-128-CBC + HMAC).
 - En cas de fuite, **révoque le PAT** sur GitHub puis remplace-le dans Settings > Git.
-- Eldir ne stocke aucune information sur tes repos en clair — juste le `full_name` et la branche par défaut.
+- Eldir ne stocke aucune information sur tes repos en clair - juste le `full_name` et la branche par défaut.
 
 ## Dépannage
 
@@ -93,4 +93,4 @@ Vérifie que le PAT a accès au repo en question (côté GitHub, dans les permis
 
 ### Eldir tourne sur un VPS et le clone est lent
 
-Normal — le clone passe par HTTPS via le tunnel du container. Pour de gros repos, la première fois prend du temps. Eldir est **idempotent** : si le clone échoue, relance ; si le clone réussit, le repo n'est pas re-cloné.
+Normal - le clone passe par HTTPS via le tunnel du container. Pour de gros repos, la première fois prend du temps. Eldir est **idempotent** : si le clone échoue, relance ; si le clone réussit, le repo n'est pas re-cloné.

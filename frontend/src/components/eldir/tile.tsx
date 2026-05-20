@@ -1,5 +1,5 @@
 /**
- * Tile — telemetry tile (cockpit). Label caps + valeur tabular-nums + sub or sparkline.
+ * Tile - telemetry tile (cockpit). Label caps + valeur tabular-nums + sub or sparkline.
  * Cf. DA/d1.jsx · Tile + telemetry strip.
  */
 

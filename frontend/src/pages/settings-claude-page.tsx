@@ -1,5 +1,5 @@
 /**
- * SettingsClaudePage — gestion des credentials Claude post-install.
+ * SettingsClaudePage - gestion des credentials Claude post-install.
  * - Affiche les credentials existants (masqués).
  * - Permet de remplacer le token Pro/Max ou la clé API.
  * - Permet de supprimer un credential.

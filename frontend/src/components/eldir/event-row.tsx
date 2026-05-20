@@ -1,5 +1,5 @@
 /**
- * EventRow — ligne du panneau "EVENTS" (rail de droite).
+ * EventRow - ligne du panneau "EVENTS" (rail de droite).
  * Cf. DA/d1.jsx · D1DeskHome.
  */
 
@@ -7,12 +7,12 @@ import { cn } from '@/lib/utils';
 
 export interface EventEntry {
   time: string;
-  source: string; // ex. "s1" ou "—"
+  source: string; // ex. "s1" ou "-"
   message: string;
 }
 
 export function EventRow({ entry }: { entry: EventEntry }): JSX.Element {
-  const isSystem = entry.source === '—';
+  const isSystem = entry.source === '-';
   return (
     <div
       className={cn(

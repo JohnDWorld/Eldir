@@ -1,5 +1,5 @@
 /**
- * Avatar — pastille texte (initiales). Pas de chargement d'image — image vivra
+ * Avatar - pastille texte (initiales). Pas de chargement d'image - image vivra
  * plus tard derrière `<img>` dans la version finale.
  */
 

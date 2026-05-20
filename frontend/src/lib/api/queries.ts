@@ -1,5 +1,5 @@
 /**
- * TanStack Query — keys et hooks réutilisables.
+ * TanStack Query - keys et hooks réutilisables.
  * Une seule source de vérité pour les `queryKey` (DRY).
  */
 
@@ -47,6 +47,16 @@ export const queryKeys = {
   sessionDiff: (id: string) => ['sessions', id, 'diff'] as const,
   sessionDiffFile: (id: string, path: string) =>
     ['sessions', id, 'diff', 'file', path] as const,
+  projectTemplate: (projectId: string) =>
+    ['projects', projectId, 'template'] as const,
+  projectTemplateSkills: (projectId: string) =>
+    ['projects', projectId, 'template', 'skills'] as const,
+  projectTemplateSubAgents: (projectId: string) =>
+    ['projects', projectId, 'template', 'sub-agents'] as const,
+  templatePresets: ['templates', 'presets'] as const,
+  templatePreset: (slug: string) => ['templates', 'presets', slug] as const,
+  templateVersions: (projectId: string) =>
+    ['projects', projectId, 'template', 'versions'] as const,
 };
 
 export function useHealth() {
@@ -410,6 +420,364 @@ export function useOpenPR(sessionId: string) {
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.sessionGitStatus(sessionId) });
+    },
+  });
+}
+
+// ── Mission Templates (Phase 4) ───────────────────────────────
+export type TemplateSkill = {
+  id: string;
+  template_id: string;
+  name: string;
+  description: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TemplateSubAgent = {
+  id: string;
+  template_id: string;
+  name: string;
+  description: string | null;
+  system_prompt: string;
+  allowed_tools: string[] | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MissionTemplate = {
+  id: string;
+  project_id: string;
+  system_prompt: string | null;
+  model: string | null;
+  allowed_tools: string[] | null;
+  source_preset: string | null;
+  skills: TemplateSkill[];
+  sub_agents: TemplateSubAgent[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type MissionTemplateWrite = {
+  system_prompt: string | null;
+  model: string | null;
+  allowed_tools: string[] | null;
+};
+
+export type TemplateSkillWrite = {
+  name: string;
+  description: string | null;
+  content: string;
+};
+
+export type TemplateSubAgentWrite = {
+  name: string;
+  description: string | null;
+  system_prompt: string;
+  allowed_tools: string[] | null;
+};
+
+export function useProjectTemplate(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.projectTemplate(projectId),
+    queryFn: ({ signal }) =>
+      apiClient.get<MissionTemplate | null>(
+        `/projects/${projectId}/template`,
+        { signal },
+      ),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useUpsertProjectTemplate(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MissionTemplateWrite) =>
+      apiClient.put<MissionTemplate, MissionTemplateWrite>(
+        `/projects/${projectId}/template`,
+        body,
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.projectTemplate(projectId), data);
+    },
+  });
+}
+
+export function useDeleteProjectTemplate(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.delete<void>(`/projects/${projectId}/template`),
+    onSuccess: () => {
+      qc.setQueryData(queryKeys.projectTemplate(projectId), null);
+    },
+  });
+}
+
+export function useTemplateSkills(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.projectTemplateSkills(projectId),
+    queryFn: ({ signal }) =>
+      apiClient.get<TemplateSkill[]>(
+        `/projects/${projectId}/template/skills`,
+        { signal },
+      ),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useCreateTemplateSkill(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TemplateSkillWrite) =>
+      apiClient.post<TemplateSkill, TemplateSkillWrite>(
+        `/projects/${projectId}/template/skills`,
+        body,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSkills(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplate(projectId),
+      });
+    },
+  });
+}
+
+export function useUpdateTemplateSkill(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: TemplateSkillWrite }) =>
+      apiClient.put<TemplateSkill, TemplateSkillWrite>(
+        `/projects/${projectId}/template/skills/${id}`,
+        body,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSkills(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplate(projectId),
+      });
+    },
+  });
+}
+
+export function useDeleteTemplateSkill(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.delete<void>(`/projects/${projectId}/template/skills/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSkills(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplate(projectId),
+      });
+    },
+  });
+}
+
+export function useTemplateSubAgents(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.projectTemplateSubAgents(projectId),
+    queryFn: ({ signal }) =>
+      apiClient.get<TemplateSubAgent[]>(
+        `/projects/${projectId}/template/sub-agents`,
+        { signal },
+      ),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useCreateTemplateSubAgent(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TemplateSubAgentWrite) =>
+      apiClient.post<TemplateSubAgent, TemplateSubAgentWrite>(
+        `/projects/${projectId}/template/sub-agents`,
+        body,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSubAgents(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplate(projectId),
+      });
+    },
+  });
+}
+
+export function useUpdateTemplateSubAgent(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: TemplateSubAgentWrite;
+    }) =>
+      apiClient.put<TemplateSubAgent, TemplateSubAgentWrite>(
+        `/projects/${projectId}/template/sub-agents/${id}`,
+        body,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSubAgents(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplate(projectId),
+      });
+    },
+  });
+}
+
+export function useDeleteTemplateSubAgent(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.delete<void>(
+        `/projects/${projectId}/template/sub-agents/${id}`,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSubAgents(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplate(projectId),
+      });
+    },
+  });
+}
+
+// ── Template presets (Chantier 5) ─────────────────────────────
+export type TemplatePresetSummary = {
+  slug: string;
+  title: string;
+  description: string;
+  tags: string[];
+  model: string | null;
+  skill_count: number;
+  sub_agent_count: number;
+};
+
+export type TemplatePresetSkill = {
+  name: string;
+  description: string | null;
+  content: string;
+};
+
+export type TemplatePresetSubAgent = {
+  name: string;
+  description: string | null;
+  system_prompt: string;
+  allowed_tools: string[] | null;
+};
+
+export type TemplatePresetDetail = {
+  slug: string;
+  title: string;
+  description: string;
+  tags: string[];
+  system_prompt: string;
+  model: string | null;
+  allowed_tools: string[] | null;
+  skills: TemplatePresetSkill[];
+  sub_agents: TemplatePresetSubAgent[];
+};
+
+export function useTemplatePresets() {
+  return useQuery({
+    queryKey: queryKeys.templatePresets,
+    queryFn: ({ signal }) =>
+      apiClient.get<TemplatePresetSummary[]>('/templates/presets', { signal }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useTemplatePreset(slug: string | null) {
+  return useQuery({
+    queryKey: slug ? queryKeys.templatePreset(slug) : ['templates', 'presets', 'none'],
+    queryFn: ({ signal }) =>
+      apiClient.get<TemplatePresetDetail>(`/templates/presets/${slug!}`, {
+        signal,
+      }),
+    enabled: Boolean(slug),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export type TemplateVersion = {
+  id: string;
+  template_id: string;
+  version_index: number;
+  note: string | null;
+  snapshot: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export function useTemplateVersions(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.templateVersions(projectId),
+    queryFn: ({ signal }) =>
+      apiClient.get<TemplateVersion[]>(
+        `/projects/${projectId}/template/versions`,
+        { signal },
+      ),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useRestoreTemplateVersion(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      versionId,
+      note,
+    }: {
+      versionId: string;
+      note?: string | null;
+    }) =>
+      apiClient.post<MissionTemplate, { note: string | null }>(
+        `/projects/${projectId}/template/versions/${versionId}/restore`,
+        { note: note ?? null },
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.projectTemplate(projectId), data);
+      qc.invalidateQueries({
+        queryKey: queryKeys.templateVersions(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSkills(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSubAgents(projectId),
+      });
+    },
+  });
+}
+
+export function useApplyTemplatePreset(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { slug: string; overwrite: boolean }) =>
+      apiClient.post<MissionTemplate, { slug: string; overwrite: boolean }>(
+        `/projects/${projectId}/template/apply-preset`,
+        body,
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.projectTemplate(projectId), data);
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSkills(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSubAgents(projectId),
+      });
     },
   });
 }

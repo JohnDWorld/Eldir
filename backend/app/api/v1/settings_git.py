@@ -1,4 +1,4 @@
-"""Routes /settings/git-credentials — CRUD PAT GitHub/Forgejo."""
+"""Routes /settings/git-credentials - CRUD PAT GitHub/Forgejo."""
 
 from __future__ import annotations
 

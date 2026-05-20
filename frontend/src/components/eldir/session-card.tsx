@@ -1,5 +1,5 @@
 /**
- * SessionCard — carte session dans la grille Mission Control desktop.
+ * SessionCard - carte session dans la grille Mission Control desktop.
  * Bordure gauche colorée selon l'état (cf. DA/d1.jsx · D1DeskHome).
  */
 

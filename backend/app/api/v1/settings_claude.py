@@ -1,4 +1,4 @@
-"""Routes /settings/claude-credentials — CRUD post-bootstrap."""
+"""Routes /settings/claude-credentials - CRUD post-bootstrap."""
 
 from __future__ import annotations
 

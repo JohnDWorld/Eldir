@@ -1,4 +1,4 @@
-// Direction 3 — "Workshop"
+// Direction 3 - "Workshop"
 // Atelier metaphor. Pegboard with hanging tools. Warm, organic, tactile.
 
 function Pegboard({ children, style }) {
@@ -107,7 +107,7 @@ function D3MobileSession() {
         <span style={{padding:'4px 8px',background:'var(--cream)',borderRadius:4,
           font:'500 10px/1 var(--font-mono)',color:'var(--orange)',display:'flex',alignItems:'center',gap:5}}><StateDot s="thinking"/>thinking</span>
       </div>
-      {/* tool rack — small icons of other tools */}
+      {/* tool rack - small icons of other tools */}
       <Pegboard style={{margin:'8px 14px 12px',padding:'18px 12px 12px',borderRadius:8}}>
         <div style={{font:'500 9px/1 var(--font-ui)',color:'#6a5640',letterSpacing:'.1em',textTransform:'uppercase',marginBottom:10}}>Other tools on the rack</div>
         <div style={{display:'flex',gap:10,overflow:'hidden'}}>
@@ -121,12 +121,12 @@ function D3MobileSession() {
           ))}
         </div>
       </Pegboard>
-      {/* the bench — chat */}
+      {/* the bench - chat */}
       <div style={{padding:'4px 18px',font:'500 10px/1 var(--font-ui)',color:'var(--gray)',letterSpacing:'.08em',textTransform:'uppercase'}}>The bench</div>
       <div style={{flex:1,padding:'10px 18px 100px',display:'flex',flexDirection:'column',gap:12,
         height:'calc(100% - 320px)',overflow:'hidden'}}>
         <UserBubble>The session router drops SSE messages when the client reconnects.</UserBubble>
-        <ClaudeBubble>Switching to a per-session ring buffer — that should hold across reconnects.</ClaudeBubble>
+        <ClaudeBubble>Switching to a per-session ring buffer - that should hold across reconnects.</ClaudeBubble>
         <ToolStrip name="edit_file" arg="router.ts" meta="+18 −7"/>
       </div>
       <div style={{position:'absolute',bottom:18,left:14,right:14,padding:'10px 14px',
@@ -177,7 +177,7 @@ function D3DeskHome() {
             </div>
           </div>
         </Pegboard>
-        {/* Workbench drawer at bottom — projects */}
+        {/* Workbench drawer at bottom - projects */}
         <div style={{padding:'18px 32px',background:'var(--paper)',borderTop:'1px solid var(--gray-3)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <span style={{font:'500 11px/1 var(--font-ui)',color:'var(--gray)',letterSpacing:'.08em',textTransform:'uppercase'}}>Workbench · projects in shop</span>

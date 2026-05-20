@@ -1,10 +1,10 @@
-# Eldir — Frontend
+# Eldir - Frontend
 
-React 18 + Vite + TypeScript strict + Tailwind + shadcn/ui (hybride) + PWA. DA portée depuis [`../DA/d1.jsx`](../DA/d1.jsx) — Direction 1 · Mission Control.
+React 18 + Vite + TypeScript strict + Tailwind + shadcn/ui (hybride) + PWA. DA portée depuis [`../DA/d1.jsx`](../DA/d1.jsx) - Direction 1 · Mission Control.
 
 Voir [`AGENTS.md`](../AGENTS.md), [`CLAUDE.md`](../CLAUDE.md), [`ROADMAP.md`](../ROADMAP.md) à la racine.
 
-## Démarrage (Docker — pas de pnpm local requis)
+## Démarrage (Docker - pas de pnpm local requis)
 
 ```bash
 # Build de l'image dev (cible `dev` du Dockerfile multi-stage)
@@ -18,7 +18,7 @@ Avec le `docker-compose.dev.yml` (à venir Phase 0), tout est branché en une co
 docker compose -f docker-compose.dev.yml up
 ```
 
-## Démarrage (local — si pnpm dispo)
+## Démarrage (local - si pnpm dispo)
 
 ```bash
 cp .env.example .env.local
@@ -32,7 +32,7 @@ pnpm dev
 pnpm lint
 pnpm typecheck
 pnpm test
-pnpm build       # build PWA — score Lighthouse > 90 obligatoire
+pnpm build       # build PWA - score Lighthouse > 90 obligatoire
 ```
 
 ## Structure
@@ -45,7 +45,7 @@ src/
 ├── hooks/               # hooks React custom réutilisables
 ├── lib/
 │   ├── api/             # client API centralisé + queries TanStack
-│   ├── types/           # types miroir backend (Phase 0 — généré ensuite)
+│   ├── types/           # types miroir backend (Phase 0 - généré ensuite)
 │   ├── validation/      # schémas Zod
 │   ├── store/           # Zustand stores
 │   ├── constants.ts
@@ -68,6 +68,6 @@ Couleurs Eldir : `bg-eldir-paper`, `text-eldir-ink`, `border-eldir-gray-3`,
 
 ## Phase actuelle
 
-Phase 0 — fondations posées. La D1 Mission Control desktop sera portée à
+Phase 0 - fondations posées. La D1 Mission Control desktop sera portée à
 l'étape suivante (composants `Tile`, `StatePill`, `ToolRow`, `DiffViewer`,
 `LogsPanel`, layout `260px | 1fr | 320px`).

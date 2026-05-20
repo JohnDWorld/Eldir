@@ -44,7 +44,7 @@ pnpm test
 pnpm build                    # Vérifie que la build PWA passe
 ```
 
-## Stack — versions imposées
+## Stack - versions imposées
 
 - **Python 3.12+** (types modernes : `list[str]`, jamais `List[str]`)
 - **FastAPI** (async exclusif, jamais de routes sync)
@@ -60,7 +60,7 @@ pnpm build                    # Vérifie que la build PWA passe
 - **pnpm** package manager (jamais npm)
 - **PostgreSQL 16 + Redis 7**
 
-## Code style — règles strictes
+## Code style - règles strictes
 
 ### Python
 - Formatage : `ruff format`. Linting : `ruff check`. Types : `mypy --strict`.
@@ -74,9 +74,9 @@ pnpm build                    # Vérifie que la build PWA passe
 ### TypeScript
 - Function components uniquement, jamais de class components.
 - Naming : `PascalCase` pour composants, `camelCase` pour le reste, `kebab-case.tsx` pour les fichiers.
-- Pas de `useEffect` pour fetch — utiliser TanStack Query.
-- Pas de `fetch()` direct dans les composants — passer par le client API centralisé dans `lib/api/`.
-- Pas de CSS inline ni fichiers `.css` — Tailwind exclusivement.
+- Pas de `useEffect` pour fetch - utiliser TanStack Query.
+- Pas de `fetch()` direct dans les composants - passer par le client API centralisé dans `lib/api/`.
+- Pas de CSS inline ni fichiers `.css` - Tailwind exclusivement.
 - Types partagés avec le backend : générés depuis Pydantic, jamais redéfinis à la main.
 
 ### Git
@@ -98,12 +98,12 @@ Toute UI conçue pour 375×667px d'abord, adaptée pour tablette/desktop ensuite
 ```
 
 ### 2. PWA
-Eldir est installable. Score Lighthouse PWA > 90 obligatoire. Mode hors-ligne géré élégamment (jamais de crash réseau down). Manifest, Service Worker, splash screen aux couleurs Claude — tout configuré dès la Phase 0 via `vite-plugin-pwa`.
+Eldir est installable. Score Lighthouse PWA > 90 obligatoire. Mode hors-ligne géré élégamment (jamais de crash réseau down). Manifest, Service Worker, splash screen aux couleurs Claude - tout configuré dès la Phase 0 via `vite-plugin-pwa`.
 
 ### 3. DRY strict
 Aucune duplication tolérée. **Règle des 3** : à la 3ème duplication, factorisation OBLIGATOIRE. Composant UI dupliqué → composant réutilisable. Logique stateful dupliquée → hook custom. Validation dupliquée → schéma Zod/Pydantic réutilisable. Type TS dupliqué → générer depuis le backend.
 
-## Architecture — règles spécifiques au domaine
+## Architecture - règles spécifiques au domaine
 
 ### Sessions Claude
 - **Une session = un `ClaudeSDKClient`** instancié par `SessionManager`.
@@ -133,7 +133,7 @@ Aucune duplication tolérée. **Règle des 3** : à la 3ème duplication, factor
 - ❌ Spawner Claude Code en subprocess (utiliser le SDK Python directement)
 - ❌ Parser de l'output texte de Claude Code (le SDK fournit des objets typés)
 - ❌ Utiliser `tmux` pour gérer les sessions (le SDK gère ça nativement)
-- ❌ Bloquer l'utilisateur (budget, action…) — toujours alerter, laisser le contrôle
+- ❌ Bloquer l'utilisateur (budget, action…) - toujours alerter, laisser le contrôle
 - ❌ Stocker des secrets en clair en DB (chiffrement obligatoire)
 - ❌ Coupler le code à GitHub spécifiquement (passer par `GitProviderInterface`)
 - ❌ CSS inline ou fichiers `.css` (Tailwind exclusivement)

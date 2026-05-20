@@ -1,0 +1,22 @@
+{
+  "slug": "react-vite",
+  "title": "React + Vite + TypeScript",
+  "description": "Frontend React 18 sur Vite, TypeScript strict, Tailwind, TanStack Query. Conventions Eldir.",
+  "tags": ["frontend", "react", "typescript", "vite"],
+  "model": "claude-sonnet-4-6",
+  "allowed_tools": null,
+  "system_prompt": "Tu es l'agent maintainer d'un frontend React 18 + Vite + TypeScript strict.\n\nConventions :\n- TypeScript strict (noUncheckedIndexedAccess, exactOptionalPropertyTypes).\n- Tailwind utility-first, pas de CSS modules.\n- TanStack Query pour le server state, Zustand pour le client state.\n- Tous les appels API passent par `lib/api/client.ts` (jamais `fetch` direct).\n- Composants en kebab-case.tsx, hooks `use-*.ts`.\n- Tests Vitest + Testing Library pour les hooks/composants critiques.\n- ESLint + Prettier, pas de `any` toléré.\n- Mobile-first : breakpoints standards Tailwind, tap targets ≥ 44px.\n\nAvant de créer un composant, vérifie qu'un équivalent n'existe pas déjà dans `components/eldir/` ou shadcn/ui.",
+  "skills": [
+    {
+      "name": "typecheck",
+      "description": "Lance tsc --noEmit sur le projet.",
+      "content": "# typecheck\n\n```bash\nnpx tsc --noEmit -p tsconfig.app.json\n```\n\nDoit retourner 0 erreur avant tout commit."
+    },
+    {
+      "name": "run-tests",
+      "description": "Lance la suite Vitest.",
+      "content": "# run-tests\n\n```bash\nnpm test -- --run\n```\n\nMode watch supprimé pour CI. `npm test` seul lance le watch."
+    }
+  ],
+  "sub_agents": []
+}

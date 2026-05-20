@@ -1,11 +1,11 @@
-# CLAUDE.md — Eldir
+# CLAUDE.md - Eldir
 
 > Ce fichier contient les détails approfondis spécifiques à **Claude Code** sur le projet Eldir.
 >
 > **À lire en complément** :
-> - `AGENTS.md` — règles standards pour tous les agents IA (commandes, conventions, anti-patterns)
-> - `ROADMAP.md` — vision globale, phasage, décisions architecturales
-> - `README.md` — présentation du projet (humains)
+> - `AGENTS.md` - règles standards pour tous les agents IA (commandes, conventions, anti-patterns)
+> - `ROADMAP.md` - vision globale, phasage, décisions architecturales
+> - `README.md` - présentation du projet (humains)
 
 Si une info est dans `AGENTS.md`, je ne la duplique pas ici. Ce fichier ajoute uniquement ce qui est utile à Claude Code spécifiquement ou ce qui mérite plus de détails.
 
@@ -227,6 +227,6 @@ Si une décision n'est pas claire :
 
 1. Vérifier `AGENTS.md` pour les conventions strictes
 2. Vérifier `ROADMAP.md` pour la vision et le phasage
-3. **Si toujours pas clair, demander à John avant d'agir** — jamais inventer
+3. **Si toujours pas clair, demander à John avant d'agir** - jamais inventer
 
 Eldir est un projet qui doit durer. Chaque choix technique doit être justifiable dans 1 an, 2 ans, 5 ans.

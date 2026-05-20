@@ -98,22 +98,22 @@ const PROJECTS = [
   { id:'eldir',    name:'eldir',         org:'jules',  pv:'fj', branch:'feat/sessions',   sessions:2, last:'2m ago',  tokens:'128k', cost:'$0.42', dirty:7 },
   { id:'lumen',    name:'lumen-web',     org:'jules',  pv:'gh', branch:'main',            sessions:1, last:'14m ago', tokens:'67k',  cost:'$0.21', dirty:0 },
   { id:'atelier',  name:'atelier-api',   org:'jules',  pv:'fj', branch:'fix/auth-token',  sessions:1, last:'1h ago',  tokens:'212k', cost:'$0.74', dirty:3 },
-  { id:'kiln',     name:'kiln-cli',      org:'jules',  pv:'gh', branch:'release/0.4',     sessions:0, last:'3h ago',  tokens:'0',    cost:'—',     dirty:0 },
-  { id:'mire',     name:'mire-notebook', org:'jules',  pv:'gh', branch:'main',            sessions:0, last:'2d ago',  tokens:'0',    cost:'—',     dirty:0 },
+  { id:'kiln',     name:'kiln-cli',      org:'jules',  pv:'gh', branch:'release/0.4',     sessions:0, last:'3h ago',  tokens:'0',    cost:'-',     dirty:0 },
+  { id:'mire',     name:'mire-notebook', org:'jules',  pv:'gh', branch:'main',            sessions:0, last:'2d ago',  tokens:'0',    cost:'-',     dirty:0 },
 ];
 
 const SESSIONS = [
   { id:'s1', proj:'eldir',   state:'thinking', summary:'Refactor session router for SSE reconnect',  tokens:'64k',  cost:'$0.21', dur:'14:22' },
   { id:'s2', proj:'eldir',   state:'tool',     summary:'Run pnpm test --filter=core',                tokens:'12k',  cost:'$0.04', dur:'02:11' },
-  { id:'s3', proj:'lumen',   state:'input',    summary:'Tailwind purge — confirm safelist?',         tokens:'67k',  cost:'$0.21', dur:'08:45' },
-  { id:'s4', proj:'atelier', state:'idle',     summary:'Auth token rotation — done.',                tokens:'212k', cost:'$0.74', dur:'32:09' },
+  { id:'s3', proj:'lumen',   state:'input',    summary:'Tailwind purge - confirm safelist?',         tokens:'67k',  cost:'$0.21', dur:'08:45' },
+  { id:'s4', proj:'atelier', state:'idle',     summary:'Auth token rotation - done.',                tokens:'212k', cost:'$0.74', dur:'32:09' },
 ];
 
 const CHAT = [
   { who:'user', text:'The session router drops SSE messages when the client reconnects mid-stream. Investigate.' },
   { who:'claude', text:"Reading the router to see how it buffers messages between connections." },
   { who:'tool', name:'read_file', arg:'src/server/sessions/router.ts', meta:'142 lines' },
-  { who:'claude', text:'The buffer is keyed on socket id, not session id — that\'s why a reconnect loses everything. Switching to a per-session ring buffer.' },
+  { who:'claude', text:'The buffer is keyed on socket id, not session id - that\'s why a reconnect loses everything. Switching to a per-session ring buffer.' },
   { who:'tool', name:'edit_file', arg:'src/server/sessions/router.ts', meta:'+18 −7', diff:true },
   { who:'tool', name:'run_bash',  arg:'pnpm test --filter=core', meta:'running…', running:true },
 ];

@@ -54,7 +54,7 @@ Anthropic a lancé Cowork pour orchestrer des agents IA. Eldir part de la même 
 | **Cible** | Knowledge workers, équipes pro | Devs souverains, indie hackers |
 | **Domaine** | Generic (docs, mail, slides…) | Dev pur (repos Git, code) |
 | **Git providers** | GitHub uniquement | GitHub **+ Forgejo** natifs |
-| **Licence** | Propriétaire | AGPL v3 — modifiable, forkable |
+| **Licence** | Propriétaire | AGPL v3 - modifiable, forkable |
 | **Mobile** | Desktop-first | **Mobile-first PWA** installable |
 | **Coût** | Abonnement Anthropic | Gratuit (hors tokens API) |
 | **Extensible** | Limité aux connecteurs officiels | Skills, sub-agents et templates custom |
@@ -68,7 +68,7 @@ Anthropic a lancé Cowork pour orchestrer des agents IA. Eldir part de la même 
 Lance autant d'agents Claude que tu veux, sur autant de repos que tu veux. Chaque session est isolée dans son propre git worktree. Switch entre les sessions en un clic, les autres continuent à bosser en background.
 
 ### 🌍 Multi-Git providers natif
-GitHub et Forgejo sont supportés en first-class. Liste tes repos, crée des nouveaux repos, ouvre des PRs — tout depuis le dashboard. Provider-agnostic by design, GitLab et Gitea via plugins communautaires.
+GitHub et Forgejo sont supportés en first-class. Liste tes repos, crée des nouveaux repos, ouvre des PRs - tout depuis le dashboard. Provider-agnostic by design, GitLab et Gitea via plugins communautaires.
 
 ### 🎨 Mission Templates par projet
 Configure une fois les conventions de chaque repo (system prompt, skills, sub-agents, branches…), Eldir applique automatiquement le bon template à chaque session sur ce repo. Tes conventions deviennent automatiques.
@@ -125,14 +125,14 @@ C'est tout. En moins de 10 minutes tu chattes avec ton premier agent Claude depu
 
 Eldir est en développement actif. La V1 est prévue en ~3 mois avec un développement phasé :
 
-- ✅ **Phase 0** — Fondations (en cours)
-- ⏳ **Phase 1** — MVP : 1 session Claude depuis le dashboard
-- ⏳ **Phase 2** — Multi-sessions parallèles
-- ⏳ **Phase 3** — Multi-provider Git (GitHub + Forgejo)
-- ⏳ **Phase 4** — Mission Templates & Skills
-- ⏳ **Phase 5** — Optimisation tokens
-- ⏳ **Phase 6** — Intégration Ollama
-- ⏳ **Phase 7** — Souveraineté complète (Headscale + Forgejo intégrés)
+- ✅ **Phase 0** - Fondations (en cours)
+- ⏳ **Phase 1** - MVP : 1 session Claude depuis le dashboard
+- ⏳ **Phase 2** - Multi-sessions parallèles
+- ⏳ **Phase 3** - Multi-provider Git (GitHub + Forgejo)
+- ⏳ **Phase 4** - Mission Templates & Skills
+- ⏳ **Phase 5** - Optimisation tokens
+- ⏳ **Phase 6** - Intégration Ollama
+- ⏳ **Phase 7** - Souveraineté complète (Headscale + Forgejo intégrés)
 
 [→ Roadmap détaillée](./ROADMAP.md)
 

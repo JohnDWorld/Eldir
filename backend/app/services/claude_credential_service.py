@@ -1,8 +1,8 @@
-"""ClaudeCredentialService — gestion des credentials Anthropic chiffrés.
+"""ClaudeCredentialService - gestion des credentials Anthropic chiffrés.
 
 Précédence (cf. recherche faite en Phase 1) :
-1. oauth_token (Pro/Max) — utilisé en priorité
-2. api_key (Console) — fallback si pas de token ou token invalide
+1. oauth_token (Pro/Max) - utilisé en priorité
+2. api_key (Console) - fallback si pas de token ou token invalide
 
 Le token Pro/Max est injecté via `CLAUDE_CODE_OAUTH_TOKEN` dans l'env du
 process SDK ; l'API key via `ANTHROPIC_API_KEY`.
@@ -140,7 +140,7 @@ class ClaudeCredentialService:
         return None
 
     async def reveal_masked(self, cred: ClaudeCredential) -> str:
-        """Retourne uniquement la queue masquée — ne JAMAIS exposer le clair."""
+        """Retourne uniquement la queue masquée - ne JAMAIS exposer le clair."""
         try:
             plain = decrypt_secret(cred.encrypted_value)
         except Exception:  # noqa: BLE001

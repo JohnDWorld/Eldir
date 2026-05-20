@@ -76,7 +76,7 @@ class WorkspaceError(EldirError):
 
 
 class BudgetExceededWarning(EldirError):
-    """Levé pour signaler un dépassement — JAMAIS pour bloquer (cf. roadmap)."""
+    """Levé pour signaler un dépassement - JAMAIS pour bloquer (cf. roadmap)."""
 
     status_code = 200  # avertissement uniquement
     code = "budget_warning"

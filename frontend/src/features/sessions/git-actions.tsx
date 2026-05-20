@@ -1,5 +1,5 @@
 /**
- * SessionGitActions — boutons Commit & Push / Open PR + dialogs.
+ * SessionGitActions - boutons Commit & Push / Open PR + dialogs.
  */
 
 import { useState } from 'react';

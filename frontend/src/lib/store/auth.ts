@@ -1,5 +1,5 @@
 /**
- * Zustand — auth store (token JWT + persistance localStorage).
+ * Zustand - auth store (token JWT + persistance localStorage).
  */
 
 import { create } from 'zustand';

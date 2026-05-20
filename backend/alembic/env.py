@@ -1,4 +1,4 @@
-"""Alembic env — async, branche sur app.core.config et app.db.base.Base."""
+"""Alembic env - async, branche sur app.core.config et app.db.base.Base."""
 
 from __future__ import annotations
 

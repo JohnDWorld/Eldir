@@ -1,5 +1,5 @@
 /**
- * NewSessionDialog — sélecteur projet + bouton "lancer la session".
+ * NewSessionDialog - sélecteur projet + bouton "lancer la session".
  */
 
 import { useState } from 'react';
@@ -45,7 +45,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Elem
         </header>
 
         <p className="border-b border-eldir-gray-3 px-4 py-3 text-sm text-eldir-ink-2">
-          Choisis un projet — Eldir va instancier un agent Claude dans son
+          Choisis un projet - Eldir va instancier un agent Claude dans son
           workspace.
         </p>
 

@@ -1,5 +1,5 @@
 /**
- * useSessionStream — WS client pour les events live d'une session.
+ * useSessionStream - WS client pour les events live d'une session.
  *
  * Auth via query param `?token=<jwt>` (les WS browser ne supportent pas les
  * headers Authorization).

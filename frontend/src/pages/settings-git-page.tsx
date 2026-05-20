@@ -1,5 +1,5 @@
 /**
- * SettingsGitPage — gestion des PAT GitHub/Forgejo.
+ * SettingsGitPage - gestion des PAT GitHub/Forgejo.
  */
 
 import { useEffect, useState } from 'react';

@@ -1,4 +1,4 @@
-"""Routes /auth — login, /me."""
+"""Routes /auth - login, /me."""
 
 from __future__ import annotations
 

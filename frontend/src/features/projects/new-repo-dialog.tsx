@@ -1,5 +1,5 @@
 /**
- * NewRepoDialog — créer un nouveau repo distant (GitHub/Forgejo) puis
+ * NewRepoDialog - créer un nouveau repo distant (GitHub/Forgejo) puis
  * optionnellement le cloner en projet Eldir.
  */
 

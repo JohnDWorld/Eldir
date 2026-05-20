@@ -1,4 +1,4 @@
-"""SessionManager — pool de ClaudeSDKClient actifs.
+"""SessionManager - pool de ClaudeSDKClient actifs.
 
 Cycle de vie :
 - start_session(): clone du repo OK, credentials Claude OK → instancie SDK,
@@ -29,6 +29,7 @@ from app.core.constants import (
     EVENT_TYPE_TEXT,
     EVENT_TYPE_TOOL_RESULT,
     EVENT_TYPE_TOOL_USE,
+    EVENT_TYPE_USER_MESSAGE,
     MAX_CONCURRENT_SESSIONS,
     SESSION_STATE_IDLE,
     SESSION_STATE_THINKING,
@@ -104,7 +105,7 @@ class SessionManager:
                 f"Limite de {MAX_CONCURRENT_SESSIONS} sessions actives atteinte."
             )
 
-        # Lazy import — `claude_agent_sdk` n'est nécessaire qu'au boot d'une session.
+        # Lazy import - `claude_agent_sdk` n'est nécessaire qu'au boot d'une session.
         from claude_agent_sdk import (
             ClaudeAgentOptions,
             ClaudeSDKClient,
@@ -151,7 +152,7 @@ class SessionManager:
             )
             return {}
 
-        # Note : pas de Stop hook ici — `_consume_response` publie déjà un
+        # Note : pas de Stop hook ici - `_consume_response` publie déjà un
         # EVENT_TYPE_STOP {"reason": "turn_complete"} quand un ResultMessage
         # arrive. Doubler la publication faisait apparaître "TOUR TERMINÉ"
         # deux fois côté UI.
@@ -202,6 +203,12 @@ class SessionManager:
 
         # Une seule réception en cours à la fois par session.
         async with active.message_lock:
+            # Trace le message utilisateur (WS + DB) AVANT d'interroger
+            # Claude, pour que l'historique soit lisible même si la session
+            # est rechargée en cours de réponse.
+            await self._publish(
+                session_id, EVENT_TYPE_USER_MESSAGE, {"text": content}
+            )
             await self._publish_state(session_id, SESSION_STATE_THINKING)
             await active.client.query(content)
             await self._consume_response(active)
@@ -223,7 +230,7 @@ class SessionManager:
     # ── internals ───────────────────────────────────────────────
     async def _consume_response(self, active: ActiveSession) -> None:
         """Boucle de lecture du stream Claude. Capture session_id, publie events."""
-        assert active.client is not None  # noqa: S101 — invariant
+        assert active.client is not None  # noqa: S101 - invariant
         from claude_agent_sdk import (
             AssistantMessage,
             ResultMessage,

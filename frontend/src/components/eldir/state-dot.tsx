@@ -1,5 +1,5 @@
 /**
- * StateDot — pastille animée par état de session.
+ * StateDot - pastille animée par état de session.
  * Cf. DA/shared.jsx · STATES + DA/tokens.css · .dot.*
  */
 

@@ -1,4 +1,4 @@
-// Direction 5 — "Conversation-led"
+// Direction 5 - "Conversation-led"
 // Claude.ai / ChatGPT. The chat IS the interface. Tools render inline in convo.
 
 function D5MobileHome() {
@@ -79,7 +79,7 @@ function D5MobileSession() {
         <C5Claude>
           <div>Reading the router to see how it buffers messages between connections.</div>
           <C5InlineTool icon="📄" name="read_file" arg="src/server/sessions/router.ts"/>
-          <div style={{marginTop:8}}>The buffer is keyed on socket id, not session id — that's why a reconnect loses everything. Switching to a per-session ring buffer.</div>
+          <div style={{marginTop:8}}>The buffer is keyed on socket id, not session id - that's why a reconnect loses everything. Switching to a per-session ring buffer.</div>
           <C5InlineDiff/>
           <C5InlineTool icon="▶" name="run_bash" arg="pnpm test --filter=core" running/>
         </C5Claude>
@@ -240,7 +240,7 @@ function D5DeskHome() {
                 ['◇','Refactor the SSE router for clean reconnects','eldir'],
                 ['◇','Generate tests for auth/token rotation','atelier'],
                 ['◐','Audit dependencies and bump majors','lumen'],
-                ['+','Open a fresh conversation in any project','—'],
+                ['+','Open a fresh conversation in any project','-'],
               ].map((s,i)=>(
                 <div key={i} style={{padding:'14px 16px',background:'var(--cream)',border:'1px solid var(--gray-3)',borderRadius:12}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
@@ -317,10 +317,10 @@ function D5DeskSession() {
             <C5Claude>
               <div>Reading the router to see how it buffers messages between connections.</div>
               <C5InlineTool icon="📄" name="read_file" arg="src/server/sessions/router.ts"/>
-              <div style={{marginTop:10}}>The buffer is keyed on socket id, not session id — that's why a reconnect loses everything. Switching to a per-session ring buffer keyed on session id, with replay-from-last-ack on reconnect.</div>
+              <div style={{marginTop:10}}>The buffer is keyed on socket id, not session id - that's why a reconnect loses everything. Switching to a per-session ring buffer keyed on session id, with replay-from-last-ack on reconnect.</div>
               <C5InlineDiff/>
               <C5InlineTool icon="▶" name="run_bash" arg="pnpm test --filter=core" running/>
-              <div style={{marginTop:10,color:'var(--gray)',fontSize:12}}>Tests are running — I'll report back when the run finishes.</div>
+              <div style={{marginTop:10,color:'var(--gray)',fontSize:12}}>Tests are running - I'll report back when the run finishes.</div>
             </C5Claude>
           </div>
           <div style={{padding:'12px 32px 22px',borderTop:'1px solid var(--gray-3)'}}>

@@ -1,5 +1,5 @@
 /**
- * LoginPage — formulaire mono-user (V1).
+ * LoginPage - formulaire mono-user (V1).
  * Style cockpit, mobile-first (centré, plein écran).
  */
 

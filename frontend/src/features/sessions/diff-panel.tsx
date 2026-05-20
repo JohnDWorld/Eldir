@@ -1,5 +1,5 @@
 /**
- * DiffPanel — liste les fichiers modifiés par une session depuis sa base, et
+ * DiffPanel - liste les fichiers modifiés par une session depuis sa base, et
  * affiche le patch unifié du fichier sélectionné.
  *
  * Calcule le diff côté backend via /sessions/{id}/diff puis /diff/file?path=…

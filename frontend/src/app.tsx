@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/login-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 import { OpsHomePage } from '@/pages/ops-home-page';
 import { ProjectsPage } from '@/pages/projects-page';
+import { ProjectTemplatePage } from '@/pages/project-template-page';
 import { SessionPage } from '@/pages/session-page';
 import { SettingsClaudePage } from '@/pages/settings-claude-page';
 import { SettingsGitPage } from '@/pages/settings-git-page';
@@ -39,6 +40,10 @@ export function App(): JSX.Element {
           <Route element={<AuthedLayout />}>
             <Route path="/" element={<OpsHomePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route
+              path="/projects/:projectId/template"
+              element={<ProjectTemplatePage />}
+            />
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/claude" element={<SettingsClaudePage />} />

@@ -1,4 +1,4 @@
-"""SetupState — singleton qui pilote le bootstrap au premier boot."""
+"""SetupState - singleton qui pilote le bootstrap au premier boot."""
 
 from __future__ import annotations
 

@@ -19,7 +19,7 @@ class ClaudeCredentialCreate(EldirModel):
 
 
 class ClaudeCredentialRead(TimestampedModel):
-    """Vue safe — JAMAIS le secret en clair."""
+    """Vue safe - JAMAIS le secret en clair."""
 
     id: str
     kind: ClaudeCredentialKind

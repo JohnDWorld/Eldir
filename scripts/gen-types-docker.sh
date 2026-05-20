@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Variante 100% Docker — aucun outil requis sur la machine hôte.
+# Variante 100% Docker - aucun outil requis sur la machine hôte.
 #
 # Étape 1 : exporte OpenAPI via le container backend (uv).
 # Étape 2 : génère les types TS via une image node:20-alpine éphémère.

@@ -1,5 +1,5 @@
 /**
- * OpsShell — chrome interne de la page Ops (telemetry strip + contenu).
+ * OpsShell - chrome interne de la page Ops (telemetry strip + contenu).
  *
  * La topbar globale (brand + nav + avatar) est fournie par `AuthedLayout` via
  * `AppTopbar`. OpsShell ne s'occupe plus que de la bande télémétrie et de

@@ -1,5 +1,5 @@
 /**
- * AuthedLayout — wrappe toutes les routes authentifiées avec la topbar
+ * AuthedLayout - wrappe toutes les routes authentifiées avec la topbar
  * persistante et la guard `RequireAuth`. Le contenu de la route s'affiche
  * dans l'Outlet.
  */

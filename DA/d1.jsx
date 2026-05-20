@@ -1,4 +1,4 @@
-// Direction 1 — "Mission Control"
+// Direction 1 - "Mission Control"
 // Cockpit / NASA control room. Dense panels, tabbed mobile, multi-pane desktop.
 
 function D1MobileHome() {
@@ -103,7 +103,7 @@ function D1MobileSession() {
         <UserBubble>The session router drops SSE messages when the client reconnects mid-stream.</UserBubble>
         <ClaudeBubble>Reading the router to see how it buffers messages between connections.</ClaudeBubble>
         <ToolRow name="read_file" arg="src/server/sessions/router.ts" meta="142 lines"/>
-        <ClaudeBubble>The buffer is keyed on socket id, not session id — switching to a per-session ring buffer.</ClaudeBubble>
+        <ClaudeBubble>The buffer is keyed on socket id, not session id - switching to a per-session ring buffer.</ClaudeBubble>
         <ToolRow name="edit_file" arg="router.ts" meta="+18 −7"/>
       </div>
       {/* input */}
@@ -184,7 +184,7 @@ function D1DeskHome() {
           ['ACTIVE',  '4',     'sessions'],
           ['IDLE',    '2',     'projects'],
           ['INPUT',   '1',     'awaiting you'],
-          ['BLOCKED', '0',     '—'],
+          ['BLOCKED', '0',     '-'],
           ['TOKENS',  '419k',  'today',  true],
           ['SPEND',   '$1.61', '$8 cap', true],
         ].map(([l,v,s,k],i)=>(
@@ -249,7 +249,7 @@ function D1DeskHome() {
             <div><span style={{color:'var(--orange)'}}>s1</span> tool_use <span style={{color:'var(--gray-2)'}}>edit_file</span> +18 −7</div>
           </div>
         </div>
-        {/* right rail — events + cost */}
+        {/* right rail - events + cost */}
         <div style={{borderLeft:'1px solid var(--gray-3)',padding:'10px 14px',overflow:'auto'}}>
           <div style={{font:'600 10px/1 var(--font-mono)',letterSpacing:'.08em',color:'var(--gray)',marginBottom:8}}>SPEND · 7-DAY</div>
           <div style={{padding:'10px 0',background:'var(--cream)',border:'1px solid var(--gray-3)',borderRadius:3}}>
@@ -264,13 +264,13 @@ function D1DeskHome() {
             ['09:39','s3','awaiting input'],
             ['09:36','s2','test passed'],
             ['09:33','s4','session ended'],
-            ['09:18','—', 'forgejo webhook · push'],
+            ['09:18','-', 'forgejo webhook · push'],
             ['09:02','s1','session started'],
           ].map((e,i)=>(
             <div key={i} style={{display:'flex',gap:8,padding:'5px 0',font:'400 11px/1.3 var(--font-mono)',
               color:'var(--ink-2)',borderBottom:'1px dotted var(--gray-3)'}}>
               <span style={{color:'var(--gray)'}}>{e[0]}</span>
-              <span style={{color:e[1]==='—'?'var(--gray)':'var(--orange)',width:24}}>{e[1]}</span>
+              <span style={{color:e[1]==='-'?'var(--gray)':'var(--orange)',width:24}}>{e[1]}</span>
               <span style={{flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e[2]}</span>
             </div>
           ))}
@@ -317,7 +317,7 @@ function D1DeskSession() {
             <UserBubble>The session router drops SSE messages when the client reconnects mid-stream. Investigate.</UserBubble>
             <ClaudeBubble>Reading the router to see how it buffers messages between connections.</ClaudeBubble>
             <ToolRow name="read_file" arg="src/server/sessions/router.ts" meta="142 lines"/>
-            <ClaudeBubble>The buffer is keyed on socket id, not session id — that's why a reconnect loses everything. Switching to a per-session ring buffer.</ClaudeBubble>
+            <ClaudeBubble>The buffer is keyed on socket id, not session id - that's why a reconnect loses everything. Switching to a per-session ring buffer.</ClaudeBubble>
             <ToolRow name="edit_file" arg="router.ts" meta="+18 −7"/>
             <ToolRow name="run_bash" arg="pnpm test --filter=core" meta="running…" running/>
           </div>

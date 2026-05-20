@@ -1,5 +1,5 @@
 /**
- * AppTopbar — barre supérieure persistante pour tout l'app authentifié.
+ * AppTopbar - barre supérieure persistante pour tout l'app authentifié.
  *
  * Brand + onglets navigables (NavLink) + avatar. Le rail Telemetry vit dans
  * `OpsShell`, lui-même côté contenu et donc ré-utilisable sur d'autres pages

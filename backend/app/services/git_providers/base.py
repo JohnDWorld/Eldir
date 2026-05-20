@@ -1,4 +1,4 @@
-"""GitProviderInterface — abstraction multi-providers (GitHub, Forgejo, …).
+"""GitProviderInterface - abstraction multi-providers (GitHub, Forgejo, …).
 
 Cf. ROADMAP §Phase 3 et AGENTS.md §Architecture: tout couplage à GitHub
 spécifiquement est INTERDIT en dehors d'une implémentation concrète.

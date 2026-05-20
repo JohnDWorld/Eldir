@@ -1,5 +1,5 @@
 /**
- * Client API centralisé — JAMAIS appeler `fetch()` directement dans un composant.
+ * Client API centralisé - JAMAIS appeler `fetch()` directement dans un composant.
  * Cf. AGENTS.md §TypeScript.
  */
 
@@ -84,6 +84,8 @@ export const apiClient = {
     request<T>('GET', path, undefined, options),
   post: <T, B = unknown>(path: string, body?: B, options?: RequestOptions): Promise<T> =>
     request<T, B>('POST', path, body, options),
+  put: <T, B = unknown>(path: string, body?: B, options?: RequestOptions): Promise<T> =>
+    request<T, B>('PUT', path, body, options),
   patch: <T, B = unknown>(path: string, body?: B, options?: RequestOptions): Promise<T> =>
     request<T, B>('PATCH', path, body, options),
   delete: <T>(path: string, options?: RequestOptions): Promise<T> =>

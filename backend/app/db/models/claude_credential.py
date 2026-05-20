@@ -1,4 +1,4 @@
-"""ClaudeCredential — token Pro/Max et/ou API key Console, chiffrés en DB."""
+"""ClaudeCredential - token Pro/Max et/ou API key Console, chiffrés en DB."""
 
 from __future__ import annotations
 

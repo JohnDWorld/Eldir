@@ -1,4 +1,4 @@
-# Eldir — reverse proxy prod (cf. docker-compose.yml)
+# Eldir - reverse proxy prod (cf. docker-compose.yml)
 # Adapter le hostname avant le déploiement.
 
 {$ELDIR_HOSTNAME:eldir.local} {

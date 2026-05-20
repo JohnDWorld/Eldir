@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"
 
-    # ── GitHub OAuth App (optionnel — flow "Connect with GitHub") ──
+    # ── GitHub OAuth App (optionnel - flow "Connect with GitHub") ──
     github_oauth_client_id: str | None = None
     github_oauth_client_secret: SecretStr | None = None
     # Doit matcher l'Authorization callback URL configurée sur l'OAuth App GitHub.

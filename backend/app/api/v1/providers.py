@@ -1,4 +1,4 @@
-"""Routes /providers/{provider} — interactions avec les Git providers distants."""
+"""Routes /providers/{provider} - interactions avec les Git providers distants."""
 
 from __future__ import annotations
 

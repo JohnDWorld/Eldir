@@ -1,4 +1,4 @@
-"""initial schema — users, projects, sessions, events, costs, credentials.
+"""initial schema - users, projects, sessions, events, costs, credentials.
 
 Revision ID: 0001
 Revises:

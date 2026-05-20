@@ -1,4 +1,4 @@
-"""Git providers — registry et factory."""
+"""Git providers - registry et factory."""
 
 from app.core.constants import PROVIDER_FORGEJO, PROVIDER_GITHUB, SUPPORTED_PROVIDERS
 from app.core.exceptions import GitProviderError

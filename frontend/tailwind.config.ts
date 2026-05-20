@@ -2,7 +2,7 @@ import type { Config } from 'tailwindcss';
 import animate from 'tailwindcss-animate';
 
 /**
- * Eldir — Tailwind config.
+ * Eldir - Tailwind config.
  * Tokens issus de DA/tokens.css (Direction 1 · Mission Control).
  * Référence centrale : `--eldir-*` CSS vars définies dans src/styles/tokens.css.
  */
@@ -34,7 +34,7 @@ const config: Config = {
           red: 'hsl(var(--eldir-red) / <alpha-value>)',
           blue: 'hsl(var(--eldir-blue) / <alpha-value>)',
         },
-        // shadcn/ui aliases — mappés sur les tokens Eldir.
+        // shadcn/ui aliases - mappés sur les tokens Eldir.
         background: 'hsl(var(--background) / <alpha-value>)',
         foreground: 'hsl(var(--foreground) / <alpha-value>)',
         card: {

@@ -1,5 +1,5 @@
 /**
- * RequireAuth — garde de route Eldir.
+ * RequireAuth - garde de route Eldir.
  *
  * Décision en cascade :
  * 1. Si /setup/status === needs_bootstrap → redirige vers /setup-pending

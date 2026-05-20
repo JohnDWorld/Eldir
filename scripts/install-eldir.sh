@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Eldir — script d'installation interactif (Phase 1)
+# Eldir - script d'installation interactif (Phase 1)
 #
 # Boote la stack via docker compose, attend que l'API soit prête, récupère
 # le bootstrap_token émis par le backend, propose à l'utilisateur de générer
@@ -73,7 +73,7 @@ if command -v claude >/dev/null 2>&1; then
     CLAUDE_BIN="claude"
     ok "claude CLI déjà installé ($(claude --version 2>/dev/null | head -n1))"
 elif command -v npx >/dev/null 2>&1; then
-    ok "npx disponible — claude sera lancé via 'npx -y @anthropic-ai/claude-code'"
+    ok "npx disponible - claude sera lancé via 'npx -y @anthropic-ai/claude-code'"
     CLAUDE_BIN="npx -y @anthropic-ai/claude-code"
 else
     warn "Ni 'claude' ni 'npx' trouvés dans le PATH."
@@ -100,7 +100,7 @@ for _ in $(seq 1 60); do
     sleep 1
 done
 if ! curl -fsS "$API_URL/api/v1/setup/status" >/dev/null 2>&1; then
-    fail "Le backend ne répond pas sur $API_URL — voir 'docker compose -f $COMPOSE_FILE logs backend'."
+    fail "Le backend ne répond pas sur $API_URL - voir 'docker compose -f $COMPOSE_FILE logs backend'."
 fi
 ok "Backend en ligne"
 
@@ -108,7 +108,7 @@ STATUS_JSON="$(curl -fsS "$API_URL/api/v1/setup/status")"
 NEEDS_BOOTSTRAP="$(printf '%s' "$STATUS_JSON" | python3 -c 'import sys, json; print(json.load(sys.stdin)["needs_bootstrap"])')"
 
 if [[ "$NEEDS_BOOTSTRAP" != "True" ]]; then
-    warn "Eldir est déjà installé sur cette instance — abandon."
+    warn "Eldir est déjà installé sur cette instance - abandon."
     warn "Pour modifier les credentials, va dans Settings > Claude depuis l'UI."
     exit 0
 fi
@@ -170,11 +170,11 @@ if [[ "$HAS_CLAUDE_HELPER" == "1" ]]; then
             if [[ -n "$CLAUDE_OAUTH_TOKEN" ]]; then
                 ok "Token Pro/Max récupéré"
             else
-                warn "Token Pro/Max non détecté dans la sortie — colle-le manuellement ci-dessous."
+                warn "Token Pro/Max non détecté dans la sortie - colle-le manuellement ci-dessous."
             fi
         else
             rm -f "$TMP_OUT"
-            warn "'claude setup-token' a échoué — on continue sans token Pro/Max."
+            warn "'claude setup-token' a échoué - on continue sans token Pro/Max."
         fi
     fi
 fi
@@ -192,7 +192,7 @@ ask "Coller une clé API Console (laisser vide pour passer) :"
 read -r CLAUDE_API_KEY
 
 if [[ -z "$CLAUDE_OAUTH_TOKEN" && -z "$CLAUDE_API_KEY" ]]; then
-    warn "Aucun credential Claude configuré — tu pourras les ajouter via Settings > Claude."
+    warn "Aucun credential Claude configuré - tu pourras les ajouter via Settings > Claude."
 fi
 
 # ── 7. POST /setup/bootstrap ─────────────────────────────────────
@@ -225,7 +225,7 @@ HTTP_CODE="$(curl -sS -o /tmp/eldir-bootstrap.out -w '%{http_code}' \
 
 if [[ "$HTTP_CODE" != "201" ]]; then
     echo
-    fail "Bootstrap échoué (HTTP $HTTP_CODE) — réponse:
+    fail "Bootstrap échoué (HTTP $HTTP_CODE) - réponse:
 $(cat /tmp/eldir-bootstrap.out)"
 fi
 rm -f /tmp/eldir-bootstrap.out

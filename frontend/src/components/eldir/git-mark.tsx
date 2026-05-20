@@ -1,5 +1,5 @@
 /**
- * GitMark — glyph monochrome pour GitHub ou Forgejo.
+ * GitMark - glyph monochrome pour GitHub ou Forgejo.
  * Cf. DA/shared.jsx · GitMark.
  */
 

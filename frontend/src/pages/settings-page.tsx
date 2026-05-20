@@ -1,5 +1,5 @@
 /**
- * SettingsPage — hub d'entrée pour les sous-sections de réglages.
+ * SettingsPage - hub d'entrée pour les sous-sections de réglages.
  * Liste deux cartes : credentials Claude, credentials Git.
  */
 

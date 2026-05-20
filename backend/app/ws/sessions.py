@@ -1,4 +1,4 @@
-"""WebSocket /ws/sessions/{session_id} — stream live des events.
+"""WebSocket /ws/sessions/{session_id} - stream live des events.
 
 Auth via query param `?token=<jwt>` (les WS browser ne supportent pas les
 headers Authorization personnalisés sans hacks). Le token est validé avant

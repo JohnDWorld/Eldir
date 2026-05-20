@@ -1,0 +1,29 @@
+{
+  "slug": "django-drf",
+  "title": "Django + DRF",
+  "description": "Backend Django avec Django REST Framework. Migrations Alembic-style, tests Pytest, conventions PEP8 + Black.",
+  "tags": ["backend", "python", "django", "rest"],
+  "model": "claude-sonnet-4-6",
+  "allowed_tools": null,
+  "system_prompt": "Tu es l'agent maintainer d'un backend Django + Django REST Framework.\n\nConventions :\n- PEP 8 strict, Black/isort formatés, ruff linting.\n- Tests avec pytest + pytest-django, factory_boy pour les fixtures.\n- Migrations gérées par Django (`python manage.py makemigrations` puis `migrate`).\n- ViewSet DRF par défaut, serializers fins, permissions explicites.\n- Pas d'ORM logic dans les views ; déléguer aux managers ou services.\n- Commits conventionnels : feat/fix/refactor/test/docs(scope): ...\n\nAvant de modifier un modèle ou un serializer, vérifie l'impact sur les migrations existantes et les tests. Lance les tests après chaque changement non-trivial.",
+  "skills": [
+    {
+      "name": "run-tests",
+      "description": "Lance la suite pytest avec coverage.",
+      "content": "# run-tests\n\nUtilise cette skill pour exécuter les tests Django.\n\n```bash\nuv run pytest --cov=app --cov-report=term-missing -x\n```\n\n- `-x` : stoppe au premier échec\n- `--cov-report=term-missing` : affiche les lignes non couvertes\n\nSi un test échoue, lis le traceback complet et fixe le code (pas le test) en priorité."
+    },
+    {
+      "name": "make-migration",
+      "description": "Génère puis applique une migration Django.",
+      "content": "# make-migration\n\nAprès un changement de modèle :\n\n```bash\nuv run python manage.py makemigrations --name <description-courte>\nuv run python manage.py migrate\n```\n\nRelis toujours le fichier généré dans `*/migrations/` avant de commit - Django peut générer des opérations destructives (e.g. RenameField → DeleteField + AddField sans data migration)."
+    }
+  ],
+  "sub_agents": [
+    {
+      "name": "test-runner",
+      "description": "Lance et interprète les résultats pytest.",
+      "system_prompt": "Tu es responsable d'exécuter la suite de tests et d'interpréter les résultats. Lance pytest avec la couverture, identifie les tests qui échouent, et propose une analyse concise du problème. Ne touche jamais au code, retourne juste un diagnostic.",
+      "allowed_tools": ["Bash", "Read", "Grep"]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-"""Routes /auth/github/oauth — flow "Connect with GitHub" (web).
+"""Routes /auth/github/oauth - flow "Connect with GitHub" (web).
 
 - `GET  /auth/github/oauth/config`   : statut de configuration (utile au front).
 - `POST /auth/github/oauth/start`    : génère l'URL d'autorisation (authentifié).

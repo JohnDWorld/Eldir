@@ -1,4 +1,4 @@
-"""SessionService — couche métier au-dessus du SessionManager.
+"""SessionService - couche métier au-dessus du SessionManager.
 
 - Crée le Session en DB
 - Démarre la session SDK via SessionManager
@@ -150,15 +150,37 @@ class SessionService:
                 "session.create.sync.failed", project_id=project_id
             )
 
-        # 3. Crée la row Session (avec worktree_path provisoire — on le mettra
+        # 2ter. Charge le MissionTemplate du projet (Phase 4) pour ses
+        # défauts : system_prompt, model, allowed_tools. Les valeurs
+        # explicites passées en argument restent prioritaires.
+        from app.services.mission_template_service import (
+            mission_template_service,
+        )
+
+        template = await mission_template_service.get(
+            db, project_id=project_id, user_id=user_id
+        )
+        effective_system_prompt = system_prompt or (
+            template.system_prompt if template else None
+        )
+        effective_model = (
+            model
+            or (template.model if template else None)
+            or get_settings().claude_default_model
+        )
+        effective_allowed_tools = (
+            template.allowed_tools if template and template.allowed_tools else None
+        )
+
+        # 3. Crée la row Session (avec worktree_path provisoire - on le mettra
         # à jour après création du worktree git).
         session = Session(
             project_id=project_id,
             user_id=user_id,
             branch=project.default_branch,
             worktree_path=project.workspace_path,
-            model=model or get_settings().claude_default_model,
-            system_prompt=system_prompt,
+            model=effective_model,
+            system_prompt=effective_system_prompt,
         )
         db.add(session)
         await db.flush()  # capture session.id pour nommer le worktree
@@ -188,6 +210,22 @@ class SessionService:
         session.branch = worktree_ref.branch
         await db.flush()
 
+        # 4bis. Matérialise les skills et sub-agents du template dans le
+        # worktree (`.claude/skills/` et `.claude/agents/`). Best-effort -
+        # un I/O failure ne doit pas bloquer la session.
+        try:
+            await mission_template_service.materialize_to_worktree(
+                db,
+                project_id=project_id,
+                user_id=user_id,
+                worktree_path=worktree_ref.path,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "session.create.template.materialize.failed",
+                session_id=session.id,
+            )
+
         # 5. Démarre le ClaudeSDKClient sur le worktree. Si ça échoue, on
         # nettoie le worktree pour ne pas laisser de squelette orphelin sur
         # disque (la row DB sera rollbackée par get_db).
@@ -197,8 +235,9 @@ class SessionService:
                 project_id=project.id,
                 user_id=user_id,
                 cwd=str(worktree_ref.path),
-                system_prompt=system_prompt,
+                system_prompt=effective_system_prompt,
                 model=session.model,
+                allowed_tools=effective_allowed_tools,
             )
         except Exception:
             try:
@@ -223,7 +262,7 @@ class SessionService:
         session = await self.get(db, session_id, user_id)
         if not session.sdk_session_id:
             raise NotFoundError(
-                "Cette session n'a pas de sdk_session_id capturé — impossible de reprendre."
+                "Cette session n'a pas de sdk_session_id capturé - impossible de reprendre."
             )
         if self._manager.is_active(session_id):
             return session
@@ -497,7 +536,7 @@ class SessionService:
     def _require_workspace(self, session: Session) -> Path:
         if not session.worktree_path:
             raise WorkspaceError(
-                "La session n'a pas de worktree_path — état inconsistant."
+                "La session n'a pas de worktree_path - état inconsistant."
             )
         return Path(session.worktree_path)
 

@@ -25,7 +25,7 @@
 }
 
 @layer components {
-  /* Status dot — état d'une session (cf. DA shared.jsx) */
+  /* Status dot - état d'une session (cf. DA shared.jsx) */
   .eldir-dot {
     @apply inline-block h-2 w-2 rounded-full;
   }
@@ -45,7 +45,7 @@
     @apply bg-eldir-red;
   }
 
-  /* Label caps mono — utilisé partout dans Mission Control */
+  /* Label caps mono - utilisé partout dans Mission Control */
   .eldir-caps {
     @apply font-mono text-2xs uppercase tracking-caps text-eldir-gray;
   }

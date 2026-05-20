@@ -1,4 +1,4 @@
-"""WorktreeService — clone des repos et gestion des git worktrees.
+"""WorktreeService - clone des repos et gestion des git worktrees.
 
 Layout disque :
     /var/eldir/workspaces/{user_id}/
@@ -130,7 +130,7 @@ class WorktreeService:
             shutil.rmtree(dest, ignore_errors=False)
             logger.info("repo.removed", path=str(dest))
 
-    # ── worktrees (Phase 2 — squelette) ─────────────────────────
+    # ── worktrees (Phase 2 - squelette) ─────────────────────────
     async def create_worktree(
         self,
         *,

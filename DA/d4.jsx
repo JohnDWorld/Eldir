@@ -1,4 +1,4 @@
-// Direction 4 — "Terminal-first"
+// Direction 4 - "Terminal-first"
 // tmux / Warp / Claude Code itself. Dense, monospace, keyboard-shortcut visible.
 
 const TERM_BG  = '#171411';
@@ -288,7 +288,7 @@ function D4DeskSession() {
               <div style={{color:TERM_GD,fontSize:12}}>⟶ tool · read_file <span style={{color:TERM_DIM}}>src/server/sessions/router.ts</span> <span style={{color:TERM_DIM}}>(142 lines)</span></div>
               <div style={{height:10}}/>
               <div style={{color:TERM_HI}}>claude {'>'}</div>
-              <div style={{paddingLeft:16,marginBottom:14}}>The buffer is keyed on socket id, not session id — that's why a reconnect loses everything. Switching to a per-session ring buffer.</div>
+              <div style={{paddingLeft:16,marginBottom:14}}>The buffer is keyed on socket id, not session id - that's why a reconnect loses everything. Switching to a per-session ring buffer.</div>
               <div style={{color:TERM_GD,fontSize:12}}>⟶ tool · edit_file <span style={{color:TERM_DIM}}>router.ts</span> <span style={{color:TERM_GR}}>+18</span> <span style={{color:TERM_RD}}>−7</span></div>
               <div style={{height:6}}/>
               <div style={{color:TERM_GD,fontSize:12}}>⟶ tool · run_bash <span style={{color:TERM_DIM}}>pnpm test --filter=core</span> <span style={{color:TERM_HI}}>◌ running</span></div>

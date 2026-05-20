@@ -10,7 +10,7 @@ export const APP_NAME = 'Eldir';
 export const APP_TAGLINE = 'Mission Control';
 
 /**
- * États possibles d'une session — miroir de backend/app/core/constants.py.
+ * États possibles d'une session - miroir de backend/app/core/constants.py.
  * Voir DA/d1.jsx · STATES pour les couleurs associées.
  */
 export const SESSION_STATES = [

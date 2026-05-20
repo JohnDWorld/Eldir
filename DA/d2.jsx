@@ -1,4 +1,4 @@
-// Direction 2 — "Focus mode"
+// Direction 2 - "Focus mode"
 // Linear / Things 3. One session, fullscreen. Swipe / cmd+K to switch.
 
 function D2MobileHome() {
@@ -14,7 +14,7 @@ function D2MobileHome() {
           <StateDot s="input" size={9}/>
           <span style={{font:'500 10px/1 var(--font-ui)',letterSpacing:'.06em',textTransform:'uppercase',color:'var(--gold)'}}>Awaiting you</span>
         </div>
-        <div style={{font:'500 15px/1.35 var(--font-ui)',letterSpacing:'-.01em'}}>lumen-web · Tailwind purge — confirm safelist?</div>
+        <div style={{font:'500 15px/1.35 var(--font-ui)',letterSpacing:'-.01em'}}>lumen-web · Tailwind purge - confirm safelist?</div>
         <div style={{font:'400 12px/1 var(--font-ui)',color:'var(--gray-2)',marginTop:8}}>3 minutes ago · $0.21</div>
       </div>
       {/* working on */}
@@ -90,7 +90,7 @@ function D2MobileSession() {
             <Avatar bg="var(--orange)" fg="#fff" size={16}>C</Avatar>
             <span style={{font:'500 11px/1 var(--font-ui)',color:'var(--gray)',letterSpacing:'.06em',textTransform:'uppercase'}}>Claude</span>
           </div>
-          <div style={{font:'400 14px/1.45 var(--font-ui)',color:'var(--ink)'}}>The buffer is keyed on socket id, not session id — that's why a reconnect loses everything. Switching to a per-session ring buffer.</div>
+          <div style={{font:'400 14px/1.45 var(--font-ui)',color:'var(--ink)'}}>The buffer is keyed on socket id, not session id - that's why a reconnect loses everything. Switching to a per-session ring buffer.</div>
         </div>
         <ToolStrip name="edit_file" arg="src/server/sessions/router.ts" meta="+18 −7"/>
         <ToolStrip name="run_bash" arg="pnpm test --filter=core" meta="running" running/>
@@ -161,7 +161,7 @@ function D2DeskHome() {
             <div style={{paddingTop:4}}><StateDot s="input" size={11}/></div>
             <div style={{flex:1}}>
               <div style={{font:'500 11px/1 var(--font-ui)',color:'var(--gold)',letterSpacing:'.06em',textTransform:'uppercase'}}>Awaiting your input</div>
-              <div style={{font:'500 22px/1.3 var(--font-ui)',marginTop:8,letterSpacing:'-.015em'}}>lumen-web · Tailwind purge — confirm safelist?</div>
+              <div style={{font:'500 22px/1.3 var(--font-ui)',marginTop:8,letterSpacing:'-.015em'}}>lumen-web · Tailwind purge - confirm safelist?</div>
               <div style={{font:'400 13px/1.5 var(--font-ui)',color:'var(--gray-2)',marginTop:8,maxWidth:520}}>
                 Claude needs you to verify which classes should survive purge. Three candidates flagged in <span style={{color:'var(--cream)',font:'500 12px/1 var(--font-mono)'}}>tailwind.safelist.json</span>.
               </div>
@@ -204,7 +204,7 @@ function D2DeskHome() {
           {[
             ['◇','Refactor session router for SSE reconnect','eldir / s1'],
             ['◌','Run pnpm test --filter=core','eldir / s2'],
-            ['◐','Tailwind purge — confirm safelist?','lumen / s3'],
+            ['◐','Tailwind purge - confirm safelist?','lumen / s3'],
             ['+','New session in eldir','press ↵'],
           ].map((r,i)=>(
             <div key={i} style={{padding:'12px 18px',display:'flex',alignItems:'center',gap:12,
@@ -279,7 +279,7 @@ function D2DeskSession() {
             <Block label="You">The session router drops SSE messages when the client reconnects mid-stream. Investigate.</Block>
             <Block claude label="Claude">Reading the router to see how it buffers messages between connections.</Block>
             <ToolStrip name="read_file" arg="src/server/sessions/router.ts" meta="142 lines"/>
-            <Block claude label="Claude">The buffer is keyed on socket id, not session id — that's why a reconnect loses everything. Switching to a per-session ring buffer.</Block>
+            <Block claude label="Claude">The buffer is keyed on socket id, not session id - that's why a reconnect loses everything. Switching to a per-session ring buffer.</Block>
             <ToolStrip name="edit_file" arg="src/server/sessions/router.ts" meta="+18 −7"/>
             <ToolStrip name="run_bash" arg="pnpm test --filter=core" meta="running" running/>
           </div>

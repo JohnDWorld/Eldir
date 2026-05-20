@@ -1,5 +1,5 @@
 /**
- * SessionPage — D1DeskSession portée.
+ * SessionPage - D1DeskSession portée.
  *
  * Layout desktop : sidebar sessions (200px) | chat (1fr) | logs+events live (1fr) | meta (240px)
  * Layout mobile  : tabs CHAT | LIVE | META, full-width.
@@ -235,15 +235,15 @@ export function SessionPage(): JSX.Element {
               const project = projects.data?.find((p) => p.id === session.data.project_id);
               return (
                 <>
-                  <Kv k="project" v={project?.name ?? '—'} />
-                  <Kv k="repo" v={project?.repo_full_name ?? '—'} />
+                  <Kv k="project" v={project?.name ?? '-'} />
+                  <Kv k="repo" v={project?.repo_full_name ?? '-'} />
                 </>
               );
             })()}
             <Kv k="branch" v={session.data.branch} />
             <Kv k="state" v={session.data.state} />
-            <Kv k="model" v={session.data.model ?? '—'} />
-            <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '—'} />
+            <Kv k="model" v={session.data.model ?? '-'} />
+            <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '-'} />
             <Kv k="created" v={new Date(session.data.created_at).toLocaleTimeString()} />
           </div>
 
@@ -293,9 +293,13 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
     }
   }, [events.length]);
 
-  // Filtre : on n'affiche que text + tool_use (résumé) + stop
+  // Filtre : on affiche text + tool_use + stop + user_message.
   const visible = events.filter(
-    (e) => e.type === 'text' || e.type === 'tool_use' || e.type === 'stop',
+    (e) =>
+      e.type === 'text' ||
+      e.type === 'tool_use' ||
+      e.type === 'stop' ||
+      e.type === 'user_message',
   );
 
   return (
@@ -309,6 +313,11 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
         </p>
       )}
       {visible.map((e) => {
+        if (e.type === 'user_message') {
+          return (
+            <UserBubble key={e.key}>{String(e.data.text ?? '')}</UserBubble>
+          );
+        }
         if (e.type === 'text') {
           return (
             <ClaudeBubble key={e.key}>
@@ -330,10 +339,20 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
             key={e.key}
             className="text-center font-mono text-2xs uppercase tracking-caps text-eldir-gray"
           >
-            — tour terminé —
+            - tour terminé -
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function UserBubble({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[90%] whitespace-pre-wrap rounded-[10px_2px_10px_10px] border border-eldir-orange/30 bg-eldir-orange/10 px-3 py-2 font-sans text-sm text-eldir-ink">
+        {children}
+      </div>
     </div>
   );
 }

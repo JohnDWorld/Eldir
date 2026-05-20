@@ -60,7 +60,7 @@ def _fernet() -> Fernet:
     key = settings.encryption_key.get_secret_value()
     if not key:
         raise RuntimeError(
-            "ENCRYPTION_KEY non configurée — générer via Fernet.generate_key()"
+            "ENCRYPTION_KEY non configurée - générer via Fernet.generate_key()"
         )
     return Fernet(key.encode() if isinstance(key, str) else key)
 

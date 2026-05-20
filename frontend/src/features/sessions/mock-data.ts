@@ -1,5 +1,5 @@
 /**
- * Mocks Phase 0 — copies fidèles des données DA/shared.jsx pour permettre
+ * Mocks Phase 0 - copies fidèles des données DA/shared.jsx pour permettre
  * de monter la D1 Mission Control sans backend live. À supprimer une fois
  * que les hooks `useProjects` / `useSessions` retournent des données réelles.
  */
@@ -90,7 +90,7 @@ export const MOCK_SESSIONS: readonly SessionCardData[] = [
     id: 's3',
     projectSlug: 'lumen',
     state: 'waiting_input',
-    summary: 'Tailwind purge — confirm safelist?',
+    summary: 'Tailwind purge - confirm safelist?',
     duration: '08:45',
     tokens: '67k',
     cost: '$0.21',
@@ -99,7 +99,7 @@ export const MOCK_SESSIONS: readonly SessionCardData[] = [
     id: 's4',
     projectSlug: 'atelier',
     state: 'idle',
-    summary: 'Auth token rotation — done.',
+    summary: 'Auth token rotation - done.',
     duration: '32:09',
     tokens: '212k',
     cost: '$0.74',
@@ -149,7 +149,7 @@ export const MOCK_EVENTS: readonly EventEntry[] = [
   { time: '09:39', source: 's3', message: 'awaiting input' },
   { time: '09:36', source: 's2', message: 'test passed' },
   { time: '09:33', source: 's4', message: 'session ended' },
-  { time: '09:18', source: '—', message: 'forgejo webhook · push' },
+  { time: '09:18', source: '-', message: 'forgejo webhook · push' },
   { time: '09:02', source: 's1', message: 'session started' },
 ];
 

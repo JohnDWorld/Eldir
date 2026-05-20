@@ -1,4 +1,4 @@
-"""GitHubProvider — implémentation httpx contre l'API REST v3 GitHub.
+"""GitHubProvider - implémentation httpx contre l'API REST v3 GitHub.
 
 Authentification V1 : Personal Access Token (PAT).
 - L'utilisateur crée son PAT sur https://github.com/settings/tokens?type=beta

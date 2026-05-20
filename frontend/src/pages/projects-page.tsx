@@ -1,8 +1,9 @@
 /**
- * ProjectsPage — liste des projets Eldir + bouton "Ajouter depuis un repo".
+ * ProjectsPage - liste des projets Eldir + bouton "Ajouter depuis un repo".
  */
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { GitMark } from '@/components/eldir/git-mark';
 import { NewRepoDialog } from '@/features/projects/new-repo-dialog';
@@ -137,6 +138,12 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link
+            to={`/projects/${project.id}/template`}
+            className="inline-flex items-center rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase leading-none tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+          >
+            template
+          </Link>
           <button
             type="button"
             onClick={handleSync}
@@ -182,7 +189,7 @@ function formatSyncResult(r: ProjectSyncResult): string {
     return `déjà à jour avec origin/${r.branch}`;
   }
   if (r.behind > 0 && r.message) {
-    return `${r.behind} commit(s) en retard — ${r.message}`;
+    return `${r.behind} commit(s) en retard - ${r.message}`;
   }
   if (r.ahead > 0) {
     return `${r.ahead} commit(s) local(aux) non poussé(s)`;

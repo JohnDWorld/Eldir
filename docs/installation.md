@@ -1,11 +1,11 @@
-# Installation — Eldir
+# Installation - Eldir
 
 > Phase 1. Installation mono-utilisateur. Multi-user en V2.
 
 ## Prérequis
 
 - Docker 24+ et docker compose v2
-- `curl`, `python3` (≥ 3.10) — utilisés par le script d'install
+- `curl`, `python3` (≥ 3.10) - utilisés par le script d'install
 - Node.js ≥ 18 (pour `npx`) **si tu veux le mode "génération automatique du token Pro/Max"**
 - Un compte Claude **Pro** ou **Max** (recommandé) **ou** une clé API Anthropic Console
 
@@ -63,7 +63,7 @@ curl -X POST http://localhost:8000/api/v1/setup/bootstrap \
   }'
 ```
 
-## Authentification Claude — détails
+## Authentification Claude - détails
 
 Eldir supporte deux modes, **non exclusifs** :
 
@@ -124,10 +124,10 @@ Voir [`backend/.env.example`](../backend/.env.example).
 
 Critiques en prod :
 
-- `JWT_SECRET` — régénérer en prod
-- `ENCRYPTION_KEY` — clé Fernet, **ne jamais perdre** (sinon les credentials chiffrés deviennent illisibles)
-- `DATABASE_URL`, `REDIS_URL` — pointer vers tes services
-- `WORKSPACES_ROOT` — où Eldir clone les repos et crée les worktrees
+- `JWT_SECRET` - régénérer en prod
+- `ENCRYPTION_KEY` - clé Fernet, **ne jamais perdre** (sinon les credentials chiffrés deviennent illisibles)
+- `DATABASE_URL`, `REDIS_URL` - pointer vers tes services
+- `WORKSPACES_ROOT` - où Eldir clone les repos et crée les worktrees
 
 ## Réinitialiser l'installation
 

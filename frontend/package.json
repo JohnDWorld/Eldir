@@ -1,7 +1,7 @@
 {
   "name": "eldir-frontend",
   "version": "0.1.0",
-  "description": "Eldir — frontend React 18 + Vite + PWA, DA Mission Control.",
+  "description": "Eldir - frontend React 18 + Vite + PWA, DA Mission Control.",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",

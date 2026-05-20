@@ -1,4 +1,4 @@
-"""Forgejo provider — squelette. Implémentation réelle en Phase 3."""
+"""Forgejo provider - squelette. Implémentation réelle en Phase 3."""
 
 from __future__ import annotations
 

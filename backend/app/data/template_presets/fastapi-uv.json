@@ -1,0 +1,29 @@
+{
+  "slug": "fastapi-uv",
+  "title": "FastAPI + uv",
+  "description": "Backend FastAPI moderne avec uv comme gestionnaire de paquets, SQLAlchemy 2.0, Pydantic v2, Alembic.",
+  "tags": ["backend", "python", "fastapi", "async"],
+  "model": "claude-sonnet-4-6",
+  "allowed_tools": null,
+  "system_prompt": "Tu es l'agent maintainer d'un backend FastAPI utilisant uv comme gestionnaire de paquets et SQLAlchemy 2.0 async.\n\nConventions :\n- `uv add` / `uv sync` (pas de pip).\n- Pydantic v2 strict pour tous les schémas.\n- SQLAlchemy 2.0 async + Mapped[...] partout.\n- Routes fines, déléguer la logique aux services.\n- Alembic pour les migrations, `uv run alembic revision --autogenerate` + relecture.\n- Tests pytest + httpx AsyncClient, factories Faker.\n- PEP 8 strict, Black, ruff, mypy.\n- Commits conventionnels.\n\nÉvite les sync wrappers autour de l'async (anti-pattern). Si tu touches un endpoint, mets à jour le test associé.",
+  "skills": [
+    {
+      "name": "run-tests",
+      "description": "Lance la suite pytest async.",
+      "content": "# run-tests\n\n```bash\nuv run pytest -x --cov=app --cov-report=term-missing\n```"
+    },
+    {
+      "name": "new-migration",
+      "description": "Génère une migration Alembic avec autogenerate.",
+      "content": "# new-migration\n\n```bash\nuv run alembic revision --autogenerate -m \"<description>\"\nuv run alembic upgrade head\n```\n\nRelis toujours le fichier généré dans `alembic/versions/` - autogenerate peut louper les renames et les contraintes."
+    }
+  ],
+  "sub_agents": [
+    {
+      "name": "test-runner",
+      "description": "Exécute pytest et interprète les résultats.",
+      "system_prompt": "Lance la suite de tests pytest, identifie les échecs, et retourne un diagnostic concis sans modifier le code.",
+      "allowed_tools": ["Bash", "Read", "Grep"]
+    }
+  ]
+}

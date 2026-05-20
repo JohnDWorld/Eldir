@@ -1,4 +1,4 @@
-"""Event bus Redis pubsub — passerelle entre les hooks SDK et les WS clients."""
+"""Event bus Redis pubsub - passerelle entre les hooks SDK et les WS clients."""
 
 from __future__ import annotations
 

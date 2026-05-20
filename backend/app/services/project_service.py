@@ -1,4 +1,4 @@
-"""ProjectService — création de projets à partir de repos Git distants."""
+"""ProjectService - création de projets à partir de repos Git distants."""
 
 from __future__ import annotations
 
@@ -199,12 +199,12 @@ class ProjectService:
             if has_changes:
                 message = (
                     f"{behind} commit(s) en retard mais working tree sale "
-                    "— pull skippé pour préserver le travail en cours."
+                    "- pull skippé pour préserver le travail en cours."
                 )
             elif current != default_branch:
                 message = (
                     f"{behind} commit(s) en retard mais branche courante = "
-                    f"`{current}` (≠ `{default_branch}`) — pull skippé."
+                    f"`{current}` (≠ `{default_branch}`) - pull skippé."
                 )
             else:
                 try:

@@ -1,4 +1,4 @@
-"""WebSocketManager — track les connexions WS par session pour fanout."""
+"""WebSocketManager - track les connexions WS par session pour fanout."""
 
 from __future__ import annotations
 

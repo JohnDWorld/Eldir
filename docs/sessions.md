@@ -1,11 +1,11 @@
-# Sessions Claude — Eldir Phase 1
+# Sessions Claude - Eldir Phase 1
 
 ## Concept
 
 Une **session** = une instance vivante de `ClaudeSDKClient` (Anthropic Claude Agent SDK Python), pilotée par Eldir, qui travaille dans le workspace cloné d'un de tes projets.
 
 - Chaque session a un `cwd` égal au chemin du workspace : `/var/eldir/workspaces/{user_id}/{repo_slug}/`.
-- Au premier message, le SDK retourne un `session_id` (UUID Anthropic) qu'Eldir capture et persiste — pour pouvoir **reprendre** la session plus tard.
+- Au premier message, le SDK retourne un `session_id` (UUID Anthropic) qu'Eldir capture et persiste - pour pouvoir **reprendre** la session plus tard.
 - Les hooks `PreToolUse` / `PostToolUse` / `Stop` du SDK sont câblés vers Redis pub/sub → WebSocket → frontend, ce qui donne le streaming live des outils utilisés et des réponses Claude.
 
 ## Lancer une session
@@ -49,19 +49,19 @@ Une session a un état parmi `idle | thinking | tool_use | waiting_input | block
 Une fois ton container redémarré, le pool en mémoire est vide. Mais les `sdk_session_id` sont persistés :
 
 1. Va sur `/sessions/{id}`.
-2. Envoie un message — Eldir détecte que la session n'est plus active, appelle automatiquement `resume()` (qui réinstance un `ClaudeSDKClient` avec `resume=sdk_session_id`).
+2. Envoie un message - Eldir détecte que la session n'est plus active, appelle automatiquement `resume()` (qui réinstance un `ClaudeSDKClient` avec `resume=sdk_session_id`).
 3. Le contexte est restauré côté Anthropic, tu reprends où tu en étais.
 
 ## Modèles
 
 Par défaut, Eldir utilise `claude-sonnet-4-6` (override dans `backend/.env` via `CLAUDE_DEFAULT_MODEL`). Le `POST /api/v1/sessions` accepte un champ `model` pour outrepasser au cas par cas. Modèles supportés Phase 1 :
 
-- `claude-sonnet-4-6` — par défaut
-- `claude-opus-4-7` — plus puissant
-- `claude-haiku-4-5` — plus rapide / moins cher
+- `claude-sonnet-4-6` - par défaut
+- `claude-opus-4-7` - plus puissant
+- `claude-haiku-4-5` - plus rapide / moins cher
 
 ## Sécurité
 
 - Le WebSocket exige un JWT en query param : `?token=<access_token>`. Eldir vérifie le token avant de joindre le pubsub Redis.
-- Les credentials Claude ne sont **jamais** retournés en clair par l'API — uniquement masqués (`…aB12`).
-- Les hooks SDK ne sont jamais exposés directement au frontend — ils passent par Redis pubsub, ce qui empêche tout client malveillant d'écouter les events d'une session qui ne lui appartient pas (l'auth WS vérifie `Session.user_id`).
+- Les credentials Claude ne sont **jamais** retournés en clair par l'API - uniquement masqués (`…aB12`).
+- Les hooks SDK ne sont jamais exposés directement au frontend - ils passent par Redis pubsub, ce qui empêche tout client malveillant d'écouter les events d'une session qui ne lui appartient pas (l'auth WS vérifie `Session.user_id`).

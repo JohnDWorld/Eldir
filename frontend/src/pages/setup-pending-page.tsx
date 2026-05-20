@@ -1,5 +1,5 @@
 /**
- * SetupPendingPage — affichée quand le bootstrap n'a pas encore été fait.
+ * SetupPendingPage - affichée quand le bootstrap n'a pas encore été fait.
  * Eldir attend que l'administrateur lance `scripts/install-eldir.sh`.
  */
 

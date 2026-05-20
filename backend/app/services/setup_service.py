@@ -1,4 +1,4 @@
-"""SetupService — pilote l'installation initiale (bootstrap one-shot).
+"""SetupService - pilote l'installation initiale (bootstrap one-shot).
 
 Flow :
 1. Au boot, si aucun admin n'existe : génère un `bootstrap_token` aléatoire,
@@ -34,7 +34,7 @@ _SETUP_STATE_ID = "singleton"
 
 
 def _hash_token(token: str) -> str:
-    """SHA-256 du token — on ne stocke jamais le clair en DB."""
+    """SHA-256 du token - on ne stocke jamais le clair en DB."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -81,7 +81,7 @@ class SetupService:
         if state.bootstrap_completed:
             return None
         if state.bootstrap_token_hash:
-            # Token déjà émis lors d'un boot précédent — on ne peut pas le
+            # Token déjà émis lors d'un boot précédent - on ne peut pas le
             # ressortir en clair, il faut que l'opérateur l'ait conservé.
             # Pour le dev, on régénère pour éviter de bloquer.
             settings = get_settings()

@@ -1,4 +1,4 @@
-# Eldir — Backend
+# Eldir - Backend
 
 FastAPI + Claude Agent SDK. Voir [`AGENTS.md`](../AGENTS.md), [`CLAUDE.md`](../CLAUDE.md), [`ROADMAP.md`](../ROADMAP.md) à la racine.
 
@@ -39,5 +39,5 @@ app/
 
 ## Phase actuelle
 
-Phase 0 — Fondations. Les routes business (`create_session`, `send_message`, `create_project`)
+Phase 0 - Fondations. Les routes business (`create_session`, `send_message`, `create_project`)
 sont des squelettes qui lèvent `NotImplementedError`. À implémenter en Phase 1.

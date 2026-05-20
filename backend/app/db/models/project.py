@@ -1,4 +1,4 @@
-"""Modèle Project — un repo Git lié à un provider (GitHub/Forgejo)."""
+"""Modèle Project - un repo Git lié à un provider (GitHub/Forgejo)."""
 
 from __future__ import annotations
 

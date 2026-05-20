@@ -1,5 +1,5 @@
 /**
- * Types API — façade DRY.
+ * Types API - façade DRY.
  *
  * Source de vérité : `api-generated.ts` (généré depuis OpenAPI via
  * `scripts/gen-types.sh`). Tant que le pipeline n'a pas tourné au moins
@@ -93,7 +93,8 @@ export type SessionEventType =
   | 'tool_result'
   | 'state'
   | 'stop'
-  | 'error';
+  | 'error'
+  | 'user_message';
 
 export interface SessionEvent {
   type: SessionEventType;

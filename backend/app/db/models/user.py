@@ -1,4 +1,4 @@
-"""Modèle User — mono-utilisateur en V1, prévu multi-user en V2."""
+"""Modèle User - mono-utilisateur en V1, prévu multi-user en V2."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests ProjectService — mocks GitHub + clone."""
+"""Tests ProjectService - mocks GitHub + clone."""
 
 from __future__ import annotations
 

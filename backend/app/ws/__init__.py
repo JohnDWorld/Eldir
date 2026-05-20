@@ -1,4 +1,4 @@
-"""Router WebSocket — agrégateur."""
+"""Router WebSocket - agrégateur."""
 
 from fastapi import APIRouter
 

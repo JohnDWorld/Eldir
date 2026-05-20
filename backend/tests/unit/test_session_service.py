@@ -1,4 +1,4 @@
-"""Tests SessionService — flux create / persist / stop avec manager mocké."""
+"""Tests SessionService - flux create / persist / stop avec manager mocké."""
 
 from __future__ import annotations
 

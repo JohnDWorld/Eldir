@@ -1,4 +1,4 @@
-"""GitHubOAuthService — flow "Connect with GitHub" (OAuth App, web flow).
+"""GitHubOAuthService - flow "Connect with GitHub" (OAuth App, web flow).
 
 Le user clique "Connect with GitHub" → backend génère un `state`, le stocke dans
 Redis avec le `user_id` (TTL court), et renvoie l'URL d'autorisation. GitHub

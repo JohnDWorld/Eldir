@@ -1,4 +1,4 @@
-"""Routes /setup — bootstrap one-shot de l'installation."""
+"""Routes /setup - bootstrap one-shot de l'installation."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 
 @router.get("/status", response_model=SetupStatusResponse)
 async def status_(db: DbDep) -> SetupStatusResponse:
-    """Public — utilisé par le frontend pour décider où rediriger."""
+    """Public - utilisé par le frontend pour décider où rediriger."""
     state = await setup_service.get_or_create_state(db)
     has_admin = await setup_service.admin_exists(db)
     has_creds = await setup_service.claude_credentials_exist(db)
@@ -41,7 +41,7 @@ async def status_(db: DbDep) -> SetupStatusResponse:
     status_code=status.HTTP_201_CREATED,
 )
 async def bootstrap(payload: BootstrapRequest, db: DbDep) -> BootstrapResponse:
-    """One-shot — crée l'admin + injecte les credentials Claude.
+    """One-shot - crée l'admin + injecte les credentials Claude.
 
     Protégée par le `bootstrap_token` émis dans les logs au 1er boot.
     Refuse si le bootstrap a déjà été effectué.

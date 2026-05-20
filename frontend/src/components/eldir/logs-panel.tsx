@@ -1,5 +1,5 @@
 /**
- * LogsPanel — flux temps réel multi-sessions sur fond ink.
+ * LogsPanel - flux temps réel multi-sessions sur fond ink.
  * Cf. DA/d1.jsx · D1DeskHome (bloc logs).
  */
 
