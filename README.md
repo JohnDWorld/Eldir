@@ -11,7 +11,7 @@
 [![Self-hosted](https://img.shields.io/badge/Self--hosted-First-1A1A1A.svg)]()
 [![PWA](https://img.shields.io/badge/PWA-Ready-D97757.svg)]()
 
-[Démo](#) · [Installation](#-installation) · [Documentation](./docs) · [Roadmap](./ROADMAP.md) · [Contribuer](./CONTRIBUTING.md)
+[Installation](./docs/installation.md) · [Architecture](./docs/architecture.md) · [Documentation](./docs) · [Roadmap](./ROADMAP.md) · [Contribuer](./CONTRIBUTING.md)
 
 </div>
 
@@ -94,19 +94,25 @@ Installable sur ton téléphone comme une app native. Conçu d'abord pour mobile
 
 ```bash
 # Cloner le repo
-git clone https://github.com/[your-username]/eldir.git
-cd eldir
+git clone https://github.com/JohnDWorld/Eldir.git
+cd Eldir
 
-# Lancer la stack
-docker compose up -d
+# Lancer la stack dev (script guidé)
+./scripts/install-eldir.sh
 
-# Ouvrir le navigateur sur http://your-server:8080
-# Le setup wizard te guide pour la première configuration
+# Ou manuellement
+docker compose -f docker-compose.dev.yml up -d
+# puis suivre les étapes dans docs/installation.md
 ```
+
+Une fois en route :
+
+- Frontend : http://localhost:5173
+- API : http://localhost:8000/api/v1
 
 C'est tout. En moins de 10 minutes tu chattes avec ton premier agent Claude depuis le dashboard.
 
-📖 [Guide d'installation détaillé](./docs/install.md) · [Configuration Forgejo](./docs/providers/forgejo.md) · [Mode hors-ligne PWA](./docs/pwa.md)
+📖 [Bien démarrer](./docs/getting-started.md) · [Guide d'installation](./docs/installation.md) · [Configuration GitHub](./docs/github.md) · [Configuration Forgejo](./docs/providers/forgejo.md)
 
 ## 🏗️ Stack
 
@@ -123,16 +129,16 @@ C'est tout. En moins de 10 minutes tu chattes avec ton premier agent Claude depu
 
 ## 🗺️ Roadmap
 
-Eldir est en développement actif. La V1 est prévue en ~3 mois avec un développement phasé :
+Développement phasé. Statut à jour dans [ROADMAP.md](./ROADMAP.md).
 
-- ✅ **Phase 0** - Fondations (en cours)
-- ⏳ **Phase 1** - MVP : 1 session Claude depuis le dashboard
-- ⏳ **Phase 2** - Multi-sessions parallèles
-- ⏳ **Phase 3** - Multi-provider Git (GitHub + Forgejo)
-- ⏳ **Phase 4** - Mission Templates & Skills
-- ⏳ **Phase 5** - Optimisation tokens
-- ⏳ **Phase 6** - Intégration Ollama
-- ⏳ **Phase 7** - Souveraineté complète (Headscale + Forgejo intégrés)
+- ✅ **Phase 0** - Fondations
+- ✅ **Phase 1** - MVP : 1 session Claude depuis le dashboard
+- ✅ **Phase 2** - Multi-sessions parallèles (worktrees, diff live)
+- ✅ **Phase 3** - Multi-provider Git (GitHub + Forgejo)
+- ✅ **Phase 4** - Mission Templates & Skills
+- ✅ **Phase 5** - Optimisation tokens (dashboard de coûts, prompt caching, mode économe)
+- ✅ **Phase 6** - Intégration Ollama (mode "données sensibles" — masquage/anonymisation/résumé en local)
+- ⏳ **Phase 7** - Souveraineté complète (Headscale + Forgejo intégrés) — V2
 
 [→ Roadmap détaillée](./ROADMAP.md)
 
@@ -157,9 +163,9 @@ Eldir est un projet open-source destiné à la communauté des devs qui veulent 
 
 ## 💬 Communauté
 
-- 🐛 [Signaler un bug](https://github.com/[your-username]/eldir/issues/new?template=bug.md)
-- 💡 [Proposer une feature](https://github.com/[your-username]/eldir/issues/new?template=feature.md)
-- 💬 [Discussions](https://github.com/[your-username]/eldir/discussions)
+- 🐛 [Signaler un bug](https://github.com/JohnDWorld/Eldir/issues/new)
+- 💡 [Proposer une feature](https://github.com/JohnDWorld/Eldir/issues/new)
+- 💬 [Discussions](https://github.com/JohnDWorld/Eldir/discussions)
 
 ## 📜 Licence
 

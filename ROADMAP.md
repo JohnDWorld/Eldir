@@ -68,118 +68,126 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 
 ## 📦 Phasage
 
-### Phase 0 - Fondations (semaine 1-2)
+> **Statut au 2026-05-21** : Phases 0 → 6 livrées (V1 complet).
+> Prochain chantier potentiel : **Phase 7 - Souveraineté complète** (Forgejo/Headscale dans le wizard, mode agent local, backup chiffré) — c'est V2.
+> Reste pour V2 : compaction auto contexte, mode plan-only, sub-agents Haiku auto-routing, OllamaSubAgent invocable par Claude.
+
+### Phase 0 - Fondations ✅
 
 **Objectif** : poser les bases techniques et identitaires.
 
-- [ ] Init repo public GitHub `eldir` avec licence **AGPL v3**
-- [ ] README "vision + statut" avec animation de l'identité
-- [ ] Charte graphique aux couleurs Claude
-- [ ] Logo et favicon
-- [ ] Monorepo : `/backend` (FastAPI), `/frontend` (React+Vite), `/shared`, `/docs`, `/docker`, `/scripts`
-- [ ] CI GitHub Actions : tests, lint, build images Docker, push Docker Hub
+- [x] Init repo public GitHub `eldir` avec licence **AGPL v3**
+- [x] README "vision + statut" avec animation de l'identité
+- [x] Charte graphique aux couleurs Claude
+- [x] Logo et favicon
+- [x] Monorepo : `/backend` (FastAPI), `/frontend` (React+Vite), `/shared`, `/docs`, `/docker`, `/scripts`
+- [x] CI GitHub Actions : tests, lint, build (Docker Hub remis à V2)
 - [ ] CI Lighthouse sur PR : score PWA > 90 obligatoire
-- [ ] `docker-compose.yml` minimal qui boot Postgres + Redis + backend + frontend
-- [ ] Setup wizard web v0 : première connexion → admin + tokens
-- [ ] **Configuration PWA complète dès le bootstrap** :
-  - [ ] `vite-plugin-pwa` configuré dans `vite.config.ts`
-  - [ ] `manifest.webmanifest` complet (icônes 192/512/maskable, theme_color)
-  - [ ] Service Worker avec stratégies de cache
-  - [ ] Splash screen aux couleurs Claude
+- [x] `docker-compose.yml` minimal qui boot Postgres + Redis + backend + frontend
+- [x] Setup wizard web v0 : première connexion → admin + tokens
+- [x] **Configuration PWA complète dès le bootstrap** :
+  - [x] `vite-plugin-pwa` configuré dans `vite.config.ts`
+  - [x] `manifest.webmanifest` complet (icônes 192/512/maskable, theme_color)
+  - [x] Service Worker avec stratégies de cache
+  - [x] Splash screen aux couleurs Claude
   - [ ] Test installation iOS Safari + Android Chrome
-- [ ] **Configuration mobile-first** :
-  - [ ] Layout root responsive testé sur 375×667px
-  - [ ] Tailwind config avec breakpoints standards
-  - [ ] Tap targets 44×44px minimum dans le design system
-- [ ] **Pipeline DRY** :
-  - [ ] Génération automatique des types TS depuis schémas Pydantic (script + CI)
-  - [ ] Client API frontend généré ou centralisé
-- [ ] Doc d'installation v0 (`docs/install.md`)
+- [x] **Configuration mobile-first** :
+  - [x] Layout root responsive testé sur 375×667px
+  - [x] Tailwind config avec breakpoints standards
+  - [x] Tap targets 44×44px minimum dans le design system
+- [x] **Pipeline DRY** :
+  - [x] Génération automatique des types TS depuis schémas Pydantic (script + CI)
+  - [x] Client API frontend généré ou centralisé
+- [x] Doc d'installation v0 (`docs/install.md`)
 - [ ] Templates de PR et issues GitHub
 - [ ] `CONTRIBUTING.md` et `CODE_OF_CONDUCT.md`
 
-### Phase 1 - MVP : 1 user, 1 projet, 1 session (semaine 3-5)
+### Phase 1 - MVP : 1 user, 1 projet, 1 session ✅
 
 **Objectif** : pouvoir lancer une session Claude sur un repo et chatter avec depuis le web.
 
-- [ ] Auth utilisateur locale (JWT)
-- [ ] Choix du mode auth Claude :
-  - [ ] Mode API key (`ANTHROPIC_API_KEY` configuré dans settings)
-  - [ ] Mode compte Claude Pro/Max (auth via session Claude Code locale)
-- [ ] OAuth GitHub → liste des repos accessibles
-- [ ] Sélection d'un repo → clone automatique côté serveur dans `/var/eldir/workspaces/{user}/{repo}/`
-- [ ] Création d'un nouveau repo GitHub depuis le dashboard
-- [ ] Bouton "Nouvelle session" → instancie un `ClaudeSDKClient`
-- [ ] Chat UI minimal : input, messages, streaming tokens via WebSocket
-- [ ] Capture du `session_id` SDK + persistence en Postgres
-- [ ] Bouton "Reprendre session" → utilise `resume=session_id`
-- [ ] Bouton "Commit & Push" → git ops via le SDK
-- [ ] Documentation utilisateur de la phase (`docs/getting-started.md`)
+- [x] Auth utilisateur locale (JWT)
+- [x] Choix du mode auth Claude :
+  - [x] Mode API key (`ANTHROPIC_API_KEY` configuré dans settings)
+  - [x] Mode compte Claude Pro/Max (auth via session Claude Code locale)
+- [x] OAuth GitHub → liste des repos accessibles
+- [x] Sélection d'un repo → clone automatique côté serveur dans `/var/eldir/workspaces/{user}/{repo}/`
+- [x] Création d'un nouveau repo GitHub depuis le dashboard
+- [x] Bouton "Nouvelle session" → instancie un `ClaudeSDKClient`
+- [x] Chat UI minimal : input, messages, streaming tokens via WebSocket
+- [x] Capture du `session_id` SDK + persistence en Postgres
+- [x] Bouton "Reprendre session" → utilise `resume=session_id`
+- [x] Bouton "Commit & Push" → git ops via le SDK
+- [x] Documentation utilisateur de la phase (`docs/getting-started.md`)
 
-### Phase 2 - Multi-sessions parallèles (semaine 6-7)
+### Phase 2 - Multi-sessions parallèles ✅ (quasi)
 
 **Objectif** : le cœur du projet. Bosser sur 3 repos en même temps.
 
-- [ ] Architecture `SessionManager` : pool d'agents SDK actifs en mémoire
-- [ ] Git worktrees pour avoir N sessions sur le même repo
-- [ ] UI à onglets : tab par session active, switch rapide
-- [ ] Badge "agent en train de bosser" par tab
-- [ ] Indicateurs visuels d'état : `idle` / `thinking` / `tool_use` / `waiting_input` / `blocked`
-- [ ] Hooks SDK `PreToolUse` / `PostToolUse` / `Stop` → events Redis pubsub → frontend
-- [ ] Diff viewer en temps réel (fichiers modifiés en live)
-- [ ] Background tasks : sessions qui continuent même quand tab fermé, avec notifications au retour
-- [ ] Indicateur "X agents actifs" dans le header
+- [x] Architecture `SessionManager` : pool d'agents SDK actifs en mémoire
+- [x] Git worktrees pour avoir N sessions sur le même repo
+- [x] UI à onglets : tab par session active, switch rapide (Ops Home)
+- [x] Badge "agent en train de bosser" par tab
+- [x] Indicateurs visuels d'état : `idle` / `thinking` / `tool_use` / `waiting_input` / `blocked`
+- [x] Hooks SDK `PreToolUse` / `PostToolUse` → events Redis pubsub → frontend (Stop dédupliqué via ResultMessage)
+- [x] Diff viewer en temps réel (fichiers modifiés en live)
+- [x] Background tasks : sessions qui continuent même quand tab fermé, avec notifications au retour (polling 5s + Notifications API + bouton activer dans Settings)
+- [x] Indicateur "X agents actifs" dans le header (topbar + telemetry)
 
-### Phase 3 - Multi-provider Git (semaine 8)
+### Phase 3 - Multi-provider Git ✅ (quasi)
 
 **Objectif** : élargir aux utilisateurs Forgejo et offrir une vue unifiée.
 
-- [ ] Refactor en `GitProviderInterface` (clone, list_repos, create_repo, create_pr, get_branches…)
-- [ ] Implémentation `GitHubProvider` (déjà fait phase 1)
-- [ ] Implémentation `ForgejoProvider`
-- [ ] Vue unifiée GitHub + Forgejo dans le dashboard
-- [ ] Création de repo Forgejo depuis le dashboard
-- [ ] UI "Ajouter un Git provider" dans les settings
-- [ ] Gestion multi-providers simultanés (un user peut avoir GitHub + Forgejo connectés)
+- [x] Refactor en `GitProviderInterface` (clone, list_repos, create_repo, create_pr, get_branches…)
+- [x] Implémentation `GitHubProvider` (déjà fait phase 1)
+- [x] Implémentation `ForgejoProvider`
+- [x] Vue unifiée GitHub + Forgejo dans le dashboard
+- [x] Création de repo Forgejo depuis le dashboard (`ForgejoProvider.create_repo` implémenté via API REST v1)
+- [x] UI "Ajouter un Git provider" dans les settings
+- [x] Gestion multi-providers simultanés (un user peut avoir GitHub + Forgejo connectés)
 - [ ] Documentation provider Forgejo (`docs/providers/forgejo.md`)
 
-### Phase 4 - Mission Templates & Skills (semaine 9-10)
+### Phase 4 - Mission Templates & Skills ✅
 
 **Objectif** : rendre le hub vraiment puissant pour l'usage quotidien.
 
-- [ ] Concept `MissionTemplate` : system prompt + tools autorisés + skills + sub-agents associés à un repo
-- [ ] UI "Configurer le template du projet" : éditeur visuel
-- [ ] Templates pré-définis téléchargeables : Django, FastAPI, React, Flutter, n8n, Astro…
-- [ ] Éditeur de skills `.claude/skills/` directement depuis le dashboard
-- [ ] Éditeur de sub-agents (description + system prompt + outils)
-- [ ] Versionnage des templates dans Postgres (rollback possible)
+- [x] Concept `MissionTemplate` : system prompt + tools autorisés + skills + sub-agents associés à un repo
+- [x] UI "Configurer le template du projet" : éditeur visuel
+- [x] Templates pré-définis téléchargeables : preset `eldir` (self-hosted) livré ; preset par stack à enrichir au fil de l'eau
+- [x] Éditeur de skills `.claude/skills/` directement depuis le dashboard
+- [x] Éditeur de sub-agents (description + system prompt + outils)
+- [x] Versionnage des templates dans Postgres (rollback possible)
 - [ ] Library publique de skills partagée par la communauté (V2)
 
-### Phase 5 - Optimisation tokens (semaine 11)
+### Phase 5 - Optimisation tokens ✅ (livré)
 
 **Objectif** : rendre Eldir économe en tokens par défaut.
 
-- [ ] **Compaction automatique du contexte** : hook qui détecte l'approche des limites et résume la conversation ancienne
-- [ ] **Prompt caching** : système Anthropic activé par défaut sur les system prompts longs (économie 90% sur cache hits)
-- [ ] **Mode "économe"** : Haiku par défaut, escalade vers Sonnet/Opus si nécessaire
-- [ ] **Token budget par session** : alerte (jamais blocage) quand X tokens dépassés
-- [ ] **Dashboard de coûts** : OpenTelemetry du SDK + visualisation par session/projet/jour/mois
-- [ ] **Mode plan-only** : forcer Claude à proposer un plan avant action
-- [ ] **Sub-agents Haiku** pour tâches déterministes (recherche, classification)
-- [ ] Export CSV des coûts pour facturation/comptabilité
+- [x] **Capture usage** : parser `ResultMessage.usage` du SDK → table `session_costs` (tokens in/out/cache_read/cache_create + cost_usd, une ligne par tour)
+- [x] **Dashboard de coûts** : agrégations par jour/projet/session + UI réelle (page `/costs`, télémétrie topbar)
+- [x] **Prompt caching** : géré automatiquement par le CLI Claude Code sur system_prompt + tools stables (métrique `cache_read_tokens` visible dans le dashboard)
+- [x] **Mode "économe"** : switch dans NewSessionDialog qui force Haiku 4.5 pour la session courante
+- [x] **Token budget par session** : alerte visuelle dans le rail (seuil 1M tokens, jamais bloquant)
+- [x] Export CSV des coûts pour facturation/comptabilité (`/api/v1/costs/export.csv`)
+- [ ] **Compaction automatique du contexte** : hook qui détecte l'approche des limites et résume la conversation ancienne *(remis à V2)*
+- [ ] **Mode plan-only** : forcer Claude à proposer un plan avant action *(remis à V2)*
+- [ ] **Sub-agents Haiku** pour tâches déterministes (recherche, classification) *(déjà possible via le template, V2 pour l'auto-routing)*
 
-### Phase 6 - Intégration Ollama (semaine 12)
+### Phase 6 - Intégration Ollama ✅ (V1 livré, scope adapté)
 
 **Objectif** : tirer parti d'Ollama local pour économies et données sensibles.
 
-- [ ] Configuration Ollama dans les settings (URL, modèles disponibles)
-- [ ] **Mode dual backend par session** :
-  - [ ] Backend "Claude Agent SDK" (par défaut)
-  - [ ] Backend "Claude Code CLI + Ollama" (modèle local pilote, outils Claude Code)
-- [ ] Sub-agent type `OllamaSubAgent` pour tâches simples
-- [ ] **Mode "données sensibles"** : pré-traitement Ollama (anonymisation/masquage) avant envoi à Claude
-- [ ] Routes spécifiques : "résumer ce gros fichier en local avant de l'envoyer à Claude"
-- [ ] Documentation des modes (`docs/ollama-integration.md`)
+V1 livré :
+- [x] Configuration Ollama (env `OLLAMA_BASE_URL` + `OLLAMA_DEFAULT_MODEL`)
+- [x] `OllamaService` (httpx) + endpoints `/ollama/status` et `/ollama/transform`
+- [x] **Mode "données sensibles"** : transformations locales `mask` / `anonymize` / `summarize` (le texte ne traverse JAMAIS Internet)
+- [x] UI Settings > Ollama avec playground des 3 modes
+- [x] Documentation (`docs/ollama-integration.md`)
+
+Remis à V2 :
+- [ ] **Mode dual backend par session** : Claude SDK reste la seule façon de piloter une session (trop de surface pour V1)
+- [ ] Sub-agent type `OllamaSubAgent` directement invocable par Claude (V2)
+- [ ] Auto-routing intelligent ("résumer ce gros fichier en local avant de l'envoyer à Claude" sans intervention manuelle)
 
 ### Phase 7 - Souveraineté complète (V2/V3)
 

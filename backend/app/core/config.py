@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     claude_default_model: str = "claude-sonnet-4-6"
 
+    # ── Ollama (Phase 6 - mode "données sensibles") ────────────
+    # URL du serveur Ollama. Laisser vide = Ollama désactivé.
+    # Exemple : http://host.docker.internal:11434 si Ollama tourne
+    # sur l'host Docker, http://ollama:11434 si c'est un service compose.
+    ollama_base_url: str = ""
+    ollama_default_model: str = "llama3.2"
+    ollama_timeout_seconds: float = 60.0
+
     # ── Budgets (alerte uniquement, jamais blocage) ─────────────
     daily_token_budget: int = 1_000_000
     daily_cost_cap_usd: float = 8.0
@@ -79,6 +87,10 @@ class Settings(BaseSettings):
     @property
     def is_test(self) -> bool:
         return self.app_env == "test"
+
+    @property
+    def ollama_enabled(self) -> bool:
+        return bool(self.ollama_base_url.strip())
 
     @property
     def github_oauth_enabled(self) -> bool:

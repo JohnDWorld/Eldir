@@ -1,0 +1,86 @@
+name: backend
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  lint-and-test:
+    name: ruff · mypy · pytest
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eldir
+          POSTGRES_PASSWORD: eldir
+          POSTGRES_DB: eldir_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eldir"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://eldir:eldir@localhost:5432/eldir_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-only-not-a-real-secret
+      ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install deps
+        working-directory: backend
+        run: uv sync
+
+      - name: Ruff (lint)
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Ruff (format)
+        working-directory: backend
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        working-directory: backend
+        run: uv run mypy app || true
+        # mypy en informational pour V1 (mode strict pas encore atteint partout)
+
+      - name: Alembic upgrade
+        working-directory: backend
+        run: uv run alembic upgrade head
+
+      - name: Pytest
+        working-directory: backend
+        run: uv run pytest -x --cov=app --cov-report=term

@@ -19,8 +19,8 @@ uv run uvicorn app.main:app --reload --port 8000
 
 # Frontend
 cd frontend
-pnpm install
-pnpm dev                      # Dev server on :5173
+npm install                   # respecte package-lock.json
+npm run dev                   # Dev server on :5173
 
 # Full stack via Docker
 docker compose -f docker-compose.dev.yml up
@@ -38,10 +38,10 @@ uv run pytest
 
 # Frontend
 cd frontend
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build                    # Vérifie que la build PWA passe
+npx eslint .
+npx tsc --noEmit -p tsconfig.app.json
+npm test -- --run
+npm run build                 # Vérifie que la build PWA passe
 ```
 
 ## Stack - versions imposées
@@ -57,7 +57,7 @@ pnpm build                    # Vérifie que la build PWA passe
 - **Tailwind CSS + shadcn/ui**
 - **TanStack Query** pour le server state, **Zustand** pour le client state
 - **Zod** pour validation runtime
-- **pnpm** package manager (jamais npm)
+- **npm** package manager (jamais yarn ni pnpm — `package-lock.json` est la source de vérité)
 - **PostgreSQL 16 + Redis 7**
 
 ## Code style - règles strictes
@@ -138,7 +138,7 @@ Aucune duplication tolérée. **Règle des 3** : à la 3ème duplication, factor
 - ❌ Coupler le code à GitHub spécifiquement (passer par `GitProviderInterface`)
 - ❌ CSS inline ou fichiers `.css` (Tailwind exclusivement)
 - ❌ `useEffect` pour fetch (TanStack Query)
-- ❌ `npm`/`pip` (utiliser `pnpm`/`uv`)
+- ❌ `pip`/`yarn`/`pnpm` (utiliser `uv` pour Python, `npm` pour JS)
 - ❌ UI desktop-first (toujours mobile-first)
 - ❌ Hover-only interactions (inutilisable sur mobile)
 - ❌ Dupliquer 3+ fois un même pattern sans factoriser
