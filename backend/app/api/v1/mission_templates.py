@@ -6,6 +6,7 @@ from fastapi import APIRouter, status
 
 from app.core.deps import CurrentUserId, DbDep
 from app.core.exceptions import NotFoundError
+from app.schemas.common import EldirModel
 from app.schemas.mission_template import (
     MissionTemplateRead,
     MissionTemplateWrite,
@@ -20,6 +21,7 @@ from app.schemas.mission_template import (
     TemplateVersionRestore,
 )
 from app.services.mission_template_service import mission_template_service
+from app.services.singletons import get_template_generator
 from app.services.template_preset_service import template_preset_service
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["templates"])
@@ -99,6 +101,79 @@ async def delete_template(
         db, project_id=project_id, user_id=user_id
     )
     await db.commit()
+
+
+class TemplateGenerateRequest(EldirModel):
+    model: str | None = None
+
+
+class TemplateGenerateResponse(EldirModel):
+    preset: TemplatePresetDetail
+    session_id: str
+
+
+@router.post(
+    "/template/generate", response_model=TemplateGenerateResponse
+)
+async def generate_template(
+    project_id: str,
+    payload: TemplateGenerateRequest,
+    user_id: CurrentUserId,
+    db: DbDep,
+) -> TemplateGenerateResponse:
+    """Génère un preset via Claude en lecture seule sur le repo cloné.
+
+    Crée une session système (is_system=True) - les coûts apparaissent
+    dans le dashboard comme n'importe quelle autre session.
+    """
+    result = await get_template_generator().generate(
+        db,
+        user_id=user_id,
+        project_id=project_id,
+        model=payload.model,
+    )
+    return TemplateGenerateResponse(
+        preset=result.preset, session_id=result.session_id
+    )
+
+
+class TemplateApplyInlineRequest(EldirModel):
+    preset: TemplatePresetDetail
+    overwrite: bool = True
+
+
+@router.post(
+    "/template/apply-inline", response_model=MissionTemplateRead
+)
+async def apply_inline_preset(
+    project_id: str,
+    payload: TemplateApplyInlineRequest,
+    user_id: CurrentUserId,
+    db: DbDep,
+) -> MissionTemplateRead:
+    """Applique un preset construit côté client (issu d'une génération
+    Claude, par exemple) sans qu'il soit persisté en fichier.
+    """
+    await mission_template_service.snapshot(
+        db,
+        project_id=project_id,
+        user_id=user_id,
+        note=f"avant apply-inline ({payload.preset.slug})",
+    )
+    await template_preset_service.apply_detail(
+        db,
+        project_id=project_id,
+        user_id=user_id,
+        preset=payload.preset,
+        overwrite=payload.overwrite,
+    )
+    await db.commit()
+    reloaded = await mission_template_service.get(
+        db, project_id=project_id, user_id=user_id
+    )
+    if reloaded is None:
+        raise NotFoundError("Template introuvable après apply-inline.")
+    return _serialize_template(reloaded)
 
 
 @router.post("/template/apply-preset", response_model=MissionTemplateRead)

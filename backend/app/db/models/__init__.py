@@ -11,6 +11,7 @@ from app.db.models.mission_template import (
 from app.db.models.project import Project
 from app.db.models.session import Session, SessionCost, SessionEvent
 from app.db.models.setup_state import SetupState
+from app.db.models.system_prompt import SystemPromptOverride
 from app.db.models.user import User
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "SessionCost",
     "SessionEvent",
     "SetupState",
+    "SystemPromptOverride",
     "TemplateSkill",
     "TemplateSubAgent",
     "TemplateVersion",

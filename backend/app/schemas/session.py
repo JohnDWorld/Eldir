@@ -10,7 +10,16 @@ from pydantic import Field
 from app.schemas.common import EldirModel, TimestampedModel
 
 SessionState = Literal["idle", "thinking", "tool_use", "waiting_input", "blocked"]
-SessionEventType = Literal["text", "tool_use", "tool_result", "state", "stop", "error"]
+SessionEventType = Literal[
+    "text",
+    "tool_use",
+    "tool_result",
+    "state",
+    "stop",
+    "error",
+    "user_message",
+    "usage",
+]
 
 
 class SessionCreate(EldirModel):
@@ -36,6 +45,8 @@ class SessionRead(TimestampedModel):
     state: SessionState
     summary: str | None
     model: str | None
+    is_system: bool = False
+    system_kind: str | None = None
 
 
 class SessionSummary(EldirModel):

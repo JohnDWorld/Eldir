@@ -22,10 +22,13 @@ import { NewSessionDialog } from '@/features/sessions/new-session-dialog';
 import {
   MOCK_EVENTS,
   MOCK_LOG_LINES,
-  MOCK_SPEND_7D,
-  MOCK_TOKENS_TODAY,
 } from '@/features/sessions/mock-data';
-import { useDeleteSession, useProjects, useSessions } from '@/lib/api/queries';
+import {
+  useCostsDashboard,
+  useDeleteSession,
+  useProjects,
+  useSessions,
+} from '@/lib/api/queries';
 import type { ProjectRead, SessionRead } from '@/lib/types/api';
 import type { SessionState } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -41,6 +44,7 @@ export function OpsHomePage(): JSX.Element {
   const navigate = useNavigate();
   const projects = useProjects();
   const sessions = useSessions();
+  const costs = useCostsDashboard();
   const deleteSession = useDeleteSession();
   const [addOpen, setAddOpen] = useState(false);
 
@@ -51,17 +55,33 @@ export function OpsHomePage(): JSX.Element {
     deleteSession.mutate(sessionId);
   };
 
-  const activeSessions = useMemo(
-    () => (sessions.data ?? []).filter((s) => ACTIVE_STATES.has(s.state)),
+  // Les sessions système (ex. génération de template) restent comptées
+  // dans les COÛTS (cf. principe : pas de "faux-coût"), mais on ne les
+  // affiche pas dans la grille Live Sessions principale pour ne pas
+  // polluer la vue ops. Filtrage uniquement visuel.
+  const userSessions = useMemo(
+    () => (sessions.data ?? []).filter((s) => !s.is_system),
     [sessions.data],
+  );
+  const systemSessions = useMemo(
+    () => (sessions.data ?? []).filter((s) => s.is_system),
+    [sessions.data],
+  );
+  const activeSessions = useMemo(
+    () => userSessions.filter((s) => ACTIVE_STATES.has(s.state)),
+    [userSessions],
+  );
+  const activeSystemSessions = useMemo(
+    () => systemSessions.filter((s) => ACTIVE_STATES.has(s.state)),
+    [systemSessions],
   );
   const waitingInput = useMemo(
-    () => (sessions.data ?? []).filter((s) => s.state === 'waiting_input').length,
-    [sessions.data],
+    () => userSessions.filter((s) => s.state === 'waiting_input').length,
+    [userSessions],
   );
   const blocked = useMemo(
-    () => (sessions.data ?? []).filter((s) => s.state === 'blocked').length,
-    [sessions.data],
+    () => userSessions.filter((s) => s.state === 'blocked').length,
+    [userSessions],
   );
 
   const projectSlugById = useMemo(() => {
@@ -78,19 +98,43 @@ export function OpsHomePage(): JSX.Element {
     return map;
   }, [activeSessions]);
 
+  const tokensToday =
+    (costs.data?.today.input_tokens ?? 0) +
+    (costs.data?.today.output_tokens ?? 0);
+  const spend7d = costs.data?.last_7_days.cost_usd ?? 0;
+  const dailySpark = (costs.data?.daily ?? []).map((d) => d.cost_usd);
+  const tokensSpark = (costs.data?.daily ?? []).map(
+    (d) => d.input_tokens + d.output_tokens,
+  );
+
   const telemetry: readonly TelemetryItem[] = [
     { label: 'Active', value: String(activeSessions.length), sub: 'sessions' },
     { label: 'Projects', value: String((projects.data ?? []).length), sub: 'cloned' },
     { label: 'Input', value: String(waitingInput), sub: 'awaiting you' },
     { label: 'Blocked', value: String(blocked), sub: '-' },
-    // Tokens et Spend restent en mock jusqu'à intégration OTel (Phase 5).
-    { label: 'Tokens', value: '-', sub: 'today', spark: MOCK_TOKENS_TODAY },
-    { label: 'Spend', value: '-', sub: '$8 cap', spark: MOCK_SPEND_7D },
+    {
+      label: 'Tokens',
+      value: formatTokens(tokensToday),
+      sub: 'today',
+      ...(tokensSpark.length > 0 ? { spark: tokensSpark } : {}),
+    },
+    {
+      label: 'Spend',
+      value: spend7d > 0 ? `$${spend7d.toFixed(2)}` : '$0.00',
+      sub: '7-day',
+      ...(dailySpark.length > 0 ? { spark: dailySpark } : {}),
+    },
   ];
 
-  const cards: SessionCardData[] = (sessions.data ?? [])
-    .slice()
-    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+  const sortedUserSessions = useMemo(
+    () =>
+      userSessions
+        .slice()
+        .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
+    [userSessions],
+  );
+
+  const cards: SessionCardData[] = sortedUserSessions
     .map((s) => ({
       id: s.id.slice(0, 8),
       projectSlug: projectSlugById.get(s.project_id) ?? 'unknown',
@@ -134,6 +178,19 @@ export function OpsHomePage(): JSX.Element {
 
         {/* ── Sessions grid ──────────────────────────────────── */}
         <section className="flex min-h-0 flex-col overflow-y-auto p-3.5">
+          {activeSystemSessions.length > 0 && (
+            <div className="mb-2.5 flex items-center justify-between rounded-eldir border border-eldir-orange/40 bg-eldir-orange/5 px-3 py-1.5">
+              <span className="font-mono text-2xs uppercase tracking-caps text-eldir-orange">
+                ⚙ {activeSystemSessions.length} tâche système en cours
+              </span>
+              <a
+                href={`/sessions/${activeSystemSessions[0]!.id}`}
+                className="font-mono text-2xs text-eldir-orange hover:underline"
+              >
+                voir →
+              </a>
+            </div>
+          )}
           <div className="mb-2.5 flex items-center justify-between">
             <span className="eldir-caps">Live sessions</span>
             <button
@@ -175,7 +232,7 @@ export function OpsHomePage(): JSX.Element {
           ) : (
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
               {cards.map((card, idx) => {
-                const sessionId = sessions.data![idx]!.id;
+                const sessionId = sortedUserSessions[idx]!.id;
                 return (
                   <div key={card.id} className="group relative">
                     <SessionCard
@@ -191,7 +248,7 @@ export function OpsHomePage(): JSX.Element {
                       disabled={deleteSession.isPending}
                       aria-label="Supprimer la session"
                       title="Supprimer la session"
-                      className="absolute right-2 top-2 rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-2 py-1 font-mono text-2xs uppercase tracking-caps text-eldir-red opacity-0 transition-opacity hover:bg-eldir-red/10 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+                      className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-eldir border border-eldir-gray-3 bg-eldir-paper/80 font-mono text-2xs uppercase tracking-caps text-eldir-red opacity-0 transition-opacity hover:bg-eldir-red/10 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
                     >
                       ✕
                     </button>
@@ -210,18 +267,32 @@ export function OpsHomePage(): JSX.Element {
         {/* ── Right rail : spend + events ─────────────────────── */}
         <aside className="hidden flex-col gap-3.5 overflow-y-auto border-l border-eldir-gray-3 px-3.5 py-2.5 md:flex">
           <div>
-            <div className="eldir-caps mb-2">Spend · 7-day</div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="eldir-caps">Spend · 7-day</span>
+              <a
+                href="/costs"
+                className="font-mono text-2xs text-eldir-orange hover:underline"
+              >
+                détails →
+              </a>
+            </div>
             <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream py-2.5">
-              <Spark
-                data={MOCK_SPEND_7D}
-                width={290}
-                height={56}
-                fill="hsl(var(--eldir-orange) / 0.12)"
-                className="px-2.5"
-              />
+              {dailySpark.length > 0 ? (
+                <Spark
+                  data={dailySpark}
+                  width={290}
+                  height={56}
+                  fill="hsl(var(--eldir-orange) / 0.12)"
+                  className="px-2.5"
+                />
+              ) : (
+                <div className="px-2.5 py-3 font-mono text-2xs text-eldir-gray">
+                  Aucun coût encore enregistré.
+                </div>
+              )}
               <div className="flex justify-between px-2.5 pt-1 font-mono text-2xs text-eldir-gray">
-                <span>Phase 5 - OTel</span>
-                <span>-</span>
+                <span>${spend7d.toFixed(2)} sur 7 jours</span>
+                <span>{formatTokens(costs.data?.last_7_days.cost_usd ? tokensSpark.reduce((a, b) => a + b, 0) : 0)} tk</span>
               </div>
             </div>
           </div>
@@ -279,6 +350,13 @@ function ProjectRailRow({
       </div>
     </a>
   );
+}
+
+function formatTokens(n: number): string {
+  if (n === 0) return '0';
+  if (n < 1_000) return String(n);
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
 }
 
 function durationSince(iso: string): string {

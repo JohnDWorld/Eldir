@@ -37,7 +37,7 @@ export function SessionCard({ data, selected, onClick }: SessionCardProps): JSX.
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-eldir border border-eldir-gray-3 border-l-[3px] bg-eldir-cream p-3 text-left transition-colors hover:bg-eldir-cream-2',
+        'w-full rounded-eldir border border-eldir-gray-3 border-l-[3px] bg-eldir-cream p-3 text-left transition-colors hover:bg-eldir-cream-2',
         STATE_BORDER[data.state],
         selected && 'ring-1 ring-eldir-orange',
       )}

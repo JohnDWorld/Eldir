@@ -72,6 +72,8 @@ export interface SessionRead {
   state: SessionState;
   summary: string | null;
   model: string | null;
+  is_system: boolean;
+  system_kind: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,7 +96,8 @@ export type SessionEventType =
   | 'state'
   | 'stop'
   | 'error'
-  | 'user_message';
+  | 'user_message'
+  | 'usage';
 
 export interface SessionEvent {
   type: SessionEventType;
@@ -229,4 +232,83 @@ export interface RemoteRepoCreate {
   private: boolean;
   description?: string | null;
   create_project: boolean;
+}
+
+// ── Ollama (Phase 6 - mode données sensibles) ──────────────────
+export interface OllamaModelInfo {
+  name: string;
+  size_bytes: number;
+  modified_at: string | null;
+}
+
+export interface OllamaStatus {
+  enabled: boolean;
+  base_url: string | null;
+  reachable: boolean;
+  error: string | null;
+  default_model: string;
+  available_models: OllamaModelInfo[];
+}
+
+export type OllamaTransformMode = 'mask' | 'anonymize' | 'summarize';
+
+export interface OllamaTransformRequest {
+  text: string;
+  mode: OllamaTransformMode;
+  model?: string | null;
+}
+
+export interface OllamaTransformResponse {
+  text: string;
+  mode: string;
+  model_used: string;
+}
+
+// ── System prompts (Settings > Prompts) ────────────────────────
+export interface SystemPromptRead {
+  slug: string;
+  title: string;
+  description: string;
+  content: string;
+  is_overridden: boolean;
+  default_content: string;
+}
+
+export interface SystemPromptWrite {
+  content: string;
+}
+
+// ── Costs (Phase 5 - Optimisation tokens) ──────────────────────
+export interface CostTotalsRead {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: number;
+  num_turns: number;
+}
+
+export interface DailyCostRead {
+  day: string; // ISO date (YYYY-MM-DD)
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: number;
+}
+
+export interface ProjectCostRead {
+  project_id: string;
+  project_name: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+export interface CostDashboard {
+  today: CostTotalsRead;
+  last_7_days: CostTotalsRead;
+  last_30_days: CostTotalsRead;
+  daily: DailyCostRead[];
+  by_project: ProjectCostRead[];
 }

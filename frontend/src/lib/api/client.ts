@@ -79,6 +79,32 @@ async function request<TResponse, TBody = unknown>(
   return payload as TResponse;
 }
 
+async function downloadBlob(path: string, filename: string): Promise<void> {
+  const headers: Record<string, string> = { Accept: '*/*' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'GET',
+    headers,
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, {
+      code: 'download_error',
+      message: `Download failed (${response.status})`,
+      details: {},
+    });
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const apiClient = {
   get: <T>(path: string, options?: RequestOptions): Promise<T> =>
     request<T>('GET', path, undefined, options),
@@ -90,4 +116,5 @@ export const apiClient = {
     request<T, B>('PATCH', path, body, options),
   delete: <T>(path: string, options?: RequestOptions): Promise<T> =>
     request<T>('DELETE', path, undefined, options),
+  download: downloadBlob,
 };

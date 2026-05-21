@@ -11,6 +11,8 @@ import type {
   ClaudeCredentialRead,
   CommitPushRequest,
   CommitPushResponse,
+  CostDashboard,
+  CostTotalsRead,
   GitCredentialCreate,
   GitCredentialRead,
   GitStatusResponse,
@@ -26,6 +28,11 @@ import type {
   SessionMessageInput,
   SessionRead,
   SetupStatus,
+  SystemPromptRead,
+  SystemPromptWrite,
+  OllamaStatus,
+  OllamaTransformRequest,
+  OllamaTransformResponse,
   UserRead,
 } from '@/lib/types/api';
 import type { Provider } from '@/lib/constants';
@@ -57,6 +64,11 @@ export const queryKeys = {
   templatePreset: (slug: string) => ['templates', 'presets', slug] as const,
   templateVersions: (projectId: string) =>
     ['projects', projectId, 'template', 'versions'] as const,
+  costsDashboard: ['costs', 'dashboard'] as const,
+  costsSession: (id: string) => ['costs', 'sessions', id] as const,
+  systemPrompts: ['system-prompts'] as const,
+  systemPrompt: (slug: string) => ['system-prompts', slug] as const,
+  ollamaStatus: ['ollama', 'status'] as const,
 };
 
 export function useHealth() {
@@ -258,6 +270,9 @@ export function useSessions() {
   return useQuery({
     queryKey: queryKeys.sessions,
     queryFn: ({ signal }) => apiClient.get<SessionRead[]>('/sessions', { signal }),
+    // Refetch régulier pour pouvoir détecter les transitions d'état
+    // côté frontend (cf. use-session-notifier) sans WS global.
+    refetchInterval: 5_000,
   });
 }
 
@@ -690,6 +705,11 @@ export type TemplatePresetDetail = {
   sub_agents: TemplatePresetSubAgent[];
 };
 
+export type TemplateGenerateResponse = {
+  preset: TemplatePresetDetail;
+  session_id: string;
+};
+
 export function useTemplatePresets() {
   return useQuery({
     queryKey: queryKeys.templatePresets,
@@ -779,5 +799,117 @@ export function useApplyTemplatePreset(projectId: string) {
         queryKey: queryKeys.projectTemplateSubAgents(projectId),
       });
     },
+  });
+}
+
+export function useApplyInlinePreset(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { preset: TemplatePresetDetail; overwrite: boolean }) =>
+      apiClient.post<
+        MissionTemplate,
+        { preset: TemplatePresetDetail; overwrite: boolean }
+      >(`/projects/${projectId}/template/apply-inline`, body),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.projectTemplate(projectId), data);
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSkills(projectId),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.projectTemplateSubAgents(projectId),
+      });
+    },
+  });
+}
+
+export function useGenerateTemplate(projectId: string) {
+  return useMutation({
+    mutationFn: (body: { model?: string | null }) =>
+      apiClient.post<TemplateGenerateResponse, { model?: string | null }>(
+        `/projects/${projectId}/template/generate`,
+        body,
+      ),
+  });
+}
+
+// ── Costs (Phase 5) ────────────────────────────────────────────
+export function useCostsDashboard() {
+  return useQuery({
+    queryKey: queryKeys.costsDashboard,
+    queryFn: () => apiClient.get<CostDashboard>('/costs/dashboard'),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useSessionCostTotals(sessionId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.costsSession(sessionId),
+    queryFn: () =>
+      apiClient.get<CostTotalsRead>(`/costs/sessions/${sessionId}`),
+    enabled,
+    refetchInterval: 15_000,
+  });
+}
+
+// ── System prompts (Settings > Prompts) ────────────────────────
+export function useSystemPrompts() {
+  return useQuery({
+    queryKey: queryKeys.systemPrompts,
+    queryFn: () => apiClient.get<SystemPromptRead[]>('/system-prompts'),
+  });
+}
+
+export function useSystemPrompt(slug: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.systemPrompt(slug),
+    queryFn: () =>
+      apiClient.get<SystemPromptRead>(`/system-prompts/${slug}`),
+    enabled,
+  });
+}
+
+export function useUpsertSystemPrompt(slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SystemPromptWrite) =>
+      apiClient.put<SystemPromptRead, SystemPromptWrite>(
+        `/system-prompts/${slug}`,
+        body,
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.systemPrompt(slug), data);
+      qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+    },
+  });
+}
+
+export function useResetSystemPrompt(slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<SystemPromptRead>(`/system-prompts/${slug}/reset`),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.systemPrompt(slug), data);
+      qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+    },
+  });
+}
+
+// ── Ollama (Phase 6) ───────────────────────────────────────────
+export function useOllamaStatus() {
+  return useQuery({
+    queryKey: queryKeys.ollamaStatus,
+    queryFn: () => apiClient.get<OllamaStatus>('/ollama/status'),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useOllamaTransform() {
+  return useMutation({
+    mutationFn: (body: OllamaTransformRequest) =>
+      apiClient.post<OllamaTransformResponse, OllamaTransformRequest>(
+        '/ollama/transform',
+        body,
+      ),
   });
 }

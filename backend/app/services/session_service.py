@@ -22,6 +22,7 @@ from app.core.config import get_settings
 from app.core.constants import (
     EVENT_TYPE_STATE,
     EVENT_TYPE_TEXT,
+    EVENT_TYPE_USAGE,
     SESSION_STATES,
 )
 from app.core.exceptions import (
@@ -34,6 +35,7 @@ from app.core.exceptions import (
 from app.core.logging import get_logger
 from app.db.models import Project, Session, SessionEvent, User
 from app.services.claude_credential_service import claude_credential_service
+from app.services.cost_service import cost_service
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers import make_provider
 from app.services.session_manager import SessionManager
@@ -607,6 +609,12 @@ class SessionService:
                             Session.id == session_id, Session.summary.is_(None)
                         )
                         .values(summary=summary)
+                    )
+
+                # Persistance du coût d'un tour SDK (Phase 5)
+                if event_type == EVENT_TYPE_USAGE:
+                    await cost_service.record_turn(
+                        db, session_id=session_id, data=data
                     )
 
                 event = SessionEvent(

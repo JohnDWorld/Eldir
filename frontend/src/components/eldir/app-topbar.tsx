@@ -32,6 +32,7 @@ interface TopNavItem {
 const NAV_ITEMS: readonly TopNavItem[] = [
   { to: '/', label: 'Ops' },
   { to: '/projects', label: 'Projects', matchPrefix: '/projects' },
+  { to: '/costs', label: 'Costs', matchPrefix: '/costs' },
   { to: '/settings', label: 'Settings', matchPrefix: '/settings' },
 ];
 

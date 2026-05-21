@@ -179,7 +179,11 @@ function PresetRow({
   );
 }
 
-function PresetPreview({ preset }: { preset: TemplatePresetDetail }): JSX.Element {
+export function PresetPreview({
+  preset,
+}: {
+  preset: TemplatePresetDetail;
+}): JSX.Element {
   return (
     <article className="flex flex-col gap-5 p-5">
       <header>

@@ -10,6 +10,7 @@ process SDK ; l'API key via `ANTHROPIC_API_KEY`.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -138,6 +139,27 @@ class ClaudeCredentialService:
                         value=decrypt_secret(cred.encrypted_value),
                     )
         return None
+
+    async def inject_active_into_env(
+        self, db: AsyncSession, *, user_id: str
+    ) -> "ResolvedCredential":
+        """Injecte le credential actif dans os.environ pour le SDK Claude.
+
+        Raise AuthenticationError si aucun credential n'est actif.
+        Centralisé ici pour éviter la duplication entre SessionService et
+        TemplateGeneratorService.
+        """
+        from app.core.exceptions import AuthenticationError
+
+        resolved = await self.resolve_active(db, user_id)
+        if resolved is None:
+            raise AuthenticationError(
+                "Aucun credential Claude configuré. Settings > Claude."
+            )
+        os.environ.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        os.environ[resolved.env_var_name] = resolved.value
+        return resolved
 
     async def reveal_masked(self, cred: ClaudeCredential) -> str:
         """Retourne uniquement la queue masquée - ne JAMAIS exposer le clair."""

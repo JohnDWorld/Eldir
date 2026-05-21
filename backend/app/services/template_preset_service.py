@@ -86,7 +86,9 @@ class TemplatePresetService:
         slug: str,
         overwrite: bool,
     ) -> MissionTemplate:
-        """Applique un preset au template d'un projet.
+        """Applique un preset BUNDLÉ (chargé depuis fichier JSON) au template
+        d'un projet. Pour appliquer un preset *à la volée* (par ex. généré
+        par Claude), utiliser `apply_detail` directement avec le payload.
 
         - overwrite=True : remplace entièrement les champs scalaires, les
           skills et les sub-agents existants.
@@ -95,6 +97,27 @@ class TemplatePresetService:
           preset sont ajoutés (collisions de nom skip).
         """
         preset = self.get(slug)
+        return await self.apply_detail(
+            db,
+            project_id=project_id,
+            user_id=user_id,
+            preset=preset,
+            overwrite=overwrite,
+        )
+
+    async def apply_detail(
+        self,
+        db: AsyncSession,
+        *,
+        project_id: str,
+        user_id: str,
+        preset: "TemplatePresetDetail",
+        overwrite: bool,
+    ) -> MissionTemplate:
+        """Variante d'`apply` qui prend directement un `TemplatePresetDetail`
+        en mémoire. Utilisé par le générateur de template (preset produit
+        par Claude à la volée, jamais persisté en fichier).
+        """
         template = await mission_template_service._get_or_create(  # noqa: SLF001 - intentionnel ici
             db, project_id=project_id, user_id=user_id
         )

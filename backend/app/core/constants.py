@@ -39,6 +39,11 @@ EVENT_TYPE_STATE: Final[str] = "state"
 EVENT_TYPE_STOP: Final[str] = "stop"
 EVENT_TYPE_ERROR: Final[str] = "error"
 EVENT_TYPE_USER_MESSAGE: Final[str] = "user_message"
+EVENT_TYPE_USAGE: Final[str] = "usage"
+
+# ── Budget tokens par session (Phase 5) ─────────────────────────
+# Seuil d'alerte (jamais bloquant - cf. Principes directeurs #5)
+DEFAULT_SESSION_TOKEN_BUDGET: Final[int] = 1_000_000
 
 # ── Git providers supportés (V1) ────────────────────────────────
 PROVIDER_GITHUB: Final[str] = "github"

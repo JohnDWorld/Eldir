@@ -10,18 +10,24 @@ import { ApiError } from '@/lib/api/client';
 import { useCreateSession, useProjects } from '@/lib/api/queries';
 import type { ProjectRead } from '@/lib/types/api';
 
+const ECO_MODEL = 'claude-haiku-4-5-20251001';
+
 export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const navigate = useNavigate();
   const projects = useProjects();
   const createSession = useCreateSession();
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ProjectRead | null>(null);
+  const [ecoMode, setEcoMode] = useState(false);
 
   const launch = async (project: ProjectRead) => {
     setError(null);
     setSelected(project);
     try {
-      const session = await createSession.mutateAsync({ project_id: project.id });
+      const payload = ecoMode
+        ? { project_id: project.id, model: ECO_MODEL }
+        : { project_id: project.id };
+      const session = await createSession.mutateAsync(payload);
       onClose();
       navigate(`/sessions/${session.id}`);
     } catch (err) {
@@ -48,6 +54,23 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Elem
           Choisis un projet - Eldir va instancier un agent Claude dans son
           workspace.
         </p>
+
+        <label className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-2.5 text-xs">
+          <div>
+            <div className="font-mono font-semibold uppercase tracking-caps text-eldir-ink">
+              Mode économe
+            </div>
+            <div className="font-mono text-2xs text-eldir-gray">
+              Force Haiku 4.5 (le moins cher) au lieu du modèle du template.
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={ecoMode}
+            onChange={(e) => setEcoMode(e.target.checked)}
+            className="h-4 w-4 accent-eldir-orange"
+          />
+        </label>
 
         <div className="flex-1 overflow-y-auto px-2 py-2">
           {projects.isPending && (

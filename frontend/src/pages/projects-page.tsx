@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { GitMark } from '@/components/eldir/git-mark';
+import { GenerateTemplateDialog } from '@/features/projects/generate-template-dialog';
 import { NewRepoDialog } from '@/features/projects/new-repo-dialog';
 import { ApiError } from '@/lib/api/client';
 import {
@@ -25,6 +26,17 @@ export function ProjectsPage(): JSX.Element {
   const projects = useProjects();
   const [addOpen, setAddOpen] = useState(false);
   const [newRepoOpen, setNewRepoOpen] = useState(false);
+  // Quand UN seul projet vient d'être cloné via le dialog, on propose
+  // immédiatement la génération automatique de son Mission Template.
+  // Si plusieurs ont été clonés en série, on n'embête pas l'utilisateur
+  // - il fera le tour des projets et générera depuis Template > Générer.
+  const [pendingClones, setPendingClones] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [generateForProject, setGenerateForProject] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-8">
@@ -97,7 +109,28 @@ export function ProjectsPage(): JSX.Element {
         )}
       </section>
 
-      {addOpen && <AddProjectDialog onClose={() => setAddOpen(false)} />}
+      {addOpen && (
+        <AddProjectDialog
+          onClose={() => {
+            setAddOpen(false);
+            // Si exactement 1 projet vient d'être cloné, propose la génération
+            if (pendingClones.length === 1) {
+              setGenerateForProject(pendingClones[0]!);
+            }
+            setPendingClones([]);
+          }}
+          onProjectCreated={(p) =>
+            setPendingClones((prev) => [...prev, p])
+          }
+        />
+      )}
+      {generateForProject && (
+        <PostCloneOfferDialog
+          projectId={generateForProject.id}
+          projectName={generateForProject.name}
+          onClose={() => setGenerateForProject(null)}
+        />
+      )}
       {newRepoOpen && <NewRepoDialog onClose={() => setNewRepoOpen(false)} />}
     </main>
   );
@@ -199,7 +232,16 @@ function formatSyncResult(r: ProjectSyncResult): string {
 
 type CloneFailure = { full_name: string; message: string };
 
-function AddProjectDialog({ onClose }: { onClose: () => void }): JSX.Element {
+interface AddProjectDialogProps {
+  onClose: () => void;
+  /** Appelé pour chaque projet cloné avec succès (id, nom). */
+  onProjectCreated?: (project: { id: string; name: string }) => void;
+}
+
+function AddProjectDialog({
+  onClose,
+  onProjectCreated,
+}: AddProjectDialogProps): JSX.Element {
   const [provider, setProvider] = useState<Provider>('github');
   const [filter, setFilter] = useState('');
   const repos = useRemoteRepos(provider);
@@ -257,7 +299,11 @@ function AddProjectDialog({ onClose }: { onClose: () => void }): JSX.Element {
     for (let i = 0; i < targets.length; i++) {
       const full_name = targets[i]!;
       try {
-        await createProject.mutateAsync({ provider, repo_full_name: full_name });
+        const created = await createProject.mutateAsync({
+          provider,
+          repo_full_name: full_name,
+        });
+        onProjectCreated?.({ id: created.id, name: created.name });
       } catch (err) {
         errors.push({
           full_name,
@@ -424,6 +470,82 @@ function AddProjectDialog({ onClose }: { onClose: () => void }): JSX.Element {
                 : `valider${selected.size > 0 ? ` (${selected.size})` : ''}`}
             </button>
           </div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Modale qui apparaît juste après qu'un projet ait été cloné, proposant
+ * trois options :
+ *  - Analyser : ouvre GenerateTemplateDialog pour générer le template via Claude
+ *  - Configurer manuellement : redirige vers /projects/{id}/template
+ *  - Plus tard : ferme simplement
+ */
+function PostCloneOfferDialog({
+  projectId,
+  projectName,
+  onClose,
+}: {
+  projectId: string;
+  projectName: string;
+  onClose: () => void;
+}): JSX.Element {
+  const [openGenerate, setOpenGenerate] = useState(false);
+
+  if (openGenerate) {
+    return (
+      <GenerateTemplateDialog
+        projectId={projectId}
+        projectName={projectName}
+        onClose={onClose}
+      />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+      <div className="flex w-full max-w-md flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
+        <header className="border-b border-eldir-gray-3 px-4 py-3">
+          <div className="eldir-caps">Mission Template</div>
+          <h2 className="mt-1 font-mono text-sm font-bold text-eldir-ink">
+            {projectName} cloné ✓
+          </h2>
+        </header>
+        <div className="flex flex-col gap-3 px-4 py-4 text-sm text-eldir-ink-2">
+          <p>
+            Veux-tu qu'Eldir lance Claude pour analyser le repo et te générer
+            un Mission Template adapté ? (~30s à 2min, coût visible dans le
+            dashboard Costs)
+          </p>
+          <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-3 text-xs">
+            Le template peut toujours être édité ensuite à la main depuis{' '}
+            <code>Projects → {projectName} → Template</code>.
+          </div>
+        </div>
+        <footer className="flex flex-col gap-2 border-t border-eldir-gray-3 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setOpenGenerate(true)}
+            className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+          >
+            ✨ analyser avec claude
+          </button>
+          <Link
+            to={`/projects/${projectId}/template`}
+            onClick={onClose}
+            className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-4 py-2 text-center font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+          >
+            configurer manuellement
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1 font-mono text-2xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+          >
+            plus tard
+          </button>
         </footer>
       </div>
     </div>

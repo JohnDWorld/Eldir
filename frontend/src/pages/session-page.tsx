@@ -18,6 +18,7 @@ import {
   useProjects,
   useSendMessage,
   useSession,
+  useSessionCostTotals,
   useSessionEvents,
   useSessions,
   useStopSession,
@@ -31,6 +32,7 @@ export function SessionPage(): JSX.Element {
   const sessions = useSessions();
   const projects = useProjects();
   const historical = useSessionEvents(sessionId);
+  const costs = useSessionCostTotals(sessionId, Boolean(sessionId));
   const live = useSessionStream(sessionId, { enabled: Boolean(sessionId) });
   const sendMessage = useSendMessage(sessionId);
   const stopMut = useStopSession();
@@ -247,6 +249,15 @@ export function SessionPage(): JSX.Element {
             <Kv k="created" v={new Date(session.data.created_at).toLocaleTimeString()} />
           </div>
 
+          <SessionCostPanel
+            inputTokens={costs.data?.input_tokens ?? 0}
+            outputTokens={costs.data?.output_tokens ?? 0}
+            cacheReadTokens={costs.data?.cache_read_tokens ?? 0}
+            costUsd={costs.data?.cost_usd ?? 0}
+            numTurns={costs.data?.num_turns ?? 0}
+          />
+
+
           <div className="flex border-b border-eldir-gray-3 bg-eldir-cream-2">
             <RightTab
               label={`live · ${live.state}`}
@@ -422,6 +433,66 @@ function LogLine({ event }: { event: NormalizedEvent }): JSX.Element {
       <span className="flex-1 truncate text-eldir-cream">{summary}</span>
     </div>
   );
+}
+
+// Phase 5 : seuil d'alerte (jamais bloquant - cf. Principes directeurs #5).
+const SESSION_TOKEN_BUDGET = 1_000_000;
+
+function SessionCostPanel({
+  inputTokens,
+  outputTokens,
+  cacheReadTokens,
+  costUsd,
+  numTurns,
+}: {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  costUsd: number;
+  numTurns: number;
+}): JSX.Element {
+  const totalBillable = inputTokens + outputTokens;
+  const overBudget = totalBillable > SESSION_TOKEN_BUDGET;
+  const cacheRatio = totalBillable + cacheReadTokens > 0
+    ? Math.round((cacheReadTokens / (totalBillable + cacheReadTokens)) * 100)
+    : 0;
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-2 border-b p-4',
+        overBudget
+          ? 'border-eldir-red/50 bg-eldir-red/5'
+          : 'border-eldir-gray-3 bg-eldir-paper',
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <span className="eldir-caps">Cost · session</span>
+        {overBudget && (
+          <span className="font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-red">
+            budget dépassé
+          </span>
+        )}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="font-mono text-base font-bold text-eldir-ink">
+          ${costUsd.toFixed(4)}
+        </span>
+        <span className="font-mono text-2xs text-eldir-gray">
+          {numTurns} tour{numTurns > 1 ? 's' : ''}
+        </span>
+      </div>
+      <Kv k="input" v={formatTokens(inputTokens)} />
+      <Kv k="output" v={formatTokens(outputTokens)} />
+      <Kv k="cache read" v={`${formatTokens(cacheReadTokens)} (${cacheRatio}%)`} />
+    </div>
+  );
+}
+
+function formatTokens(n: number): string {
+  if (n === 0) return '0';
+  if (n < 1_000) return String(n);
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
 }
 
 function Kv({ k, v }: { k: string; v: string }): JSX.Element {

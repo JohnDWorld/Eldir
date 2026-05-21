@@ -16,6 +16,7 @@ import {
   useUpsertProjectTemplate,
 } from '@/lib/api/queries';
 import { ApplyPresetDialog } from '@/features/projects/apply-preset-dialog';
+import { GenerateTemplateDialog } from '@/features/projects/generate-template-dialog';
 import { SkillsEditor } from '@/features/projects/skills-editor';
 import { SubAgentsEditor } from '@/features/projects/sub-agents-editor';
 import { TemplateHistory } from '@/features/projects/template-history';
@@ -54,6 +55,7 @@ export function ProjectTemplatePage(): JSX.Element {
     { kind: 'success' | 'error'; text: string } | null
   >(null);
   const [presetOpen, setPresetOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
 
   // Hydrate quand on charge le template.
   useEffect(() => {
@@ -123,13 +125,23 @@ export function ProjectTemplatePage(): JSX.Element {
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setPresetOpen(true)}
-          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
-        >
-          appliquer un preset
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setGenerateOpen(true)}
+            className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+            title="Lance Claude pour analyser le repo et proposer un template clé en main"
+          >
+            ✨ générer avec claude
+          </button>
+          <button
+            type="button"
+            onClick={() => setPresetOpen(true)}
+            className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+          >
+            appliquer un preset
+          </button>
+        </div>
       </header>
 
       {/* Config principale */}
@@ -224,6 +236,13 @@ export function ProjectTemplatePage(): JSX.Element {
         <ApplyPresetDialog
           projectId={projectId}
           onClose={() => setPresetOpen(false)}
+        />
+      )}
+      {generateOpen && (
+        <GenerateTemplateDialog
+          projectId={projectId}
+          projectName={project?.name ?? 'projet'}
+          onClose={() => setGenerateOpen(false)}
         />
       )}
     </main>

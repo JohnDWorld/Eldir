@@ -29,6 +29,7 @@ from app.core.constants import (
     EVENT_TYPE_TEXT,
     EVENT_TYPE_TOOL_RESULT,
     EVENT_TYPE_TOOL_USE,
+    EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
     MAX_CONCURRENT_SESSIONS,
     SESSION_STATE_IDLE,
@@ -169,6 +170,11 @@ class SessionManager:
                 "PostToolUse": [HookMatcher(hooks=[_post_tool_hook])],
             },
         }
+        # Prompt caching (Phase 5) : on attache le system_prompt UNE seule fois
+        # au boot. Le CLI Claude Code injecte automatiquement les marqueurs
+        # `cache_control` sur ce bloc + sur la liste d'outils, ce qui rend les
+        # tours suivants jusqu'à 90% moins coûteux côté tokens d'entrée (visible
+        # dans la métrique `cache_read_tokens` du dashboard /costs).
         if system_prompt:
             options_kwargs["system_prompt"] = system_prompt
         if model:
@@ -272,6 +278,44 @@ class SessionManager:
                             )
 
                 elif isinstance(message, ResultMessage):
+                    # Capture usage / coût du tour avant de signaler la fin.
+                    usage = getattr(message, "usage", None) or {}
+                    model_usage = getattr(message, "model_usage", None) or {}
+                    primary_model: str | None = None
+                    if isinstance(model_usage, dict) and model_usage:
+                        # Le SDK renvoie {"claude-opus-4-7": {...}} : on prend
+                        # la clé qui totalise le plus de tokens output.
+                        try:
+                            primary_model = max(
+                                model_usage.items(),
+                                key=lambda kv: int(
+                                    (kv[1] or {}).get("output_tokens", 0)
+                                ),
+                            )[0]
+                        except (TypeError, ValueError):  # pragma: no cover
+                            primary_model = next(iter(model_usage.keys()), None)
+                    await self._publish(
+                        active.session_id,
+                        EVENT_TYPE_USAGE,
+                        {
+                            "input_tokens": int(usage.get("input_tokens", 0) or 0),
+                            "output_tokens": int(usage.get("output_tokens", 0) or 0),
+                            "cache_read_tokens": int(
+                                usage.get("cache_read_input_tokens", 0) or 0
+                            ),
+                            "cache_write_tokens": int(
+                                usage.get("cache_creation_input_tokens", 0) or 0
+                            ),
+                            "cost_usd": float(
+                                getattr(message, "total_cost_usd", 0.0) or 0.0
+                            ),
+                            "duration_ms": int(
+                                getattr(message, "duration_ms", 0) or 0
+                            ),
+                            "num_turns": int(getattr(message, "num_turns", 1) or 1),
+                            "model": primary_model,
+                        },
+                    )
                     # Fin de tour
                     await self._publish(
                         active.session_id,
