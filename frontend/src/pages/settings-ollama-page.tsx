@@ -126,12 +126,14 @@ export function SettingsOllamaPage(): JSX.Element {
             <code>http://host.docker.internal:11434</code>) puis redémarre le
             backend.
             <div className="mt-2">
-              <Link
-                to="/docs/ollama-integration.md"
+              <a
+                href="https://github.com/JohnDWorld/Eldir/blob/main/docs/ollama-integration.md"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-eldir-orange hover:underline"
               >
                 voir la doc d'installation →
-              </Link>
+              </a>
             </div>
           </div>
         )}
