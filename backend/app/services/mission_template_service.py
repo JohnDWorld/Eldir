@@ -7,6 +7,7 @@ Phase 4 du ROADMAP.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import select
@@ -69,8 +70,21 @@ def _materialize_skill(skills_root: Path, skill: TemplateSkill) -> None:
     target.write_text(frontmatter + "\n" + skill.content + "\n", encoding="utf-8")
 
 
+@dataclass(slots=True, frozen=True)
+class InlineSubAgent:
+    """Sub-agent à matérialiser sans entrée DB - utilisé pour les sub-agents
+    'système' injectés dynamiquement (ex. mask-data quand Ollama est exposé).
+    """
+
+    name: str
+    description: str
+    system_prompt: str
+    allowed_tools: list[str] | None = None
+
+
 def _materialize_sub_agent(
-    agents_root: Path, agent: TemplateSubAgent
+    agents_root: Path,
+    agent: TemplateSubAgent | InlineSubAgent,
 ) -> None:
     """Écrit le sub-agent dans `.claude/agents/{name}.md`."""
     target = agents_root / f"{agent.name}.md"
@@ -532,11 +546,17 @@ class MissionTemplateService:
         project_id: str,
         user_id: str,
         worktree_path: Path,
+        extra_sub_agents: list[InlineSubAgent] | None = None,
     ) -> MissionTemplate | None:
         """Écrit les skills et sub-agents du template dans le worktree.
 
         - `.claude/skills/{name}/SKILL.md` par skill
         - `.claude/agents/{name}.md` par sub-agent
+
+        `extra_sub_agents` permet au caller d'ajouter des sub-agents
+        "système" matérialisés à la volée (ex. mask-data quand Ollama
+        est exposé). Les noms en collision avec un sub-agent du template
+        ne sont PAS écrasés - le template utilisateur prime.
 
         Le worktree est isolé (Phase 2) → pas de risque de pollution entre
         sessions. Retourne le template chargé pour que le caller puisse
@@ -556,6 +576,7 @@ class MissionTemplateService:
                     skill=skill.name,
                     worktree=str(worktree_path),
                 )
+        existing_agent_names = {a.name for a in template.sub_agents}
         for agent in template.sub_agents:
             try:
                 _materialize_sub_agent(agents_root, agent)
@@ -563,6 +584,21 @@ class MissionTemplateService:
                 logger.exception(
                     "template.sub_agent.materialize.failed",
                     agent=agent.name,
+                    worktree=str(worktree_path),
+                )
+        for extra in extra_sub_agents or []:
+            if extra.name in existing_agent_names:
+                logger.info(
+                    "template.extra_sub_agent.skipped_collision",
+                    agent=extra.name,
+                )
+                continue
+            try:
+                _materialize_sub_agent(agents_root, extra)
+            except OSError:
+                logger.exception(
+                    "template.extra_sub_agent.materialize.failed",
+                    agent=extra.name,
                     worktree=str(worktree_path),
                 )
         return template

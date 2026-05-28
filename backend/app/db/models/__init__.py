@@ -8,6 +8,7 @@ from app.db.models.mission_template import (
     TemplateSubAgent,
     TemplateVersion,
 )
+from app.db.models.ollama_settings import OllamaSettings
 from app.db.models.project import Project
 from app.db.models.session import Session, SessionCost, SessionEvent
 from app.db.models.setup_state import SetupState
@@ -18,6 +19,7 @@ __all__ = [
     "ClaudeCredential",
     "GitCredential",
     "MissionTemplate",
+    "OllamaSettings",
     "Project",
     "Session",
     "SessionCost",

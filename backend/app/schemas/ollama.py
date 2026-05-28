@@ -34,3 +34,11 @@ class OllamaTransformResponse(EldirModel):
     text: str
     mode: str
     model_used: str
+
+
+class OllamaSettingsRead(EldirModel):
+    expose_to_sessions: bool
+
+
+class OllamaSettingsWrite(EldirModel):
+    expose_to_sessions: bool

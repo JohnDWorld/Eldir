@@ -215,12 +215,16 @@ class SessionService:
         # 4bis. Matérialise les skills et sub-agents du template dans le
         # worktree (`.claude/skills/` et `.claude/agents/`). Best-effort -
         # un I/O failure ne doit pas bloquer la session.
+        # Si Ollama est configuré + joignable + toggle activé, on injecte
+        # aussi le sub-agent système 'mask-data' (cf. Phase 6).
+        extra_sub_agents = await self._build_extra_sub_agents(db)
         try:
             await mission_template_service.materialize_to_worktree(
                 db,
                 project_id=project_id,
                 user_id=user_id,
                 worktree_path=worktree_ref.path,
+                extra_sub_agents=extra_sub_agents,
             )
         except Exception:  # noqa: BLE001
             logger.exception(
@@ -556,6 +560,65 @@ class SessionService:
         return project
 
     # ── internals ───────────────────────────────────────────────
+    async def _build_extra_sub_agents(
+        self, db: AsyncSession
+    ) -> list[Any]:
+        """Calcule les sub-agents 'système' à injecter dans le worktree.
+
+        Pour l'instant un seul cas : `mask-data` quand
+            ollama_enabled AND ollama_reachable AND expose_to_sessions.
+        Si l'une des trois conditions n'est pas remplie, renvoie [].
+        Best-effort : si on n'arrive pas à pinger Ollama, on n'injecte pas.
+        """
+        from app.services.mission_template_service import InlineSubAgent
+        from app.services.ollama_service import ollama_service
+        from app.services.ollama_settings_service import (
+            ollama_settings_service,
+        )
+        from app.services.system_prompt_service import system_prompt_service
+
+        settings = get_settings()
+        if not settings.ollama_enabled:
+            return []
+
+        user_settings = await ollama_settings_service.get(db)
+        if not user_settings.expose_to_sessions:
+            return []
+
+        # Health check rapide - si Ollama est down, on n'injecte pas.
+        try:
+            status = await ollama_service.status()
+        except Exception:
+            logger.warning("session.ollama.status.failed", exc_info=True)
+            return []
+        if not status.reachable:
+            return []
+
+        try:
+            system_prompt = await system_prompt_service.resolve(
+                db, "mask_data_subagent"
+            )
+        except Exception:
+            logger.warning(
+                "session.ollama.subagent_prompt.missing", exc_info=True
+            )
+            return []
+
+        return [
+            InlineSubAgent(
+                name="mask-data",
+                description=(
+                    "Pré-traitement local via Ollama : masque secrets, "
+                    "anonymise PII ou résume avant d'envoyer du texte "
+                    "sensible à Claude. Invoque-moi dès qu'un fichier "
+                    "contient des données qui ne doivent pas quitter le "
+                    "réseau local."
+                ),
+                system_prompt=system_prompt,
+                allowed_tools=["Bash"],
+            )
+        ]
+
     async def _inject_claude_env(self, db: AsyncSession, user_id: str) -> None:
         resolved = await claude_credential_service.resolve_active(db, user_id)
         if resolved is None:

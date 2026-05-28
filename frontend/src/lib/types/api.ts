@@ -264,6 +264,14 @@ export interface OllamaTransformResponse {
   model_used: string;
 }
 
+export interface OllamaSettingsRead {
+  expose_to_sessions: boolean;
+}
+
+export interface OllamaSettingsWrite {
+  expose_to_sessions: boolean;
+}
+
 // ── System prompts (Settings > Prompts) ────────────────────────
 export interface SystemPromptRead {
   slug: string;

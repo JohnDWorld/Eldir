@@ -30,6 +30,8 @@ import type {
   SetupStatus,
   SystemPromptRead,
   SystemPromptWrite,
+  OllamaSettingsRead,
+  OllamaSettingsWrite,
   OllamaStatus,
   OllamaTransformRequest,
   OllamaTransformResponse,
@@ -69,6 +71,7 @@ export const queryKeys = {
   systemPrompts: ['system-prompts'] as const,
   systemPrompt: (slug: string) => ['system-prompts', slug] as const,
   ollamaStatus: ['ollama', 'status'] as const,
+  ollamaSettings: ['ollama', 'settings'] as const,
 };
 
 export function useHealth() {
@@ -911,5 +914,26 @@ export function useOllamaTransform() {
         '/ollama/transform',
         body,
       ),
+  });
+}
+
+export function useOllamaSettings() {
+  return useQuery({
+    queryKey: queryKeys.ollamaSettings,
+    queryFn: () => apiClient.get<OllamaSettingsRead>('/ollama/settings'),
+  });
+}
+
+export function useUpdateOllamaSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OllamaSettingsWrite) =>
+      apiClient.put<OllamaSettingsRead, OllamaSettingsWrite>(
+        '/ollama/settings',
+        body,
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.ollamaSettings, data);
+    },
   });
 }

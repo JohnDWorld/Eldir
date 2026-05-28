@@ -10,14 +10,17 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.config import get_settings
-from app.core.deps import CurrentUserId
+from app.core.deps import CurrentUserId, DbDep
 from app.schemas.ollama import (
     OllamaModelInfo,
+    OllamaSettingsRead,
+    OllamaSettingsWrite,
     OllamaStatus,
     OllamaTransformRequest,
     OllamaTransformResponse,
 )
 from app.services.ollama_service import ollama_service
+from app.services.ollama_settings_service import ollama_settings_service
 
 router = APIRouter(prefix="/ollama", tags=["ollama"])
 
@@ -59,3 +62,22 @@ async def transform(
     return OllamaTransformResponse(
         text=result, mode=payload.mode, model_used=used_model
     )
+
+
+@router.get("/settings", response_model=OllamaSettingsRead)
+async def get_ollama_settings(
+    user_id: CurrentUserId, db: DbDep
+) -> OllamaSettingsRead:
+    row = await ollama_settings_service.get(db)
+    return OllamaSettingsRead(expose_to_sessions=row.expose_to_sessions)
+
+
+@router.put("/settings", response_model=OllamaSettingsRead)
+async def set_ollama_settings(
+    payload: OllamaSettingsWrite, user_id: CurrentUserId, db: DbDep
+) -> OllamaSettingsRead:
+    row = await ollama_settings_service.set_expose(
+        db, value=payload.expose_to_sessions
+    )
+    await db.commit()
+    return OllamaSettingsRead(expose_to_sessions=row.expose_to_sessions)

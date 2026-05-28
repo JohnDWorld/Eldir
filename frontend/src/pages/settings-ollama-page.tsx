@@ -11,7 +11,12 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ApiError } from '@/lib/api/client';
-import { useOllamaStatus, useOllamaTransform } from '@/lib/api/queries';
+import {
+  useOllamaSettings,
+  useOllamaStatus,
+  useOllamaTransform,
+  useUpdateOllamaSettings,
+} from '@/lib/api/queries';
 import type { OllamaTransformMode } from '@/lib/types/api';
 import { cn } from '@/lib/utils';
 
@@ -43,6 +48,8 @@ const MODE_OPTIONS: ReadonlyArray<{
 export function SettingsOllamaPage(): JSX.Element {
   const status = useOllamaStatus();
   const transform = useOllamaTransform();
+  const exposeSettings = useOllamaSettings();
+  const updateExpose = useUpdateOllamaSettings();
   const [mode, setMode] = useState<OllamaTransformMode>('mask');
   const [input, setInput] = useState('');
   const [output, setOutput] = useState<string | null>(null);
@@ -136,6 +143,56 @@ export function SettingsOllamaPage(): JSX.Element {
               </a>
             </div>
           </div>
+        )}
+      </section>
+
+      <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-5">
+        <div className="eldir-caps mb-3">Exposer Ollama aux sessions Claude</div>
+        <p className="mb-3 text-sm text-eldir-ink-2">
+          Quand activé, chaque nouvelle session Claude reçoit automatiquement
+          un sub-agent <code>mask-data</code> qu'elle peut invoquer pour
+          masquer / anonymiser / résumer du texte sensible <strong>en local</strong>{' '}
+          avant tout appel à Anthropic.
+        </p>
+        <p className="mb-4 font-mono text-2xs text-eldir-gray">
+          Garde-fous : le sub-agent n'est PAS injecté si Ollama n'est pas
+          configuré ou pas joignable, même si cette option est activée. C'est
+          Claude qui décide d'invoquer le sub-agent (vue Option A+C du
+          ROADMAP — auto-routing en V3).
+        </p>
+        {exposeSettings.isPending && (
+          <p className="font-mono text-2xs text-eldir-gray">chargement…</p>
+        )}
+        {exposeSettings.data && (
+          <label className="flex items-center justify-between gap-3 rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2.5">
+            <div>
+              <div className="font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink">
+                Sub-agent <code>mask-data</code>
+              </div>
+              <div className="mt-0.5 font-mono text-2xs text-eldir-gray">
+                {!status.data?.enabled
+                  ? '⚠ Ollama non configuré côté backend.'
+                  : !status.data?.reachable
+                    ? '⚠ Ollama configuré mais injoignable.'
+                    : exposeSettings.data.expose_to_sessions
+                      ? '✓ Actif - injecté dans chaque nouvelle session.'
+                      : 'Désactivé - playground manuel uniquement.'}
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={exposeSettings.data.expose_to_sessions}
+              disabled={
+                updateExpose.isPending ||
+                !status.data?.enabled ||
+                !status.data?.reachable
+              }
+              onChange={(e) =>
+                updateExpose.mutate({ expose_to_sessions: e.target.checked })
+              }
+              className="h-5 w-5 accent-eldir-orange disabled:cursor-not-allowed disabled:opacity-40"
+            />
+          </label>
         )}
       </section>
 
