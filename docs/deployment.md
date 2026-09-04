@@ -179,10 +179,31 @@ Deux précautions :
 
 ## 6. Le compte admin
 
-Récupère le bootstrap token dans les logs du backend, puis suis
-[`installation.md`](./installation.md#installation-manuelle) à partir de l'étape
-`POST /api/v1/setup/bootstrap`. Ensuite, `https://eldir.mondomaine.fr` depuis un
-appareil connecté au VPN, et **Ajouter à l'écran d'accueil** sur ton téléphone.
+Le script d'install détecte une stack déjà lancée et lit le nom d'hôte dans
+`.env` : il ne redémarre rien et parle à l'API publique.
+
+```bash
+cd ~/eldir && ./scripts/install-eldir.sh
+```
+
+Il te demande l'email, le mot de passe admin, et le mode d'authentification
+Claude. Si tu préfères garder la main, le POST équivalent :
+
+```bash
+curl -sS https://eldir.mondomaine.fr/api/v1/setup/bootstrap \
+  -H 'Content-Type: application/json' -d '{
+    "bootstrap_token": "<celui des logs>",
+    "admin_email": "moi@exemple.fr",
+    "admin_password": "…",
+    "admin_display_name": "Moi"
+  }'
+```
+
+Le **token Claude Pro/Max se génère sur une machine avec navigateur**, donc pas
+sur un VPS headless. Tu peux le poser après coup dans Settings > Claude.
+
+Ensuite, `https://eldir.mondomaine.fr` depuis un appareil connecté au VPN, et
+**Ajouter à l'écran d'accueil** sur ton téléphone.
 
 ## 7. Fermer la porte
 

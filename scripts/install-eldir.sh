@@ -86,10 +86,27 @@ if [[ -n "$CLAUDE_BIN" ]]; then
     HAS_CLAUDE_HELPER="1"
 fi
 
-# ── 1. démarrer la stack ─────────────────────────────────────────
-step "Démarrage de la stack Eldir"
-docker compose -f "$COMPOSE_FILE" up -d postgres redis backend frontend
-ok "Containers lancés"
+# ── 1. démarrer la stack (sauf si elle tourne déjà) ──────────────
+# En prod, la stack est lancée par `docker compose up -d` avec le compose
+# de prod. Relancer ici avec le compose de dev ferait échouer l'install sur
+# un conflit de `container_name` (les deux projets nomment leurs containers
+# `eldir-*`). On détecte donc l'API avant de démarrer quoi que ce soit, et
+# on récupère l'URL publique depuis le `.env` s'il y en a un.
+if [[ -z "${ELDIR_API_URL:-}" && -f .env ]]; then
+    ENV_HOSTNAME="$(grep -m1 '^ELDIR_HOSTNAME=' .env | cut -d= -f2- || true)"
+    if [[ -n "${ENV_HOSTNAME:-}" ]]; then
+        API_URL="https://$ENV_HOSTNAME"
+        FRONTEND_URL="https://$ENV_HOSTNAME"
+    fi
+fi
+
+if curl -fsS "$API_URL/api/v1/setup/status" >/dev/null 2>&1; then
+    ok "Stack déjà en ligne sur $API_URL - rien à démarrer"
+else
+    step "Démarrage de la stack Eldir"
+    docker compose -f "$COMPOSE_FILE" up -d postgres redis backend frontend
+    ok "Containers lancés"
+fi
 
 # ── 2. attendre que /setup/status réponde ────────────────────────
 step "Attente du backend (peut prendre 30s au 1er boot)"
