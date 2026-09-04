@@ -50,6 +50,9 @@ class Settings(BaseSettings):
 
     # ── Workspaces ──────────────────────────────────────────────
     workspaces_root: Path = Path("/var/eldir/workspaces")
+    # Surveillance des repos : fetch + fast-forward périodique des clones
+    # (jamais quand le working tree est sale). 0 = désactivé.
+    repo_sync_interval_minutes: int = 15
 
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"
