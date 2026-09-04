@@ -48,8 +48,17 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 jours
     encryption_key: SecretStr = SecretStr("")  # Fernet key, généré au setup
 
+    # ── Sessions ───────────────────────────────────────────────
+    # Chaque session active = un process `claude` (Node) résident, soit
+    # 150 à 450 Mo selon la taille de la conversation. Le superviseur compte
+    # comme une session. Sur un serveur à 4 Go : 4.
+    max_concurrent_sessions: int = 8
+
     # ── Workspaces ──────────────────────────────────────────────
     workspaces_root: Path = Path("/var/eldir/workspaces")
+    # Surveillance des repos : fetch + fast-forward périodique des clones
+    # (jamais quand le working tree est sale). 0 = désactivé.
+    repo_sync_interval_minutes: int = 15
 
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"

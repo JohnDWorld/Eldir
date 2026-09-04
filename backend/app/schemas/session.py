@@ -37,7 +37,8 @@ class SessionEventRead(TimestampedModel):
 
 class SessionRead(TimestampedModel):
     id: str
-    project_id: str
+    # None pour la session superviseur (pas de repo rattaché).
+    project_id: str | None
     user_id: str
     sdk_session_id: str | None
     branch: str

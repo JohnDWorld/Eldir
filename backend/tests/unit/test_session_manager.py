@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.constants import MAX_CONCURRENT_SESSIONS
+from app.core.config import get_settings
 from app.core.exceptions import SessionLimitError, SessionNotFoundError
 from app.services.event_bus import EventBus
 from app.services.session_manager import SessionManager
@@ -79,7 +79,7 @@ async def test_start_registers_session(
 async def test_start_enforces_concurrent_limit(
     manager: SessionManager, fake_sdk: MagicMock
 ) -> None:
-    for i in range(MAX_CONCURRENT_SESSIONS):
+    for i in range(get_settings().max_concurrent_sessions):
         await manager.start(
             session_id=f"s{i}",
             project_id="p",

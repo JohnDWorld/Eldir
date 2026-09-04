@@ -15,6 +15,7 @@ import { SettingsGitPage } from '@/pages/settings-git-page';
 import { SettingsOllamaPage } from '@/pages/settings-ollama-page';
 import { SettingsPage } from '@/pages/settings-page';
 import { SettingsPromptsPage } from '@/pages/settings-prompts-page';
+import { SupervisorPage } from '@/pages/supervisor-page';
 import { SetupPendingPage } from '@/pages/setup-pending-page';
 import { useRegisterSw } from '@/pwa/use-register-sw';
 
@@ -42,6 +43,7 @@ export function App(): JSX.Element {
           <Route path="/setup-pending" element={<SetupPendingPage />} />
           <Route element={<AuthedLayout />}>
             <Route path="/" element={<OpsHomePage />} />
+            <Route path="/supervisor" element={<SupervisorPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route
               path="/projects/:projectId/template"

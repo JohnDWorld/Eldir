@@ -39,6 +39,8 @@ export function SessionPage(): JSX.Element {
   const deleteMut = useDeleteSession();
   const navigate = useNavigate();
   const [rightTab, setRightTab] = useState<'live' | 'diff'>('live');
+  // Le superviseur n'a ni repo ni worktree : pas de git, pas de diff.
+  const isSupervisor = session.data?.is_system === true;
 
   const handleDelete = async () => {
     if (!sessionId) return;
@@ -145,7 +147,7 @@ export function SessionPage(): JSX.Element {
           {session.data.branch} · {session.data.model ?? 'default model'}
         </span>
         <div className="flex-1" />
-        <SessionGitActions sessionId={sessionId} />
+        {!isSupervisor && <SessionGitActions sessionId={sessionId} />}
         <button
           type="button"
           onClick={() => stopMut.mutate(sessionId)}
@@ -170,6 +172,9 @@ export function SessionPage(): JSX.Element {
           <div className="px-3 pb-2 eldir-caps">Sessions</div>
           {(sessions.data ?? []).map((s) => {
             const project = projects.data?.find((p) => p.id === s.project_id);
+            const label = s.is_system
+              ? 'Eldir · superviseur'
+              : (project?.name ?? 'projet inconnu');
             const active = s.id === sessionId;
             return (
               <a
@@ -190,7 +195,7 @@ export function SessionPage(): JSX.Element {
                       active ? 'text-eldir-ink' : 'text-eldir-ink-2',
                     )}
                   >
-                    {project?.name ?? 'projet inconnu'}
+                    {label}
                   </span>
                 </div>
                 <span className="ml-5 truncate text-eldir-gray">
@@ -234,10 +239,15 @@ export function SessionPage(): JSX.Element {
             <div className="eldir-caps">Session meta</div>
             <Kv k="id" v={session.data.id.slice(0, 12)} />
             {(() => {
-              const project = projects.data?.find((p) => p.id === session.data.project_id);
+              const project = projects.data?.find(
+                (p) => p.id === session.data.project_id,
+              );
               return (
                 <>
-                  <Kv k="project" v={project?.name ?? '-'} />
+                  <Kv
+                    k="project"
+                    v={isSupervisor ? 'superviseur' : (project?.name ?? '-')}
+                  />
                   <Kv k="repo" v={project?.repo_full_name ?? '-'} />
                 </>
               );
@@ -264,14 +274,16 @@ export function SessionPage(): JSX.Element {
               active={rightTab === 'live'}
               onClick={() => setRightTab('live')}
             />
-            <RightTab
-              label="diff"
-              active={rightTab === 'diff'}
-              onClick={() => setRightTab('diff')}
-            />
+            {!isSupervisor && (
+              <RightTab
+                label="diff"
+                active={rightTab === 'diff'}
+                onClick={() => setRightTab('diff')}
+              />
+            )}
           </div>
 
-          {rightTab === 'live' ? (
+          {rightTab === 'live' || isSupervisor ? (
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-eldir-ink">
               <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-cream">
                 {events.map((e) => (

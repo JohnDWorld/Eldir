@@ -11,7 +11,9 @@ export default [
     files: ['src/**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2022,
-      globals: globals.browser,
+      // `JSX` est un namespace de types global (React 18 + jsx: react-jsx) :
+      // invisible pour eslint, qui le prend pour une variable non définie.
+      globals: { ...globals.browser, JSX: 'readonly', React: 'readonly' },
       parser: tsparser,
       parserOptions: {
         project: ['./tsconfig.app.json'],

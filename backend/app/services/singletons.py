@@ -7,8 +7,10 @@ from redis.asyncio import Redis
 from app.core.config import get_settings
 from app.db.session import async_session_factory
 from app.services.event_bus import EventBus
+from app.services.repo_watcher import RepoWatcher
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
+from app.services.supervisor_service import SupervisorService
 from app.services.template_generator_service import TemplateGeneratorService
 
 _redis: Redis | None = None
@@ -16,11 +18,14 @@ _event_bus: EventBus | None = None
 _session_manager: SessionManager | None = None
 _session_service: SessionService | None = None
 _template_generator: TemplateGeneratorService | None = None
+_supervisor: SupervisorService | None = None
+_repo_watcher: RepoWatcher | None = None
 
 
 async def init_singletons() -> None:
     """À appeler dans le lifespan startup."""
     global _redis, _event_bus, _session_manager, _session_service, _template_generator
+    global _supervisor, _repo_watcher
     settings = get_settings()
     _redis = Redis.from_url(
         str(settings.redis_url),
@@ -34,10 +39,23 @@ async def init_singletons() -> None:
     _template_generator = TemplateGeneratorService(
         manager=_session_manager, event_bus=_event_bus
     )
+    _supervisor = SupervisorService(
+        manager=_session_manager,
+        sessions=_session_service,
+        session_factory=async_session_factory,
+    )
+    _repo_watcher = RepoWatcher(
+        session_factory=async_session_factory,
+        interval_seconds=settings.repo_sync_interval_minutes * 60,
+    )
+    _repo_watcher.start()
 
 
 async def shutdown_singletons() -> None:
     global _redis, _event_bus, _session_manager, _session_service, _template_generator
+    global _supervisor, _repo_watcher
+    if _repo_watcher is not None:
+        await _repo_watcher.stop()
     if _session_manager is not None:
         for active in _session_manager.list_active():
             try:
@@ -51,6 +69,8 @@ async def shutdown_singletons() -> None:
     _session_manager = None
     _session_service = None
     _template_generator = None
+    _supervisor = None
+    _repo_watcher = None
 
 
 def get_session_manager() -> SessionManager:
@@ -69,6 +89,12 @@ def get_template_generator() -> TemplateGeneratorService:
     if _template_generator is None:
         raise RuntimeError("TemplateGeneratorService non initialisé.")
     return _template_generator
+
+
+def get_supervisor_service() -> SupervisorService:
+    if _supervisor is None:
+        raise RuntimeError("SupervisorService non initialisé.")
+    return _supervisor
 
 
 def get_redis_client() -> Redis:

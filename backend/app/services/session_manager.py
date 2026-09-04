@@ -16,12 +16,12 @@ En V2 multi-user il faudra spawn des subprocesses isolés.
 from __future__ import annotations
 
 import asyncio
-import os
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from app.core.config import get_settings
 from app.core.constants import (
     EVENT_TYPE_ERROR,
     EVENT_TYPE_STATE,
@@ -31,7 +31,6 @@ from app.core.constants import (
     EVENT_TYPE_TOOL_USE,
     EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
-    MAX_CONCURRENT_SESSIONS,
     SESSION_STATE_IDLE,
     SESSION_STATE_THINKING,
     SESSION_STATE_TOOL_USE,
@@ -45,11 +44,42 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# ── Porte de validation humaine ─────────────────────────────────
+# Les sessions tournent en `bypassPermissions` (pas de TTY côté serveur),
+# donc rien n'empêcherait un agent de pousser tout seul. La publication est
+# la seule action irréversible et non relisible : on la refuse au niveau du
+# hook, pas dans le prompt (une consigne se contourne, un hook non).
+# John relit le diff dans Eldir puis déclenche commit & push / PR lui-même.
+_PUBLISH_DENY_RE: re.Pattern[str] = re.compile(
+    r"""\bgit\b[^;&|]*\b(?:push|commit)\b   # git push / git commit (et variantes -C, -c…)
+      | \bgh\b\s+pr\b                     # gh pr create / gh pr merge
+      | \bglab\b\s+mr\b                    # équivalent GitLab
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+_PUBLISH_DENY_REASON = (
+    "Refusé par Eldir : la publication est validée par un humain. "
+    "Laisse tes modifications non commitées dans le worktree, John relit le "
+    "diff dans le dashboard puis déclenche lui-même le commit et le push. "
+    "Termine ton tour avec ton bloc <cr>."
+)
+
+
+def _denies_publish(tool_name: str | None, tool_input: Any) -> bool:
+    """True si l'appel outil tente de commiter ou publier."""
+    if tool_name not in ("Bash", "BashOutput"):
+        return False
+    if not isinstance(tool_input, dict):
+        return False
+    command = tool_input.get("command")
+    return isinstance(command, str) and bool(_PUBLISH_DENY_RE.search(command))
+
 
 @dataclass(slots=True)
 class ActiveSession:
     session_id: str
-    project_id: str
+    # None pour la session superviseur (aucun repo rattaché).
+    project_id: str | None
     user_id: str
     cwd: str
     state: str = SESSION_STATE_IDLE
@@ -93,17 +123,21 @@ class SessionManager:
         self,
         *,
         session_id: str,
-        project_id: str,
+        project_id: str | None,
         user_id: str,
         cwd: str,
         system_prompt: str | None = None,
         model: str | None = None,
         resume_sdk_id: str | None = None,
         allowed_tools: list[str] | None = None,
+        disallowed_tools: list[str] | None = None,
+        mcp_servers: dict[str, Any] | None = None,
     ) -> ActiveSession:
-        if self.active_count >= MAX_CONCURRENT_SESSIONS:
+        limit = get_settings().max_concurrent_sessions
+        if self.active_count >= limit:
             raise SessionLimitError(
-                f"Limite de {MAX_CONCURRENT_SESSIONS} sessions actives atteinte."
+                f"Limite de {limit} sessions actives atteinte. Stoppe une "
+                "session en cours (elle reste reprenable) pour libérer un slot."
             )
 
         # Lazy import - `claude_agent_sdk` n'est nécessaire qu'au boot d'une session.
@@ -126,15 +160,30 @@ class SessionManager:
             tool_use_id: str | None,
             _context: Any,
         ) -> dict[str, Any]:
+            tool_name = input_data.get("tool_name")
+            tool_input = input_data.get("tool_input")
             await self._publish(
                 session_id,
                 EVENT_TYPE_TOOL_USE,
                 {
-                    "tool_name": input_data.get("tool_name"),
-                    "tool_input": input_data.get("tool_input"),
+                    "tool_name": tool_name,
+                    "tool_input": tool_input,
                     "tool_use_id": tool_use_id,
                 },
             )
+            if _denies_publish(tool_name, tool_input):
+                logger.info(
+                    "session.publish.denied",
+                    session_id=session_id,
+                    tool_name=tool_name,
+                )
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": _PUBLISH_DENY_REASON,
+                    }
+                }
             return {}
 
         async def _post_tool_hook(
@@ -183,6 +232,16 @@ class SessionManager:
             options_kwargs["resume"] = resume_sdk_id
         if allowed_tools:
             options_kwargs["allowed_tools"] = allowed_tools
+        if disallowed_tools:
+            # `allowed_tools` ne restreint rien en bypassPermissions (c'est une
+            # liste de pré-approbation) : pour retirer vraiment un outil il faut
+            # l'interdire explicitement.
+            options_kwargs["disallowed_tools"] = disallowed_tools
+        if mcp_servers:
+            # Outils in-process (superviseur). `strict_mcp_config` évite de
+            # charger en plus les serveurs MCP éventuels de la machine hôte.
+            options_kwargs["mcp_servers"] = mcp_servers
+            options_kwargs["strict_mcp_config"] = True
 
         options = ClaudeAgentOptions(**options_kwargs)
         client = ClaudeSDKClient(options=options)

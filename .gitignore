@@ -9,6 +9,11 @@
 .env.*
 !.env.example
 
+# secrets/ : les .env en clair ne sortent jamais d'ici, seuls les
+# *.enc.env chiffrés par SOPS (cf. .sops.yaml) sont versionnés.
+secrets/*.env
+!secrets/*.enc.env
+
 # python (sécurité au cas où ; couvert aussi par backend/.gitignore)
 __pycache__/
 .venv/

@@ -17,6 +17,7 @@ from app.api.v1.sessions import router as sessions_router
 from app.api.v1.settings_claude import router as settings_claude_router
 from app.api.v1.settings_git import router as settings_git_router
 from app.api.v1.setup import router as setup_router
+from app.api.v1.supervisor import router as supervisor_router
 from app.api.v1.system_prompts import router as system_prompts_router
 
 api_router = APIRouter()
@@ -29,6 +30,7 @@ api_router.include_router(projects_router)
 api_router.include_router(mission_templates_router)
 api_router.include_router(templates_presets_router)
 api_router.include_router(sessions_router)
+api_router.include_router(supervisor_router)
 api_router.include_router(costs_router)
 api_router.include_router(settings_claude_router)
 api_router.include_router(settings_git_router)

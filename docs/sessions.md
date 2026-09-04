@@ -12,6 +12,8 @@ Une **session** = une instance vivante de `ClaudeSDKClient` (Claude Agent SDK Py
 - Au premier message, le SDK renvoie un `sdk_session_id` (UUID Anthropic) qu'Eldir capture et persiste — pour pouvoir **reprendre** la session plus tard
 - Les hooks SDK + `ResultMessage` sont câblés vers Redis pub/sub → WebSocket → frontend, ce qui donne le **streaming live** des outils utilisés, des réponses et de l'usage en tokens
 
+Chaque session obéit en plus au **protocole enfant** d'Eldir : elle termine ses tours par un compte rendu `<cr>` et n'a pas le droit de commiter ni de pousser elle-même. Voir [`docs/supervisor.md`](./supervisor.md).
+
 ## Démarrer une session
 
 1. Va sur la **Ops home** (`/`).
@@ -126,7 +128,7 @@ Le SDK suit aussi le défaut configuré côté Anthropic si on ne précise rien.
 ## Limites connues
 
 - **Mono-tour bloquant** : `send_message` attend la fin du tour (`ResultMessage`) côté backend. Le streaming arrive en parallèle sur le WS, donc l'UI reste responsive.
-- **Hard cap** : `MAX_CONCURRENT_SESSIONS = 8` (cf. `core/constants.py`). Au-delà : `SessionLimitError`.
+- **Hard cap** : `MAX_CONCURRENT_SESSIONS` (env, défaut 8). Au-delà : `SessionLimitError`. Chaque session active fait vivre un process `claude` (Node) de 150 à 450 Mo et le superviseur en occupe une : sur un serveur à 4 Go de RAM, mets 4. Une session stoppée libère sa RAM et reste reprenable (`resume`).
 - **Pas de fork conversationnel** : prévu V2 (le SDK le supporte nativement).
 - **Background tasks + notif PWA quand un tour finit pendant qu'on est ailleurs** : prévu en résiduel Phase 2 / début Phase 6.
 
