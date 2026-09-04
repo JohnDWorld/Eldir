@@ -122,23 +122,35 @@ Les migrations Alembic sont jouées automatiquement au démarrage du backend.
 
 ## 5 bis. Versionner ses secrets (optionnel, SOPS + age)
 
-Recopier des `.env` à la main entre sa machine et son serveur finit toujours
-par produire un fichier perdu ou divergent. Eldir prévoit de les versionner
+Recopier des `.env` à la main entre sa machine et son serveur finit toujours par
+produire un fichier perdu ou divergent. Eldir prévoit de les versionner
 **chiffrés**, avec [SOPS](https://github.com/getsops/sops) et
 [age](https://github.com/FiloSottile/age).
 
+**Dans un dépôt privé séparé**, pas dans celui d'Eldir. Le chiffrement protège
+les valeurs, il n'annule pas la publication : un fichier poussé sur un dépôt
+public y reste pour toujours, via les forks, les caches et les archives.
+
 ```bash
-# Une fois, sur ta machine : générer une clé si tu n'en as pas
+# Une fois : une clé age si tu n'en as pas déjà une
 age-keygen -o ~/.config/sops/age/keys.txt
-grep 'public key' ~/.config/sops/age/keys.txt   # à reporter dans .sops.yaml
+grep 'public key' ~/.config/sops/age/keys.txt
 
-# Tes vraies valeurs, en clair, dans secrets/ (gitignoré)
-cp .env.example secrets/root.env
-cp backend/.env.example secrets/backend.env
-$EDITOR secrets/root.env secrets/backend.env
+# Le dépôt privé, à côté de celui d'Eldir
+mkdir ../eldir-secrets && cd ../eldir-secrets && git init
+printf '*.env\n!*.enc.env\n' > .gitignore
+cat > .sops.yaml <<'YAML'
+creation_rules:
+  - path_regex: .*\.env$
+    age: age1... # ta clé publique
+YAML
 
-./scripts/secrets.sh encrypt        # -> secrets/*.enc.env, versionnables
-git add secrets/*.enc.env && git commit -m "chore(secrets): maj env chiffré"
+# Tes vraies valeurs, en clair (gitignorées)
+cp ../Eldir/.env.example root.env
+cp ../Eldir/backend/.env.example backend.env
+$EDITOR root.env backend.env
+
+cd ../Eldir && ./scripts/secrets.sh encrypt   # -> *.enc.env, versionnables
 ```
 
 Déploiement, depuis ta machine :
@@ -147,23 +159,23 @@ Déploiement, depuis ta machine :
 ./scripts/secrets.sh deploy         # ou : deploy <hôte-ssh>
 ```
 
-Le déchiffrement se fait **dans le tuyau SSH** : le fichier en clair n'est
-jamais écrit sur le disque local pendant un deploy, et le serveur n'a besoin
-ni de SOPS, ni d'age, ni de la clé privée. Sur une machine neuve,
-`./scripts/secrets.sh decrypt` reconstruit les fichiers en clair localement.
+Le déchiffrement se fait **dans le tuyau SSH** : le fichier en clair n'est jamais
+écrit sur le disque local pendant un deploy, et le serveur n'a besoin ni de SOPS,
+ni d'age, ni de la clé privée. Un serveur compromis ne livre donc que son propre
+`.env`, pas la capacité de déchiffrer le reste.
 
-Trois précautions :
+Le script cherche le dépôt dans `../eldir-secrets`, surchargeable avec
+`ELDIR_SECRETS_DIR`. Les noms de fichiers pilotent la destination :
+`root.env` va vers `.env`, `backend.env` vers `backend/.env`.
+
+Deux précautions :
 
 - **La clé privée age est le seul secret qui compte.** Sauvegarde
-  `~/.config/sops/age/keys.txt` hors de la machine (gestionnaire de mots de
-  passe, papier). Sans elle, les `.enc.env` sont définitivement illisibles.
-- **Le chiffré est public pour toujours.** Une fois poussé sur un dépôt
-  public, un `.enc.env` ne peut plus être dépublié. Si tu préfères ne pas
-  exposer même du chiffré, garde `secrets/` dans un dépôt privé séparé.
+  `~/.config/sops/age/keys.txt` hors de la machine (gestionnaire de mots de passe,
+  papier). Sans elle, les `.enc.env` sont définitivement illisibles.
 - **Rotation** : ajouter une clé publique dans `.sops.yaml` puis
-  `sops updatekeys secrets/*.enc.env`. Retirer une clé ne rend pas illisibles
-  les commits déjà poussés : dans ce cas, régénère aussi les secrets
-  eux-mêmes.
+  `sops updatekeys *.enc.env`. Si une valeur a fuité, la seule vraie correction
+  est de la régénérer, pas de supprimer le fichier.
 
 ## 6. Le compte admin
 
