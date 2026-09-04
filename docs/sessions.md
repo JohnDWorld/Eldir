@@ -12,6 +12,8 @@ Une **session** = une instance vivante de `ClaudeSDKClient` (Claude Agent SDK Py
 - Au premier message, le SDK renvoie un `sdk_session_id` (UUID Anthropic) qu'Eldir capture et persiste — pour pouvoir **reprendre** la session plus tard
 - Les hooks SDK + `ResultMessage` sont câblés vers Redis pub/sub → WebSocket → frontend, ce qui donne le **streaming live** des outils utilisés, des réponses et de l'usage en tokens
 
+Chaque session obéit en plus au **protocole enfant** d'Eldir : elle termine ses tours par un compte rendu `<cr>` et n'a pas le droit de commiter ni de pousser elle-même. Voir [`docs/supervisor.md`](./supervisor.md).
+
 ## Démarrer une session
 
 1. Va sur la **Ops home** (`/`).

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,23 @@ from app.services.git_credential_service import git_credential_service
 from app.services.git_providers import make_provider
 from app.services.session_manager import SessionManager
 from app.services.worktree_service import worktree_service
+
+
+# ── Compte rendu de fin de tour (protocole enfant) ──────────────
+# La session enfant termine son tour par un bloc <cr>...</cr>. On le
+# recopie dans `sessions.summary` en écrasant le précédent : le superviseur
+# ne lit que le dernier passage, ce qui garde sa relecture à coût constant.
+_CR_RE: re.Pattern[str] = re.compile(r"<cr>(.*?)</cr>", re.DOTALL | re.IGNORECASE)
+_CR_MAX_CHARS = 4_000
+
+
+def extract_cr(text: str) -> str | None:
+    """Renvoie le contenu du dernier bloc <cr> d'un texte, ou None."""
+    matches = _CR_RE.findall(text)
+    if not matches:
+        return None
+    cr = matches[-1].strip()
+    return cr[:_CR_MAX_CHARS] if cr else None
 
 
 @dataclass(slots=True, frozen=True)
@@ -162,8 +180,15 @@ class SessionService:
         template = await mission_template_service.get(
             db, project_id=project_id, user_id=user_id
         )
-        effective_system_prompt = system_prompt or (
+        base_system_prompt = system_prompt or (
             template.system_prompt if template else None
+        )
+        # Protocole enfant (bloc <cr> + interdiction de publier) collé au
+        # bout du prompt : stable d'un tour à l'autre, donc mis en cache par
+        # le CLI avec le reste du system prompt. Persisté sur la row pour que
+        # `resume()` reparte avec exactement le même prompt.
+        effective_system_prompt = await self._with_child_protocol(
+            db, base_system_prompt
         )
         effective_model = (
             model
@@ -619,6 +644,17 @@ class SessionService:
             )
         ]
 
+    async def _with_child_protocol(
+        self, db: AsyncSession, system_prompt: str | None
+    ) -> str:
+        """Concatène le prompt du template et le protocole enfant Eldir."""
+        from app.services.system_prompt_service import system_prompt_service
+
+        protocol = await system_prompt_service.resolve(db, "child_protocol")
+        if not system_prompt:
+            return protocol
+        return f"{system_prompt.rstrip()}\n\n{protocol}"
+
     async def _inject_claude_env(self, db: AsyncSession, user_id: str) -> None:
         resolved = await claude_credential_service.resolve_active(db, user_id)
         if resolved is None:
@@ -661,18 +697,28 @@ class SessionService:
                         .values(sdk_session_id=data["sdk_session_id"])
                     )
 
-                # Mise à jour du summary depuis le premier text
+                # Summary : le bloc <cr> du dernier tour écrase le
+                # précédent. À défaut de <cr>, on garde le tout premier text
+                # comme libellé de session (comportement d'origine).
                 if event_type == EVENT_TYPE_TEXT and isinstance(
                     data.get("text"), str
                 ):
-                    summary = data["text"][:280]
-                    await db.execute(
-                        update(Session)
-                        .where(
-                            Session.id == session_id, Session.summary.is_(None)
+                    cr = extract_cr(data["text"])
+                    if cr is not None:
+                        await db.execute(
+                            update(Session)
+                            .where(Session.id == session_id)
+                            .values(summary=cr)
                         )
-                        .values(summary=summary)
-                    )
+                    else:
+                        await db.execute(
+                            update(Session)
+                            .where(
+                                Session.id == session_id,
+                                Session.summary.is_(None),
+                            )
+                            .values(summary=data["text"][:280])
+                        )
 
                 # Persistance du coût d'un tour SDK (Phase 5)
                 if event_type == EVENT_TYPE_USAGE:

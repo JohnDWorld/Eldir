@@ -26,6 +26,11 @@ session Claude → édite/écrit dans /var/eldir/workspaces/{user}/{slug}/
   { branch, has_changes, modified, added, deleted, untracked }
 ```
 
+> **La session Claude ne publie jamais elle-même.** `git commit`, `git push`,
+> `gh pr` et `glab mr` sont refusés dans les sessions par le hook `PreToolUse` :
+> seuls les boutons ci-dessus (donc le backend Eldir) publient, après ta relecture
+> du diff. Cf. [`docs/supervisor.md`](./supervisor.md).
+
 ## Cycle de travail conseillé
 
 1. Pose ta tâche à Claude dans la session → il édite les fichiers via `Write`/`Edit`.

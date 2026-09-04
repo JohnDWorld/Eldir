@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
 from app.core.exceptions import AuthenticationError, NotFoundError
-from app.db.models import Project, Session, User
+from app.db.models import Project, User
 from app.schemas.claude_credential import ClaudeCredentialCreate
 from app.services.claude_credential_service import claude_credential_service
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
+from app.services.worktree_service import worktree_service
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
 @pytest.fixture
@@ -31,8 +33,47 @@ async def admin(db_session: AsyncSession) -> User:
     return user
 
 
+async def _git(args: list[str], cwd: Path) -> None:
+    process = await asyncio.create_subprocess_exec(
+        "git",
+        *args,
+        cwd=str(cwd),
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise RuntimeError(stderr.decode())
+
+
+@pytest.fixture(autouse=True)
+def workspaces_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Les worktrees de session sont créés sous la racine du WorktreeService.
+
+    Le service est un singleton instancié à l'import : on patche son attribut
+    plutôt que l'env, qui a déjà été lu.
+    """
+    root = tmp_path / "workspaces"
+    monkeypatch.setattr(worktree_service, "_root", root)
+    return root
+
+
 @pytest.fixture
-async def project(db_session: AsyncSession, admin: User, tmp_path) -> Project:
+async def repo(tmp_path: Path) -> Path:
+    """Un vrai repo git : `create_and_start` crée un worktree dessus."""
+    work = tmp_path / "repo"
+    work.mkdir()
+    await _git(["init", "--initial-branch=main"], cwd=work)
+    await _git(["config", "user.email", "x@y"], cwd=work)
+    await _git(["config", "user.name", "x"], cwd=work)
+    (work / "README.md").write_text("hello")
+    await _git(["add", "-A"], cwd=work)
+    await _git(["commit", "-m", "init"], cwd=work)
+    return work
+
+
+@pytest.fixture
+async def project(db_session: AsyncSession, admin: User, repo: Path) -> Project:
     p = Project(
         user_id=admin.id,
         name="repo",
@@ -40,7 +81,7 @@ async def project(db_session: AsyncSession, admin: User, tmp_path) -> Project:
         provider="github",
         repo_full_name="owner/repo",
         default_branch="main",
-        workspace_path=str(tmp_path),
+        workspace_path=str(repo),
     )
     db_session.add(p)
     await db_session.commit()
@@ -112,7 +153,13 @@ async def test_create_session_happy_path(
 
     assert session.id
     assert session.project_id == project.id
-    assert session.branch == "main"
+    # Une session vit sur son propre worktree / sa propre branche.
+    assert session.branch == f"claude/{session.id}"
+    assert session.worktree_path is not None
+    assert session.worktree_path != project.workspace_path
+    # Le protocole enfant est collé au system prompt et persisté sur la row.
+    assert session.system_prompt is not None
+    assert "<cr>" in session.system_prompt
     assert os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "sk-ant-oat01-test"
 
 
