@@ -29,7 +29,7 @@ export function SessionGitActions({
 
   return (
     <>
-      <div className="hidden items-center gap-2 md:flex">
+      <div className="flex items-center gap-2">
         {status.data && (
           <span
             className={cn(

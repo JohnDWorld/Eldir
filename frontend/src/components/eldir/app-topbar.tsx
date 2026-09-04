@@ -13,6 +13,7 @@ import { Avatar } from '@/components/eldir/avatar';
 import { useSessions } from '@/lib/api/queries';
 import type { SessionState } from '@/lib/constants';
 import { APP_NAME } from '@/lib/constants';
+import { isNavItemActive, NAV_ITEMS } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
 const ACTIVE_STATES: ReadonlySet<SessionState> = new Set([
@@ -21,21 +22,6 @@ const ACTIVE_STATES: ReadonlySet<SessionState> = new Set([
   'waiting_input',
   'blocked',
 ]);
-
-interface TopNavItem {
-  to: string;
-  label: string;
-  /** Si fourni, l'onglet est actif quand le pathname commence par cette valeur. */
-  matchPrefix?: string;
-}
-
-const NAV_ITEMS: readonly TopNavItem[] = [
-  { to: '/', label: 'Ops' },
-  { to: '/supervisor', label: 'Eldir', matchPrefix: '/supervisor' },
-  { to: '/projects', label: 'Projects', matchPrefix: '/projects' },
-  { to: '/costs', label: 'Costs', matchPrefix: '/costs' },
-  { to: '/settings', label: 'Settings', matchPrefix: '/settings' },
-];
 
 interface AppTopbarProps {
   rightInfo?: ReactNode;
@@ -59,10 +45,7 @@ export function AppTopbar({ rightInfo }: AppTopbarProps): JSX.Element {
       </NavLink>
       <nav className="hidden gap-0.5 md:flex">
         {NAV_ITEMS.map((item) => {
-          const isExact = pathname === item.to;
-          const isPrefixed =
-            item.matchPrefix !== undefined && pathname.startsWith(item.matchPrefix);
-          const active = isExact || isPrefixed;
+          const active = isNavItemActive(item, pathname);
           return (
             <NavLink
               key={item.to}

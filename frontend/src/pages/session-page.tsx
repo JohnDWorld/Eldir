@@ -39,6 +39,13 @@ export function SessionPage(): JSX.Element {
   const deleteMut = useDeleteSession();
   const navigate = useNavigate();
   const [rightTab, setRightTab] = useState<'live' | 'diff'>('live');
+  // Sous `md`, les trois colonnes ne tiennent pas : on n'en montre qu'une,
+  // choisie ici. Le rail réutilise `rightTab`, donc on le synchronise.
+  const [mobileTab, setMobileTab] = useState<'chat' | 'diff' | 'live'>('chat');
+  const selectMobileTab = (tab: 'chat' | 'diff' | 'live') => {
+    setMobileTab(tab);
+    if (tab !== 'chat') setRightTab(tab);
+  };
   // Le superviseur n'a ni repo ni worktree : pas de git, pas de diff.
   const isSupervisor = session.data?.is_system === true;
 
@@ -166,7 +173,26 @@ export function SessionPage(): JSX.Element {
         <Avatar size={24}>J</Avatar>
       </header>
 
-      <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[220px_1fr_320px]">
+      {/* Sélecteur de panneau, mobile uniquement */}
+      <div className="flex shrink-0 border-b border-eldir-gray-3 bg-eldir-cream-2 md:hidden">
+        {(['chat', 'diff', 'live'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => selectMobileTab(tab)}
+            className={cn(
+              'min-h-11 flex-1 px-3 font-mono text-2xs uppercase tracking-caps transition-colors',
+              mobileTab === tab
+                ? 'border-b-2 border-eldir-orange bg-eldir-paper text-eldir-ink'
+                : 'border-b-2 border-transparent text-eldir-gray',
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr_320px]">
         {/* Sidebar sessions */}
         <aside className="hidden flex-col overflow-y-auto border-r border-eldir-gray-3 py-2.5 md:flex">
           <div className="px-3 pb-2 eldir-caps">Sessions</div>
@@ -207,7 +233,12 @@ export function SessionPage(): JSX.Element {
         </aside>
 
         {/* Chat */}
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-eldir-gray-3">
+        <section
+          className={cn(
+            'min-h-0 min-w-0 flex-col overflow-hidden border-r border-eldir-gray-3 md:flex',
+            mobileTab === 'chat' ? 'flex' : 'hidden',
+          )}
+        >
           <ChatStream events={events} />
           {error && (
             <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red">
@@ -234,7 +265,12 @@ export function SessionPage(): JSX.Element {
         </section>
 
         {/* Right rail : Session meta (top) + Logs live stream (bottom) */}
-        <aside className="hidden min-h-0 min-w-0 flex-col overflow-hidden border-l border-eldir-gray-3 md:flex">
+        <aside
+          className={cn(
+            'min-h-0 min-w-0 flex-col overflow-hidden border-l border-eldir-gray-3 md:flex',
+            mobileTab === 'chat' ? 'hidden' : 'flex',
+          )}
+        >
           <div className="flex flex-col gap-3 border-b border-eldir-gray-3 bg-eldir-paper p-4">
             <div className="eldir-caps">Session meta</div>
             <Kv k="id" v={session.data.id.slice(0, 12)} />
