@@ -153,9 +153,21 @@ docker logs eldir-backend 2>&1 | grep ELDIR_BOOTSTRAP_TOKEN
 S'il n'apparaît pas, c'est que le backend a déjà passé le bootstrap (un admin existe en DB).
 Soit tu te connectes avec ses credentials, soit tu réinitialises (voir ci-dessus).
 
-### `npx` indisponible
+### `npx: command not found` sur le serveur
 
-Installe Node.js ≥ 18 ou génère le token sur une autre machine et colle-le dans le prompt.
+**N'installe pas Node sur l'hôte pour ça.** Le CLI `claude` est déjà dans l'image
+du backend (cf. `backend/Dockerfile`), et le script d'install s'en sert
+automatiquement quand ni `claude` ni `npx` ne sont dans le PATH. À la main :
+
+```bash
+docker exec -it eldir-backend claude setup-token
+```
+
+Attention quand même : le flow affiche un lien à ouvrir dans un **navigateur**.
+Sur un VPS headless, ouvre-le depuis ta machine et recolle le code dans le
+terminal. Le plus simple reste de générer le token chez toi (`claude setup-token`
+sur ton poste) et de le coller dans **Settings > Claude**, ou dans le prompt du
+script.
 
 ### Le token Pro/Max a expiré
 
