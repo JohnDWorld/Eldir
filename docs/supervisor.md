@@ -57,6 +57,36 @@ qu'une session ait fait un tour ou cinquante. Il est stocké dans la colonne
 La consigne qui impose ce format vit dans le prompt **Protocole session enfant**
 (Settings > Prompts), éditable comme les autres.
 
+## Chaîner deux repos sans faire le courrier
+
+C'est le cas d'usage qui justifie le superviseur. Exemple réel :
+
+```
+toi ──► "Rempart Messenger change son protocole de messages, propage"
+             │
+             ├─► dispatch(Rempart Messenger, "…")
+             │      └─ <cr> FAIT: nouveau champ `envelope.version` …
+             │
+             ├─► dispatch(Village Viking, "Rempart expose maintenant
+             │      `envelope.version`, adapte le client …")
+             │      └─ <cr> FAIT: client mis à jour, adaptateur …
+             │
+             └─► dispatch(Boutique à Agents, "Village Viking expose …")
+                    └─ <cr> …
+```
+
+Le superviseur extrait du compte rendu de chaque session ce dont la suivante a
+besoin (noms exacts, signatures, chemins) et le lui transmet lui-même. Tu ne
+copies-colles plus rien entre deux conversations.
+
+Il enchaîne **un maillon à la fois**, en attendant le compte rendu de chaque
+session : une chaîne lancée sur une base fausse coûte trois sessions au lieu
+d'une. Et il ne chaîne que sur une dépendance qu'il connaît, sinon il demande.
+
+Pour rendre une dépendance durable, dis-la une fois : *"quand Rempart Messenger
+change son protocole, Village Viking doit suivre"*. Le superviseur l'enregistre
+via `remember` et l'appliquera sans que tu la répètes.
+
 ## Tu restes le seul à publier
 
 Les sessions Claude tournent sans demande d'autorisation (pas de terminal côté
