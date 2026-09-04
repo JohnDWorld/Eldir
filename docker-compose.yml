@@ -42,6 +42,12 @@ services:
       REDIS_URL: redis://redis:6379/0
       WORKSPACES_ROOT: /var/eldir/workspaces
       APP_ENV: prod
+    # Migrations avant l'app, comme en dev : le premier `up` sur une base
+    # vierge crée le schéma tout seul.
+    command:
+      - "sh"
+      - "-c"
+      - "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - eldir_workspaces:/var/eldir/workspaces
     depends_on:
@@ -62,11 +68,22 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2-alpine
+    # Image recompilée avec le plugin DNS OVH (cf. docker/caddy/Dockerfile).
+    build:
+      context: ./docker/caddy
+    image: eldir-caddy:local
     container_name: eldir-caddy
+    environment:
+      ELDIR_HOSTNAME: ${ELDIR_HOSTNAME:-eldir.local}
+      OVH_ENDPOINT: ${OVH_ENDPOINT:-ovh-eu}
+      OVH_APPLICATION_KEY: ${OVH_APPLICATION_KEY:-}
+      OVH_APPLICATION_SECRET: ${OVH_APPLICATION_SECRET:-}
+      OVH_CONSUMER_KEY: ${OVH_CONSUMER_KEY:-}
+    # ELDIR_BIND_IP = IP tailnet du serveur pour ne rien exposer sur
+    # Internet (0.0.0.0 sinon).
     ports:
-      - "80:80"
-      - "443:443"
+      - "${ELDIR_BIND_IP:-0.0.0.0}:80:80"
+      - "${ELDIR_BIND_IP:-0.0.0.0}:443:443"
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - eldir_caddy_data:/data

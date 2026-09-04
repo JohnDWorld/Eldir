@@ -1,6 +1,9 @@
 # Installation - Eldir
 
 > Phase 1. Installation mono-utilisateur. Multi-user en V2.
+>
+> Pour une **mise en prod sur un serveur** (TLS, VPN, aucun port exposé), voir
+> [`deployment.md`](./deployment.md).
 
 ## Prérequis
 

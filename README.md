@@ -112,7 +112,7 @@ Une fois en route :
 
 C'est tout. En moins de 10 minutes tu chattes avec ton premier agent Claude depuis le dashboard.
 
-📖 [Bien démarrer](./docs/getting-started.md) · [Le superviseur](./docs/supervisor.md) · [Guide d'installation](./docs/installation.md) · [Configuration GitHub](./docs/github.md) · [Configuration Forgejo](./docs/providers/forgejo.md)
+📖 [Bien démarrer](./docs/getting-started.md) · [Le superviseur](./docs/supervisor.md) · [Guide d'installation](./docs/installation.md) · [Déploiement serveur](./docs/deployment.md) · [Configuration GitHub](./docs/github.md) · [Configuration Forgejo](./docs/providers/forgejo.md)
 
 ## 🏗️ Stack
 

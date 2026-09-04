@@ -1,19 +1,37 @@
 # Eldir - reverse proxy prod (cf. docker-compose.yml)
-# Adapter le hostname avant le déploiement.
+#
+# Variables (fichier `.env` à la racine, lu par docker compose) :
+#   ELDIR_HOSTNAME        nom servi, ex eldir.mondomaine.fr
+#   OVH_ENDPOINT          ovh-eu | ovh-us | ovh-ca (défaut ovh-eu)
+#   OVH_APPLICATION_KEY   token API OVH avec droits sur /domain/zone/…
+#   OVH_APPLICATION_SECRET
+#   OVH_CONSUMER_KEY
 
 {$ELDIR_HOSTNAME:eldir.local} {
     encode zstd gzip
 
-    # API REST
-    handle_path /api/* {
+    # Certificat via DNS-01 : rien à exposer sur Internet (cf. docker/caddy/Dockerfile).
+    tls {
+        dns ovh {
+            endpoint {$OVH_ENDPOINT:ovh-eu}
+            application_key {$OVH_APPLICATION_KEY}
+            application_secret {$OVH_APPLICATION_SECRET}
+            consumer_key {$OVH_CONSUMER_KEY}
+        }
+    }
+
+    # `handle` et pas `handle_path` : le backend écoute sur /api/v1/… et
+    # /ws/sessions/…, donc le préfixe doit être transmis tel quel. Avec
+    # handle_path, Caddy le retire et tout répond 404 (le proxy Vite du mode
+    # dev ne le retire pas non plus).
+    handle /api/* {
         reverse_proxy backend:8000 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
         }
     }
 
-    # WebSocket (sessions)
-    handle_path /ws/* {
+    handle /ws/* {
         reverse_proxy backend:8000
     }
 
