@@ -6,7 +6,9 @@ Aucune valeur hardcodée ne doit traîner ailleurs dans le code.
 from typing import Final
 
 # ── Sessions ────────────────────────────────────────────────────
-MAX_CONCURRENT_SESSIONS: Final[int] = 8
+# Le plafond de sessions actives dépend de la RAM du serveur (chaque session
+# fait vivre un process `claude` Node) : il est réglable via l'env
+# MAX_CONCURRENT_SESSIONS, cf. app.core.config.Settings.
 SESSION_BRANCH_PREFIX: Final[str] = "claude/"
 SESSION_WORKTREE_TEMPLATE: Final[str] = "{repo_slug}.{session_id}"
 

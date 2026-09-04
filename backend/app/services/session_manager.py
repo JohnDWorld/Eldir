@@ -16,13 +16,12 @@ En V2 multi-user il faudra spawn des subprocesses isolés.
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from app.core.config import get_settings
 from app.core.constants import (
     EVENT_TYPE_ERROR,
     EVENT_TYPE_STATE,
@@ -32,7 +31,6 @@ from app.core.constants import (
     EVENT_TYPE_TOOL_USE,
     EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
-    MAX_CONCURRENT_SESSIONS,
     SESSION_STATE_IDLE,
     SESSION_STATE_THINKING,
     SESSION_STATE_TOOL_USE,
@@ -135,9 +133,11 @@ class SessionManager:
         disallowed_tools: list[str] | None = None,
         mcp_servers: dict[str, Any] | None = None,
     ) -> ActiveSession:
-        if self.active_count >= MAX_CONCURRENT_SESSIONS:
+        limit = get_settings().max_concurrent_sessions
+        if self.active_count >= limit:
             raise SessionLimitError(
-                f"Limite de {MAX_CONCURRENT_SESSIONS} sessions actives atteinte."
+                f"Limite de {limit} sessions actives atteinte. Stoppe une "
+                "session en cours (elle reste reprenable) pour libérer un slot."
             )
 
         # Lazy import - `claude_agent_sdk` n'est nécessaire qu'au boot d'une session.
