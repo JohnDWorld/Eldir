@@ -76,3 +76,13 @@ async def test_delete_removes(db_session: AsyncSession, admin: User) -> None:
 
     with pytest.raises(NotFoundError):
         await git_credential_service.get(db_session, cred.id, admin.id)
+
+
+async def test_token_colle_avec_un_saut_de_ligne_est_nettoye() -> None:
+    """Un token collé depuis un navigateur arrive souvent avec un \\n.
+
+    Stocké tel quel, il part dans l'en-tête Authorization et le provider
+    répond "401 Bad credentials" sans indice sur la cause.
+    """
+    payload = GitCredentialCreate(provider="github", token="  ghp_abcd1234efgh\n")
+    assert payload.token == "ghp_abcd1234efgh"
