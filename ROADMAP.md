@@ -68,7 +68,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 
 ## 📦 Phasage
 
-> **Statut au 2026-05-21** : Phases 0 → 6 livrées (V1 complet).
+> **Statut au 2026-09-04** : Phases 0 → 6 livrées (V1 complet) + **superviseur** livré.
 > Prochain chantier potentiel : **Phase 7 - Souveraineté complète** (Forgejo/Headscale dans le wizard, mode agent local, backup chiffré) — c'est V2.
 > Reste pour V2 : compaction auto contexte, mode plan-only, sub-agents Haiku auto-routing, OllamaSubAgent invocable par Claude.
 
@@ -189,6 +189,32 @@ Remis à V2 :
 - [ ] Sub-agent type `OllamaSubAgent` directement invocable par Claude (V2)
 - [ ] Auto-routing intelligent ("résumer ce gros fichier en local avant de l'envoyer à Claude" sans intervention manuelle)
 
+### Superviseur - une seule conversation pour tout piloter ✅
+
+> Livré le 2026-09-04, hors phasage initial (c'était l'idée différenciatrice n°3, prévue V2).
+> Doc : [`docs/supervisor.md`](./docs/supervisor.md).
+
+- [x] **Protocole `<cr>`** : chaque session projet termine ses tours par un compte
+      rendu court qui **écrase** le précédent (colonne `sessions.summary`). Coût de
+      relecture constant pour le superviseur, quel que soit l'âge de la session.
+- [x] **Porte de validation humaine** : `git commit` / `git push` / `gh pr` refusés
+      au niveau du hook `PreToolUse` (les sessions tournent en `bypassPermissions`,
+      une consigne de prompt ne suffisait pas). Le commit et la PR restent
+      déclenchés par l'utilisateur depuis le dashboard.
+- [x] **Session superviseur** : session Claude sans projet ni worktree
+      (`project_id` NULL, `system_kind='supervisor'`), avec 4 outils MCP in-process
+      (`list_projects`, `list_sessions`, `dispatch`, `remember`) et rien d'autre
+      (`disallowed_tools` sur tous les outils intégrés).
+- [x] **Ping de fin de tour** : `dispatch` rend la main immédiatement, la session
+      enfant travaille en tâche de fond, et son STOP réveille le superviseur avec
+      son compte rendu.
+- [x] **Apprentissage des habitudes** : l'outil `remember` écrit dans un prompt
+      système éditable (Settings > Prompts), relu à chaque démarrage.
+- [x] **Surveillance des repos** : `RepoWatcher`, fetch + fast-forward périodique
+      des clones (`REPO_SYNC_INTERVAL_MINUTES`, jamais sur un working tree sale).
+- [ ] Parallélisme explicite : dispatcher deux chantiers simultanés sur un même repo
+      sans passer par la création manuelle de la seconde session.
+
 ### Phase 7 - Souveraineté complète (V2/V3)
 
 **Objectif** : l'install d'Eldir devient une porte d'entrée vers la souveraineté numérique.
@@ -209,7 +235,7 @@ Ces idées sont à intégrer au bon moment dans le phasage :
 
 1. **Mission Templates par repo** - Phase 4 ✅
 2. **Cross-session awareness** - Phase 5/6 - un agent peut consulter (read-only) le state d'un autre
-3. **Mode "supervisor"** - V2 - un agent chef d'orchestre qui délègue aux agents-projets selon des instructions de haut niveau
+3. **Mode "supervisor"** - ✅ livré (cf. section Superviseur)
 4. **Library de skills communautaires** - V2 - partage et installation de skills depuis une marketplace open-source
 5. **Setup wizard souveraineté** - Phase 7 ✅
 6. **Mode données sensibles via Ollama** - Phase 6 ✅

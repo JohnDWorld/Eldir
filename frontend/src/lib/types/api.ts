@@ -64,7 +64,8 @@ export interface ProjectSummary {
 
 export interface SessionRead {
   id: string;
-  project_id: string;
+  /** null pour la session superviseur (aucun repo rattaché). */
+  project_id: string | null;
   user_id: string;
   sdk_session_id: string | null;
   branch: string;

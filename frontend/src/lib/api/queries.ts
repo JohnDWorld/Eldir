@@ -307,6 +307,22 @@ export function useCreateSession() {
   });
 }
 
+/**
+ * Démarre (ou reprend) la session superviseur et la renvoie. Idempotent :
+ * appelable à chaque ouverture de la page Eldir.
+ */
+export function useEnsureSupervisor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<SessionRead, Record<string, never>>(
+        '/supervisor/session',
+        {},
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.sessions }),
+  });
+}
+
 export function useSendMessage(sessionId: string) {
   return useMutation({
     mutationFn: (body: SessionMessageInput) =>

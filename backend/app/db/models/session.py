@@ -14,8 +14,10 @@ class Session(UUIDPrimaryKey, TimestampMixin, Base):
 
     __tablename__ = "sessions"
 
-    project_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True, nullable=False
+    # Null uniquement pour la session superviseur (system_kind='supervisor'),
+    # qui n'est rattachée à aucun repo.
+    project_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True, nullable=True
     )
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False

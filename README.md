@@ -112,7 +112,7 @@ Une fois en route :
 
 C'est tout. En moins de 10 minutes tu chattes avec ton premier agent Claude depuis le dashboard.
 
-📖 [Bien démarrer](./docs/getting-started.md) · [Guide d'installation](./docs/installation.md) · [Configuration GitHub](./docs/github.md) · [Configuration Forgejo](./docs/providers/forgejo.md)
+📖 [Bien démarrer](./docs/getting-started.md) · [Le superviseur](./docs/supervisor.md) · [Guide d'installation](./docs/installation.md) · [Configuration GitHub](./docs/github.md) · [Configuration Forgejo](./docs/providers/forgejo.md)
 
 ## 🏗️ Stack
 
@@ -138,6 +138,7 @@ Développement phasé. Statut à jour dans [ROADMAP.md](./ROADMAP.md).
 - ✅ **Phase 4** - Mission Templates & Skills
 - ✅ **Phase 5** - Optimisation tokens (dashboard de coûts, prompt caching, mode économe)
 - ✅ **Phase 6** - Intégration Ollama (mode "données sensibles" — masquage/anonymisation/résumé en local)
+- ✅ **Superviseur** - une seule conversation qui pilote toutes les sessions, comptes rendus `<cr>`, sync auto des repos
 - ⏳ **Phase 7** - Souveraineté complète (Headscale + Forgejo intégrés) — V2
 
 [→ Roadmap détaillée](./ROADMAP.md)

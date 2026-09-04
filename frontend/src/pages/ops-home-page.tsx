@@ -93,6 +93,8 @@ export function OpsHomePage(): JSX.Element {
   const projectSessionCount = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of activeSessions) {
+      // project_id est null pour le superviseur, déjà exclu d'activeSessions.
+      if (!s.project_id) continue;
       map.set(s.project_id, (map.get(s.project_id) ?? 0) + 1);
     }
     return map;
@@ -137,7 +139,8 @@ export function OpsHomePage(): JSX.Element {
   const cards: SessionCardData[] = sortedUserSessions
     .map((s) => ({
       id: s.id.slice(0, 8),
-      projectSlug: projectSlugById.get(s.project_id) ?? 'unknown',
+      projectSlug:
+        (s.project_id ? projectSlugById.get(s.project_id) : 'eldir') ?? 'unknown',
       state: s.state,
       summary: s.summary ?? null,
       duration: durationSince(s.created_at),
@@ -388,7 +391,9 @@ function fakeLogLines(
       id: s.id,
       prefix: { tone, text: s.id.slice(0, 4) },
       kind: { tone: 'gray', text: s.state },
-      message: s.summary?.slice(0, 80) ?? (slugById.get(s.project_id) ?? ''),
+      message:
+        s.summary?.slice(0, 80) ??
+        (s.project_id ? (slugById.get(s.project_id) ?? '') : 'eldir'),
       messageTone: 'cream',
     };
   });

@@ -23,6 +23,7 @@
 │                │ (routes fines, déléguent aux services)    │
 │  ┌─ Services (services/) ──────────────────────────────┐   │
 │  │  SessionManager · SessionService · CostService ·    │   │
+│  │  SupervisorService · RepoWatcher ·                  │   │
 │  │  WorktreeService · GitProviderInterface ·           │   │
 │  │  MissionTemplateService · TemplatePresetService ·   │   │
 │  │  ClaudeCredentialService · GitCredentialService     │   │
@@ -102,6 +103,12 @@ Migrations Alembic : `backend/alembic/versions/`
 - `0001_initial_schema.py` — base Phase 0-3
 - `0002_mission_templates.py` — Phase 4
 - `0003_session_costs_per_turn.py` — Phase 5
+- `0004_system_prompt_overrides.py` — prompts système éditables
+- `0005_sessions_is_system.py` — sessions internes Eldir
+- `0006_ollama_settings.py` — Phase 6
+- `0007_sessions_nullable_project.py` — session superviseur (sans repo)
+
+Le superviseur et le protocole `<cr>` sont détaillés dans [`supervisor.md`](./supervisor.md).
 
 ## Le flow complet d'un message utilisateur
 
