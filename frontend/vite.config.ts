@@ -64,6 +64,14 @@ export default defineConfig(({ mode }) => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
           navigateFallback: '/index.html',
+          // Sans cette liste, le service worker répond index.html à TOUTE
+          // navigation de premier niveau, y compris celles qui doivent
+          // atteindre le backend : le callback OAuth GitHub
+          // (/api/v1/auth/github/oauth/callback) était intercepté, la SPA
+          // se chargeait à sa place et affichait un 404, le backend ne
+          // voyait jamais la requête. Ne se manifeste qu'en prod, une fois
+          // le service worker installé.
+          navigateFallbackDenylist: [/^\/api\//, /^\/ws\//],
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/'),

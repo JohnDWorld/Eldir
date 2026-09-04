@@ -32,3 +32,6 @@ coverage/
 public/sw.js
 public/workbox-*.js
 public/manifest.webmanifest
+
+# artefacts de build TypeScript
+*.tsbuildinfo
