@@ -59,7 +59,7 @@ tailscale ip -4   # note cette IP, elle sert aux étapes 3 et 5
 Un seul enregistrement, dans la zone de ton domaine :
 
 ```
-eldir    A    100.64.0.13      # l'IP du VPN, pas l'IP publique
+eldir    A    100.64.0.2       # l'IP du VPN, pas l'IP publique
 ```
 
 Pointer un nom public vers une IP privée est volontaire et sans risque : seuls
