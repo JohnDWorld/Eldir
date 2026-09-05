@@ -33,17 +33,13 @@ def _to_schema(item: ServiceSystemPromptRead) -> SystemPromptRead:
 
 
 @router.get("", response_model=list[SystemPromptRead])
-async def list_prompts(
-    user_id: CurrentUserId, db: DbDep
-) -> list[SystemPromptRead]:
+async def list_prompts(user_id: CurrentUserId, db: DbDep) -> list[SystemPromptRead]:
     items = await system_prompt_service.list_all(db)
     return [_to_schema(i) for i in items]
 
 
 @router.get("/{slug}", response_model=SystemPromptRead)
-async def get_prompt(
-    slug: str, user_id: CurrentUserId, db: DbDep
-) -> SystemPromptRead:
+async def get_prompt(slug: str, user_id: CurrentUserId, db: DbDep) -> SystemPromptRead:
     item = await system_prompt_service.get(db, slug)
     return _to_schema(item)
 
@@ -61,9 +57,7 @@ async def upsert_prompt(
 
 
 @router.post("/{slug}/reset", response_model=SystemPromptRead)
-async def reset_prompt(
-    slug: str, user_id: CurrentUserId, db: DbDep
-) -> SystemPromptRead:
+async def reset_prompt(slug: str, user_id: CurrentUserId, db: DbDep) -> SystemPromptRead:
     item = await system_prompt_service.reset(db, slug)
     await db.commit()
     return _to_schema(item)

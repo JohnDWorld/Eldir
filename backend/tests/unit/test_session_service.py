@@ -189,9 +189,7 @@ async def test_send_message_starts_if_not_active(
     )
     await db_session.commit()
 
-    session = await service.create_and_start(
-        db_session, user_id=admin.id, project_id=project.id
-    )
+    session = await service.create_and_start(db_session, user_id=admin.id, project_id=project.id)
     session.sdk_session_id = "sdk-xyz"
     await db_session.commit()
 
@@ -203,4 +201,4 @@ async def test_send_message_starts_if_not_active(
         session_id=session.id,
         content="hello",
     )
-    assert service._manager.is_active(session.id) is True  # noqa: SLF001
+    assert service._manager.is_active(session.id) is True

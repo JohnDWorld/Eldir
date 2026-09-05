@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import AuthenticationError, ConflictError
 from app.schemas.setup import BootstrapClaudeCredentialIn, BootstrapRequest
 from app.services.setup_service import setup_service
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def test_needs_bootstrap_when_empty(db_session: AsyncSession) -> None:
@@ -41,9 +40,7 @@ async def test_perform_bootstrap_creates_admin_and_completes(
         admin_password="superpassword123",
         admin_display_name="Admin",
         claude_credentials=[
-            BootstrapClaudeCredentialIn(
-                kind="oauth_token", value="sk-ant-oat01-test", label="pro"
-            )
+            BootstrapClaudeCredentialIn(kind="oauth_token", value="sk-ant-oat01-test", label="pro")
         ],
     )
     user = await setup_service.perform_bootstrap(db_session, payload)

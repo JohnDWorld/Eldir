@@ -42,9 +42,7 @@ def _state_key(state: str) -> str:
     return f"{STATE_REDIS_PREFIX}{state}"
 
 
-async def start_oauth_flow(
-    settings: Settings, redis: Redis, user_id: str
-) -> str:
+async def start_oauth_flow(settings: Settings, redis: Redis, user_id: str) -> str:
     """Génère un state, le persiste, retourne l'URL d'autorisation GitHub."""
     _ensure_configured(settings)
     state = secrets.token_urlsafe(32)

@@ -50,9 +50,7 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(length=120), nullable=False),
         sa.Column("provider", sa.String(length=20), nullable=False),
         sa.Column("repo_full_name", sa.String(length=255), nullable=False),
-        sa.Column(
-            "default_branch", sa.String(length=120), nullable=False, server_default="main"
-        ),
+        sa.Column("default_branch", sa.String(length=120), nullable=False, server_default="main"),
         sa.Column("workspace_path", sa.String(length=512), nullable=True),
         sa.Column(
             "created_at",
@@ -100,9 +98,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_sessions_project_id", "sessions", ["project_id"])
     op.create_index("ix_sessions_user_id", "sessions", ["user_id"])
-    op.create_index(
-        "ix_sessions_sdk_session_id", "sessions", ["sdk_session_id"], unique=True
-    )
+    op.create_index("ix_sessions_sdk_session_id", "sessions", ["sdk_session_id"], unique=True)
 
     op.create_table(
         "session_events",

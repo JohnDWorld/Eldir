@@ -37,9 +37,7 @@ def upgrade() -> None:
         "sessions",
         sa.Column("system_kind", sa.String(length=64), nullable=True),
     )
-    op.create_index(
-        "ix_sessions_is_system", "sessions", ["is_system"]
-    )
+    op.create_index("ix_sessions_is_system", "sessions", ["is_system"])
 
 
 def downgrade() -> None:

@@ -64,9 +64,7 @@ def _materialize_skill(skills_root: Path, skill: TemplateSkill) -> None:
     """
     target = skills_root / skill.name / "SKILL.md"
     target.parent.mkdir(parents=True, exist_ok=True)
-    frontmatter = _frontmatter_block(
-        {"name": skill.name, "description": skill.description}
-    )
+    frontmatter = _frontmatter_block({"name": skill.name, "description": skill.description})
     target.write_text(frontmatter + "\n" + skill.content + "\n", encoding="utf-8")
 
 
@@ -96,20 +94,14 @@ def _materialize_sub_agent(
             "tools": agent.allowed_tools,
         }
     )
-    target.write_text(
-        frontmatter + "\n" + agent.system_prompt + "\n", encoding="utf-8"
-    )
+    target.write_text(frontmatter + "\n" + agent.system_prompt + "\n", encoding="utf-8")
 
 
 class MissionTemplateService:
     # ── Project ↔ template ──────────────────────────────────────
-    async def _require_project(
-        self, db: AsyncSession, *, project_id: str, user_id: str
-    ) -> Project:
+    async def _require_project(self, db: AsyncSession, *, project_id: str, user_id: str) -> Project:
         result = await db.execute(
-            select(Project).where(
-                Project.id == project_id, Project.user_id == user_id
-            )
+            select(Project).where(Project.id == project_id, Project.user_id == user_id)
         )
         project = result.scalar_one_or_none()
         if project is None:
@@ -143,7 +135,7 @@ class MissionTemplateService:
         # `template.sub_agents` ne déclenchent pas un lazy-load synchrone
         # plus tard (le contexte async ne le supporte pas — MissingGreenlet).
         reloaded = await self.get(db, project_id=project_id, user_id=user_id)
-        assert reloaded is not None  # noqa: S101 — invariant après flush
+        assert reloaded is not None
         return reloaded
 
     async def upsert(
@@ -154,9 +146,7 @@ class MissionTemplateService:
         user_id: str,
         payload: MissionTemplateWrite,
     ) -> MissionTemplate:
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         template.system_prompt = payload.system_prompt
         template.model = payload.model
         template.allowed_tools = payload.allowed_tools
@@ -164,9 +154,7 @@ class MissionTemplateService:
         await db.flush()
         return template
 
-    async def delete(
-        self, db: AsyncSession, *, project_id: str, user_id: str
-    ) -> None:
+    async def delete(self, db: AsyncSession, *, project_id: str, user_id: str) -> None:
         template = await self.get(db, project_id=project_id, user_id=user_id)
         if template is None:
             return
@@ -176,9 +164,7 @@ class MissionTemplateService:
     async def list_skills(
         self, db: AsyncSession, *, project_id: str, user_id: str
     ) -> list[TemplateSkill]:
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         result = await db.execute(
             select(TemplateSkill)
             .where(TemplateSkill.template_id == template.id)
@@ -194,9 +180,7 @@ class MissionTemplateService:
         user_id: str,
         payload: TemplateSkillWrite,
     ) -> TemplateSkill:
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         # Unique constraint sur (template_id, name) → check explicite pour
         # une erreur 409 lisible.
         existing = await db.execute(
@@ -206,9 +190,7 @@ class MissionTemplateService:
             )
         )
         if existing.scalar_one_or_none() is not None:
-            raise ConflictError(
-                f"Un skill `{payload.name}` existe déjà pour ce projet."
-            )
+            raise ConflictError(f"Un skill `{payload.name}` existe déjà pour ce projet.")
         skill = TemplateSkill(
             template_id=template.id,
             name=payload.name,
@@ -241,9 +223,7 @@ class MissionTemplateService:
                 )
             )
             if existing.scalar_one_or_none() is not None:
-                raise ConflictError(
-                    f"Un skill `{payload.name}` existe déjà pour ce projet."
-                )
+                raise ConflictError(f"Un skill `{payload.name}` existe déjà pour ce projet.")
         skill.name = payload.name
         skill.description = payload.description
         skill.content = payload.content
@@ -271,9 +251,7 @@ class MissionTemplateService:
         user_id: str,
         skill_id: str,
     ) -> TemplateSkill:
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         result = await db.execute(
             select(TemplateSkill).where(
                 TemplateSkill.id == skill_id,
@@ -289,9 +267,7 @@ class MissionTemplateService:
     async def list_sub_agents(
         self, db: AsyncSession, *, project_id: str, user_id: str
     ) -> list[TemplateSubAgent]:
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         result = await db.execute(
             select(TemplateSubAgent)
             .where(TemplateSubAgent.template_id == template.id)
@@ -307,9 +283,7 @@ class MissionTemplateService:
         user_id: str,
         payload: TemplateSubAgentWrite,
     ) -> TemplateSubAgent:
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         existing = await db.execute(
             select(TemplateSubAgent).where(
                 TemplateSubAgent.template_id == template.id,
@@ -317,9 +291,7 @@ class MissionTemplateService:
             )
         )
         if existing.scalar_one_or_none() is not None:
-            raise ConflictError(
-                f"Un sub-agent `{payload.name}` existe déjà pour ce projet."
-            )
+            raise ConflictError(f"Un sub-agent `{payload.name}` existe déjà pour ce projet.")
         agent = TemplateSubAgent(
             template_id=template.id,
             name=payload.name,
@@ -352,9 +324,7 @@ class MissionTemplateService:
                 )
             )
             if existing.scalar_one_or_none() is not None:
-                raise ConflictError(
-                    f"Un sub-agent `{payload.name}` existe déjà pour ce projet."
-                )
+                raise ConflictError(f"Un sub-agent `{payload.name}` existe déjà pour ce projet.")
         agent.name = payload.name
         agent.description = payload.description
         agent.system_prompt = payload.system_prompt
@@ -383,9 +353,7 @@ class MissionTemplateService:
         user_id: str,
         agent_id: str,
     ) -> TemplateSubAgent:
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         result = await db.execute(
             select(TemplateSubAgent).where(
                 TemplateSubAgent.id == agent_id,
@@ -396,7 +364,6 @@ class MissionTemplateService:
         if agent is None:
             raise NotFoundError(f"Sub-agent {agent_id} introuvable.")
         return agent
-
 
     # ── Versionnage (Chantier 6) ────────────────────────────────
     def _snapshot(self, template: MissionTemplate) -> dict:
@@ -482,9 +449,7 @@ class MissionTemplateService:
         On crée toujours un snapshot AVANT la restauration pour pouvoir
         défaire en cas d'erreur.
         """
-        template = await self._get_or_create(
-            db, project_id=project_id, user_id=user_id
-        )
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
         result = await db.execute(
             select(TemplateVersion).where(
                 TemplateVersion.id == version_id,

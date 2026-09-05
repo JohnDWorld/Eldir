@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import GitProviderError, NotFoundError
 from app.db.models import User
 from app.schemas.git_credential import GitCredentialCreate
 from app.services.git_credential_service import git_credential_service
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -25,9 +24,7 @@ async def admin(db_session: AsyncSession) -> User:
     return user
 
 
-async def test_upsert_creates_then_replaces(
-    db_session: AsyncSession, admin: User
-) -> None:
+async def test_upsert_creates_then_replaces(db_session: AsyncSession, admin: User) -> None:
     first = await git_credential_service.upsert(
         db_session,
         admin.id,
@@ -47,15 +44,11 @@ async def test_upsert_creates_then_replaces(
     assert len(creds) == 1
     assert creds[0].id == second.id
 
-    plain = await git_credential_service.get_active_token(
-        db_session, admin.id, "github"
-    )
+    plain = await git_credential_service.get_active_token(db_session, admin.id, "github")
     assert plain == "ghp_second_token_bbbbb"
 
 
-async def test_forgejo_requires_base_url(
-    db_session: AsyncSession, admin: User
-) -> None:
+async def test_forgejo_requires_base_url(db_session: AsyncSession, admin: User) -> None:
     with pytest.raises(GitProviderError):
         await git_credential_service.upsert(
             db_session,

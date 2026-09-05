@@ -24,27 +24,19 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
 @router.get("", response_model=list[SessionRead])
-async def list_sessions(
-    user_id: CurrentUserId, db: DbDep
-) -> list[SessionRead]:
+async def list_sessions(user_id: CurrentUserId, db: DbDep) -> list[SessionRead]:
     sessions = await get_session_service().list_for_user(db, user_id)
     return [SessionRead.model_validate(s) for s in sessions]
 
 
 @router.get("/{session_id}", response_model=SessionRead)
-async def get_session(
-    session_id: str, user_id: CurrentUserId, db: DbDep
-) -> SessionRead:
+async def get_session(session_id: str, user_id: CurrentUserId, db: DbDep) -> SessionRead:
     session = await get_session_service().get(db, session_id, user_id)
     return SessionRead.model_validate(session)
 
 
-@router.post(
-    "", response_model=SessionRead, status_code=status.HTTP_201_CREATED
-)
-async def create_session(
-    payload: SessionCreate, user_id: CurrentUserId, db: DbDep
-) -> SessionRead:
+@router.post("", response_model=SessionRead, status_code=status.HTTP_201_CREATED)
+async def create_session(payload: SessionCreate, user_id: CurrentUserId, db: DbDep) -> SessionRead:
     service = get_session_service()
     session = await service.create_and_start(
         db,
@@ -57,9 +49,7 @@ async def create_session(
     return SessionRead.model_validate(session)
 
 
-@router.get(
-    "/{session_id}/events", response_model=list[SessionEventRead]
-)
+@router.get("/{session_id}/events", response_model=list[SessionEventRead])
 async def list_session_events(
     session_id: str, user_id: CurrentUserId, db: DbDep
 ) -> list[SessionEventRead]:
@@ -67,9 +57,7 @@ async def list_session_events(
     return [SessionEventRead.model_validate(e) for e in events]
 
 
-@router.post(
-    "/{session_id}/messages", status_code=status.HTTP_202_ACCEPTED
-)
+@router.post("/{session_id}/messages", status_code=status.HTTP_202_ACCEPTED)
 async def send_message(
     session_id: str,
     payload: SessionMessageInput,
@@ -88,51 +76,29 @@ async def send_message(
     return {"status": "accepted"}
 
 
-@router.post(
-    "/{session_id}/resume", response_model=SessionRead
-)
-async def resume_session(
-    session_id: str, user_id: CurrentUserId, db: DbDep
-) -> SessionRead:
-    session = await get_session_service().resume(
-        db, user_id=user_id, session_id=session_id
-    )
+@router.post("/{session_id}/resume", response_model=SessionRead)
+async def resume_session(session_id: str, user_id: CurrentUserId, db: DbDep) -> SessionRead:
+    session = await get_session_service().resume(db, user_id=user_id, session_id=session_id)
     await db.commit()
     return SessionRead.model_validate(session)
 
 
-@router.post(
-    "/{session_id}/stop", status_code=status.HTTP_204_NO_CONTENT
-)
-async def stop_session(
-    session_id: str, user_id: CurrentUserId, db: DbDep
-) -> None:
-    await get_session_service().stop(
-        db, user_id=user_id, session_id=session_id
-    )
+@router.post("/{session_id}/stop", status_code=status.HTTP_204_NO_CONTENT)
+async def stop_session(session_id: str, user_id: CurrentUserId, db: DbDep) -> None:
+    await get_session_service().stop(db, user_id=user_id, session_id=session_id)
     await db.commit()
 
 
-@router.delete(
-    "/{session_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def delete_session(
-    session_id: str, user_id: CurrentUserId, db: DbDep
-) -> None:
-    await get_session_service().delete(
-        db, user_id=user_id, session_id=session_id
-    )
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(session_id: str, user_id: CurrentUserId, db: DbDep) -> None:
+    await get_session_service().delete(db, user_id=user_id, session_id=session_id)
     await db.commit()
 
 
 # ── Git ops (chantier 5) ────────────────────────────────────────
 @router.get("/{session_id}/git-status", response_model=GitStatusResponse)
-async def git_status(
-    session_id: str, user_id: CurrentUserId, db: DbDep
-) -> GitStatusResponse:
-    data = await get_session_service().git_status(
-        db, user_id=user_id, session_id=session_id
-    )
+async def git_status(session_id: str, user_id: CurrentUserId, db: DbDep) -> GitStatusResponse:
+    data = await get_session_service().git_status(db, user_id=user_id, session_id=session_id)
     return GitStatusResponse(**data)
 
 
@@ -154,26 +120,16 @@ async def commit_push(
         push=payload.push,
     )
     await db.commit()
-    return CommitPushResponse(
-        branch=result.branch, sha=result.sha, pushed=result.pushed
-    )
+    return CommitPushResponse(branch=result.branch, sha=result.sha, pushed=result.pushed)
 
 
-@router.get(
-    "/{session_id}/diff", response_model=SessionDiffSummary
-)
-async def session_diff(
-    session_id: str, user_id: CurrentUserId, db: DbDep
-) -> SessionDiffSummary:
-    data = await get_session_service().diff_summary(
-        db, user_id=user_id, session_id=session_id
-    )
+@router.get("/{session_id}/diff", response_model=SessionDiffSummary)
+async def session_diff(session_id: str, user_id: CurrentUserId, db: DbDep) -> SessionDiffSummary:
+    data = await get_session_service().diff_summary(db, user_id=user_id, session_id=session_id)
     return SessionDiffSummary.model_validate(data)
 
 
-@router.get(
-    "/{session_id}/diff/file", response_model=SessionDiffFilePatch
-)
+@router.get("/{session_id}/diff/file", response_model=SessionDiffFilePatch)
 async def session_diff_file(
     session_id: str,
     path: str,

@@ -42,7 +42,6 @@ from app.services.git_providers import make_provider
 from app.services.session_manager import SessionManager
 from app.services.worktree_service import worktree_service
 
-
 # ── Compte rendu de fin de tour (protocole enfant) ──────────────
 # La session enfant termine son tour par un bloc <cr>...</cr>. On le
 # recopie dans `sessions.summary` en écrasant le précédent : le superviseur
@@ -75,6 +74,7 @@ class OpenPRResult:
     base: str
     title: str
 
+
 logger = get_logger(__name__)
 
 
@@ -83,28 +83,20 @@ class SessionService:
         self._manager = manager
         self._session_factory: async_sessionmaker[AsyncSession] | None = None
 
-    def attach_session_factory(
-        self, factory: async_sessionmaker[AsyncSession]
-    ) -> None:
+    def attach_session_factory(self, factory: async_sessionmaker[AsyncSession]) -> None:
         """Le manager a besoin du factory pour persister depuis les callbacks hors-requête."""
         self._session_factory = factory
         self._manager.register_persist_callback(self._persist_event)
 
-    async def list_for_user(
-        self, db: AsyncSession, user_id: str
-    ) -> list[Session]:
+    async def list_for_user(self, db: AsyncSession, user_id: str) -> list[Session]:
         result = await db.execute(
-            select(Session)
-            .where(Session.user_id == user_id)
-            .order_by(Session.created_at.desc())
+            select(Session).where(Session.user_id == user_id).order_by(Session.created_at.desc())
         )
         return list(result.scalars().all())
 
     async def get(self, db: AsyncSession, session_id: str, user_id: str) -> Session:
         result = await db.execute(
-            select(Session).where(
-                Session.id == session_id, Session.user_id == user_id
-            )
+            select(Session).where(Session.id == session_id, Session.user_id == user_id)
         )
         session = result.scalar_one_or_none()
         if session is None:
@@ -133,17 +125,13 @@ class SessionService:
     ) -> Session:
         # 1. Récupère le projet pour avoir cwd / branche
         result = await db.execute(
-            select(Project).where(
-                Project.id == project_id, Project.user_id == user_id
-            )
+            select(Project).where(Project.id == project_id, Project.user_id == user_id)
         )
         project = result.scalar_one_or_none()
         if project is None:
             raise NotFoundError(f"Projet {project_id} introuvable.")
         if not project.workspace_path:
-            raise NotFoundError(
-                f"Projet {project_id} n'a pas de workspace cloné."
-            )
+            raise NotFoundError(f"Projet {project_id} n'a pas de workspace cloné.")
 
         repo_path = Path(project.workspace_path)
 
@@ -165,10 +153,8 @@ class SessionService:
                     project_id=project_id,
                     message=sync_result.message,
                 )
-        except Exception:  # noqa: BLE001
-            logger.exception(
-                "session.create.sync.failed", project_id=project_id
-            )
+        except Exception:
+            logger.exception("session.create.sync.failed", project_id=project_id)
 
         # 2ter. Charge le MissionTemplate du projet (Phase 4) pour ses
         # défauts : system_prompt, model, allowed_tools. Les valeurs
@@ -177,23 +163,15 @@ class SessionService:
             mission_template_service,
         )
 
-        template = await mission_template_service.get(
-            db, project_id=project_id, user_id=user_id
-        )
-        base_system_prompt = system_prompt or (
-            template.system_prompt if template else None
-        )
+        template = await mission_template_service.get(db, project_id=project_id, user_id=user_id)
+        base_system_prompt = system_prompt or (template.system_prompt if template else None)
         # Protocole enfant (bloc <cr> + interdiction de publier) collé au
         # bout du prompt : stable d'un tour à l'autre, donc mis en cache par
         # le CLI avec le reste du system prompt. Persisté sur la row pour que
         # `resume()` reparte avec exactement le même prompt.
-        effective_system_prompt = await self._with_child_protocol(
-            db, base_system_prompt
-        )
+        effective_system_prompt = await self._with_child_protocol(db, base_system_prompt)
         effective_model = (
-            model
-            or (template.model if template else None)
-            or get_settings().claude_default_model
+            model or (template.model if template else None) or get_settings().claude_default_model
         )
         effective_allowed_tools = (
             template.allowed_tools if template and template.allowed_tools else None
@@ -251,7 +229,7 @@ class SessionService:
                 worktree_path=worktree_ref.path,
                 extra_sub_agents=extra_sub_agents,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception(
                 "session.create.template.materialize.failed",
                 session_id=session.id,
@@ -272,10 +250,8 @@ class SessionService:
             )
         except Exception:
             try:
-                await worktree_service.remove_worktree(
-                    repo_path, worktree_ref.path
-                )
-            except Exception:  # noqa: BLE001
+                await worktree_service.remove_worktree(repo_path, worktree_ref.path)
+            except Exception:
                 logger.exception(
                     "session.create.worktree.cleanup.failed",
                     session_id=session.id,
@@ -324,16 +300,12 @@ class SessionService:
             await self.resume(db, user_id=user_id, session_id=session_id)
         await self._manager.send_message(session_id, content)
 
-    async def stop(
-        self, db: AsyncSession, *, user_id: str, session_id: str
-    ) -> None:
+    async def stop(self, db: AsyncSession, *, user_id: str, session_id: str) -> None:
         await self.get(db, session_id, user_id)
         if self._manager.is_active(session_id):
             await self._manager.stop(session_id)
 
-    async def delete(
-        self, db: AsyncSession, *, user_id: str, session_id: str
-    ) -> None:
+    async def delete(self, db: AsyncSession, *, user_id: str, session_id: str) -> None:
         """Stoppe la session si active, supprime son worktree, puis la row DB.
 
         Les SessionEvent et SessionCost partent en cascade via la FK
@@ -345,10 +317,8 @@ class SessionService:
         if self._manager.is_active(session_id):
             try:
                 await self._manager.stop(session_id)
-            except Exception:  # noqa: BLE001
-                logger.exception(
-                    "session.delete.stop.failed", session_id=session_id
-                )
+            except Exception:
+                logger.exception("session.delete.stop.failed", session_id=session_id)
 
         project = await db.get(Project, session.project_id)
         if (
@@ -361,7 +331,7 @@ class SessionService:
                 await worktree_service.remove_worktree(
                     Path(project.workspace_path), Path(session.worktree_path)
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception(
                     "session.delete.worktree.cleanup.failed",
                     session_id=session_id,
@@ -406,9 +376,7 @@ class SessionService:
         project = await self._require_project(db, session)
         repo_path = self._require_workspace(session)
         base_ref = await self._diff_base_ref(project, repo_path)
-        patch = await worktree_service.diff_file(
-            repo_path, base_ref=base_ref, path=path
-        )
+        patch = await worktree_service.diff_file(repo_path, base_ref=base_ref, path=path)
         return {"path": path, "base_ref": base_ref, "patch": patch}
 
     async def _diff_base_ref(self, project: Project, repo_path: Path) -> str:
@@ -420,14 +388,10 @@ class SessionService:
         sur HEAD~0 (= zéro diff) si rien d'autre.
         """
         upstream = f"origin/{project.default_branch}"
-        mb = await worktree_service.merge_base(
-            repo_path, a="HEAD", b=upstream
-        )
+        mb = await worktree_service.merge_base(repo_path, a="HEAD", b=upstream)
         if mb:
             return mb
-        mb_local = await worktree_service.merge_base(
-            repo_path, a="HEAD", b=project.default_branch
-        )
+        mb_local = await worktree_service.merge_base(repo_path, a="HEAD", b=project.default_branch)
         if mb_local:
             return mb_local
         return project.default_branch
@@ -478,9 +442,7 @@ class SessionService:
                 pushed=False,
             )
 
-        token = await git_credential_service.get_active_token(
-            db, user_id, project.provider
-        )
+        token = await git_credential_service.get_active_token(db, user_id, project.provider)
         if not token:
             raise AuthenticationError(
                 f"Aucun credential {project.provider} configuré. Settings > Git."
@@ -488,9 +450,7 @@ class SessionService:
 
         branch = await worktree_service.current_branch(repo_path)
         await worktree_service.push(repo_path, branch=branch, token=token)
-        logger.info(
-            "session.commit_push", session_id=session_id, branch=branch, sha=sha
-        )
+        logger.info("session.commit_push", session_id=session_id, branch=branch, sha=sha)
         return CommitPushResult(branch=branch, sha=sha, pushed=True)
 
     async def open_pull_request(
@@ -520,9 +480,7 @@ class SessionService:
             )
 
         # 2. Récupère le token et push la branche.
-        token = await git_credential_service.get_active_token(
-            db, user_id, project.provider
-        )
+        token = await git_credential_service.get_active_token(db, user_id, project.provider)
         if not token:
             raise AuthenticationError(
                 f"Aucun credential {project.provider} configuré. Settings > Git."
@@ -531,9 +489,7 @@ class SessionService:
         head_branch = await worktree_service.current_branch(repo_path)
         base_branch = base or project.default_branch
         if head_branch == base_branch:
-            raise WorkspaceError(
-                "Impossible d'ouvrir une PR : la branche courante == base."
-            )
+            raise WorkspaceError("Impossible d'ouvrir une PR : la branche courante == base.")
         await worktree_service.push(repo_path, branch=head_branch, token=token)
 
         # 3. Crée la PR via le provider.
@@ -566,28 +522,18 @@ class SessionService:
     # ── helpers ──────────────────────────────────────────────────
     def _require_workspace(self, session: Session) -> Path:
         if not session.worktree_path:
-            raise WorkspaceError(
-                "La session n'a pas de worktree_path - état inconsistant."
-            )
+            raise WorkspaceError("La session n'a pas de worktree_path - état inconsistant.")
         return Path(session.worktree_path)
 
-    async def _require_project(
-        self, db: AsyncSession, session: Session
-    ) -> Project:
-        result = await db.execute(
-            select(Project).where(Project.id == session.project_id)
-        )
+    async def _require_project(self, db: AsyncSession, session: Session) -> Project:
+        result = await db.execute(select(Project).where(Project.id == session.project_id))
         project = result.scalar_one_or_none()
         if project is None:
-            raise NotFoundError(
-                f"Projet {session.project_id} introuvable pour cette session."
-            )
+            raise NotFoundError(f"Projet {session.project_id} introuvable pour cette session.")
         return project
 
     # ── internals ───────────────────────────────────────────────
-    async def _build_extra_sub_agents(
-        self, db: AsyncSession
-    ) -> list[Any]:
+    async def _build_extra_sub_agents(self, db: AsyncSession) -> list[Any]:
         """Calcule les sub-agents 'système' à injecter dans le worktree.
 
         Pour l'instant un seul cas : `mask-data` quand
@@ -620,13 +566,9 @@ class SessionService:
             return []
 
         try:
-            system_prompt = await system_prompt_service.resolve(
-                db, "mask_data_subagent"
-            )
+            system_prompt = await system_prompt_service.resolve(db, "mask_data_subagent")
         except Exception:
-            logger.warning(
-                "session.ollama.subagent_prompt.missing", exc_info=True
-            )
+            logger.warning("session.ollama.subagent_prompt.missing", exc_info=True)
             return []
 
         return [
@@ -644,9 +586,7 @@ class SessionService:
             )
         ]
 
-    async def _with_child_protocol(
-        self, db: AsyncSession, system_prompt: str | None
-    ) -> str:
+    async def _with_child_protocol(self, db: AsyncSession, system_prompt: str | None) -> str:
         """Concatène le prompt du template et le protocole enfant Eldir."""
         from app.services.system_prompt_service import system_prompt_service
 
@@ -658,9 +598,7 @@ class SessionService:
     async def _inject_claude_env(self, db: AsyncSession, user_id: str) -> None:
         resolved = await claude_credential_service.resolve_active(db, user_id)
         if resolved is None:
-            raise AuthenticationError(
-                "Aucun credential Claude configuré. Settings > Claude."
-            )
+            raise AuthenticationError("Aucun credential Claude configuré. Settings > Claude.")
         # Set seulement la variable correspondante, pas les deux à la fois.
         # On nettoie les autres pour éviter qu'un ancien ANTHROPIC_API_KEY traîne.
         os.environ.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
@@ -672,22 +610,20 @@ class SessionService:
             kind=resolved.kind,
         )
 
-    async def _persist_event(
-        self, session_id: str, event_type: str, data: dict[str, Any]
-    ) -> None:
+    async def _persist_event(self, session_id: str, event_type: str, data: dict[str, Any]) -> None:
         """Callback branché sur SessionManager → persiste l'event en DB."""
         if self._session_factory is None:
             return
         async with self._session_factory() as db:
             try:
                 # Update state si applicable
-                if event_type == EVENT_TYPE_STATE and isinstance(
-                    data.get("state"), str
-                ) and data["state"] in SESSION_STATES:
+                if (
+                    event_type == EVENT_TYPE_STATE
+                    and isinstance(data.get("state"), str)
+                    and data["state"] in SESSION_STATES
+                ):
                     await db.execute(
-                        update(Session)
-                        .where(Session.id == session_id)
-                        .values(state=data["state"])
+                        update(Session).where(Session.id == session_id).values(state=data["state"])
                     )
 
                 if event_type == EVENT_TYPE_STATE and "sdk_session_id" in data:
@@ -700,15 +636,11 @@ class SessionService:
                 # Summary : le bloc <cr> du dernier tour écrase le
                 # précédent. À défaut de <cr>, on garde le tout premier text
                 # comme libellé de session (comportement d'origine).
-                if event_type == EVENT_TYPE_TEXT and isinstance(
-                    data.get("text"), str
-                ):
+                if event_type == EVENT_TYPE_TEXT and isinstance(data.get("text"), str):
                     cr = extract_cr(data["text"])
                     if cr is not None:
                         await db.execute(
-                            update(Session)
-                            .where(Session.id == session_id)
-                            .values(summary=cr)
+                            update(Session).where(Session.id == session_id).values(summary=cr)
                         )
                     else:
                         await db.execute(
@@ -722,9 +654,7 @@ class SessionService:
 
                 # Persistance du coût d'un tour SDK (Phase 5)
                 if event_type == EVENT_TYPE_USAGE:
-                    await cost_service.record_turn(
-                        db, session_id=session_id, data=data
-                    )
+                    await cost_service.record_turn(db, session_id=session_id, data=data)
 
                 event = SessionEvent(
                     session_id=session_id,
@@ -733,6 +663,6 @@ class SessionService:
                 )
                 db.add(event)
                 await db.commit()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 await db.rollback()
                 logger.exception("session.event.persist.error")

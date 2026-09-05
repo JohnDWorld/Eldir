@@ -78,8 +78,7 @@ class ForgejoProvider(GitProviderInterface):
         except ValueError:
             body = {"message": response.text}
         raise GitProviderError(
-            f"Forgejo API {response.status_code}: "
-            f"{body.get('message', body.get('errors', '?'))}",
+            f"Forgejo API {response.status_code}: {body.get('message', body.get('errors', '?'))}",
             details={"status": response.status_code, "body": body},
         )
 
@@ -168,9 +167,7 @@ class ForgejoProvider(GitProviderInterface):
         payload: dict[str, Any] = {"title": title, "head": head, "base": base}
         if body:
             payload["body"] = body
-        response = await self._request(
-            "POST", f"/repos/{full_name}/pulls", json=payload
-        )
+        response = await self._request("POST", f"/repos/{full_name}/pulls", json=payload)
         data = response.json()
         return PullRequestRef(
             number=int(data["number"]),

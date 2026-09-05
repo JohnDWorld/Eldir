@@ -12,9 +12,7 @@ router = APIRouter(prefix="/settings/git-credentials", tags=["settings"])
 
 
 @router.get("", response_model=list[GitCredentialRead])
-async def list_credentials(
-    user_id: CurrentUserId, db: DbDep
-) -> list[GitCredentialRead]:
+async def list_credentials(user_id: CurrentUserId, db: DbDep) -> list[GitCredentialRead]:
     creds = await git_credential_service.list_for_user(db, user_id)
     out: list[GitCredentialRead] = []
     for c in creds:
@@ -56,8 +54,6 @@ async def upsert_credential(
 
 
 @router.delete("/{credential_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_credential(
-    credential_id: str, user_id: CurrentUserId, db: DbDep
-) -> None:
+async def delete_credential(credential_id: str, user_id: CurrentUserId, db: DbDep) -> None:
     await git_credential_service.delete(db, credential_id, user_id)
     await db.commit()

@@ -26,11 +26,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if not get_settings().is_test:
         try:
             await emit_bootstrap_token_if_needed()
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("bootstrap.hook.error")
         try:
             await init_singletons()
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("singletons.init.error")
     try:
         yield

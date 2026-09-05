@@ -41,9 +41,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "session_costs",
-        sa.Column(
-            "duration_ms", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("duration_ms", sa.Integer(), nullable=False, server_default="0"),
     )
     op.add_column(
         "session_costs",
@@ -66,14 +64,10 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
-    op.create_index(
-        "ix_session_costs_project_id", "session_costs", ["project_id"]
-    )
+    op.create_index("ix_session_costs_project_id", "session_costs", ["project_id"])
     op.create_index("ix_session_costs_user_id", "session_costs", ["user_id"])
     op.create_index("ix_session_costs_model", "session_costs", ["model"])
-    op.create_index(
-        "ix_session_costs_created_at", "session_costs", ["created_at"]
-    )
+    op.create_index("ix_session_costs_created_at", "session_costs", ["created_at"])
 
 
 def downgrade() -> None:
@@ -81,12 +75,8 @@ def downgrade() -> None:
     op.drop_index("ix_session_costs_model", table_name="session_costs")
     op.drop_index("ix_session_costs_user_id", table_name="session_costs")
     op.drop_index("ix_session_costs_project_id", table_name="session_costs")
-    op.drop_constraint(
-        "fk_session_costs_user_id", "session_costs", type_="foreignkey"
-    )
-    op.drop_constraint(
-        "fk_session_costs_project_id", "session_costs", type_="foreignkey"
-    )
+    op.drop_constraint("fk_session_costs_user_id", "session_costs", type_="foreignkey")
+    op.drop_constraint("fk_session_costs_project_id", "session_costs", type_="foreignkey")
     op.drop_column("session_costs", "num_turns")
     op.drop_column("session_costs", "duration_ms")
     op.drop_column("session_costs", "model")

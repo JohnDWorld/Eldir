@@ -35,9 +35,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
     # ── Database ────────────────────────────────────────────────
-    database_url: PostgresDsn | str = (
-        "postgresql+asyncpg://eldir:eldir@localhost:5432/eldir"
-    )
+    database_url: PostgresDsn | str = "postgresql+asyncpg://eldir:eldir@localhost:5432/eldir"
 
     # ── Redis ───────────────────────────────────────────────────
     redis_url: RedisDsn | str = "redis://localhost:6379/0"
@@ -67,9 +65,7 @@ class Settings(BaseSettings):
     github_oauth_client_id: str | None = None
     github_oauth_client_secret: SecretStr | None = None
     # Doit matcher l'Authorization callback URL configurée sur l'OAuth App GitHub.
-    github_oauth_redirect_url: str = (
-        "http://localhost:8000/api/v1/auth/github/oauth/callback"
-    )
+    github_oauth_redirect_url: str = "http://localhost:8000/api/v1/auth/github/oauth/callback"
     # Scopes : `repo` pour les repos privés, `read:user` pour le username.
     github_oauth_scopes: str = "repo read:user"
 

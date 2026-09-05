@@ -14,9 +14,7 @@ class SetupState(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "setup_state"
 
     bootstrap_token_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
-    bootstrap_completed: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
+    bootstrap_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     bootstrap_completed_at: Mapped[str | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

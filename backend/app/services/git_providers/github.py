@@ -58,7 +58,11 @@ class GitHubProvider(GitProviderInterface):
         )
 
     async def _request(
-        self, method: str, path: str, *, params: dict[str, Any] | None = None,
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
     ) -> httpx.Response:
         async with await self._client() as client:
@@ -153,9 +157,7 @@ class GitHubProvider(GitProviderInterface):
         payload: dict[str, Any] = {"title": title, "head": head, "base": base}
         if body:
             payload["body"] = body
-        response = await self._request(
-            "POST", f"/repos/{full_name}/pulls", json=payload
-        )
+        response = await self._request("POST", f"/repos/{full_name}/pulls", json=payload)
         data = response.json()
         return PullRequestRef(
             number=int(data["number"]),

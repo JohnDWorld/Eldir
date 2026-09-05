@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.db.models import User
 from app.schemas.claude_credential import ClaudeCredentialCreate
 from app.services.claude_credential_service import (
     claude_credential_service,
     mask_value,
 )
+from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -38,9 +37,7 @@ def test_mask_long_value() -> None:
     assert mask_value("0123456789") == "…6789"
 
 
-async def test_create_and_resolve_oauth_priority(
-    db_session: AsyncSession, admin: User
-) -> None:
+async def test_create_and_resolve_oauth_priority(db_session: AsyncSession, admin: User) -> None:
     await claude_credential_service.create(
         db_session,
         admin.id,
@@ -49,9 +46,7 @@ async def test_create_and_resolve_oauth_priority(
     await claude_credential_service.create(
         db_session,
         admin.id,
-        ClaudeCredentialCreate(
-            kind="oauth_token", value="sk-ant-oat01-bbbbbbbb", label="pro"
-        ),
+        ClaudeCredentialCreate(kind="oauth_token", value="sk-ant-oat01-bbbbbbbb", label="pro"),
     )
     await db_session.commit()
 
@@ -62,9 +57,7 @@ async def test_create_and_resolve_oauth_priority(
     assert resolved.value == "sk-ant-oat01-bbbbbbbb"
 
 
-async def test_resolve_falls_back_to_api_key(
-    db_session: AsyncSession, admin: User
-) -> None:
+async def test_resolve_falls_back_to_api_key(db_session: AsyncSession, admin: User) -> None:
     await claude_credential_service.create(
         db_session,
         admin.id,
@@ -79,9 +72,7 @@ async def test_resolve_falls_back_to_api_key(
     assert resolved.value == "sk-api-fallback"
 
 
-async def test_create_replaces_existing_same_kind(
-    db_session: AsyncSession, admin: User
-) -> None:
+async def test_create_replaces_existing_same_kind(db_session: AsyncSession, admin: User) -> None:
     first = await claude_credential_service.create(
         db_session,
         admin.id,

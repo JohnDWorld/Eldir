@@ -18,9 +18,7 @@ class MissionTemplate(UUIDPrimaryKey, TimestampMixin, Base):
     """Configuration applicative d'un projet (one-to-one avec `projects`)."""
 
     __tablename__ = "mission_templates"
-    __table_args__ = (
-        UniqueConstraint("project_id", name="uq_mission_templates_project_id"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", name="uq_mission_templates_project_id"),)
 
     project_id: Mapped[str] = mapped_column(
         String(36),
@@ -36,13 +34,13 @@ class MissionTemplate(UUIDPrimaryKey, TimestampMixin, Base):
     # Référence informative quand on a appliqué un preset (slug du preset).
     source_preset: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    skills: Mapped[list["TemplateSkill"]] = relationship(
+    skills: Mapped[list[TemplateSkill]] = relationship(
         "TemplateSkill",
         cascade="all, delete-orphan",
         back_populates="template",
         order_by="TemplateSkill.name",
     )
-    sub_agents: Mapped[list["TemplateSubAgent"]] = relationship(
+    sub_agents: Mapped[list[TemplateSubAgent]] = relationship(
         "TemplateSubAgent",
         cascade="all, delete-orphan",
         back_populates="template",
@@ -55,9 +53,7 @@ class TemplateSkill(UUIDPrimaryKey, TimestampMixin, Base):
 
     __tablename__ = "template_skills"
     __table_args__ = (
-        UniqueConstraint(
-            "template_id", "name", name="uq_template_skills_template_name"
-        ),
+        UniqueConstraint("template_id", "name", name="uq_template_skills_template_name"),
     )
 
     template_id: Mapped[str] = mapped_column(
@@ -71,9 +67,7 @@ class TemplateSkill(UUIDPrimaryKey, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    template: Mapped["MissionTemplate"] = relationship(
-        "MissionTemplate", back_populates="skills"
-    )
+    template: Mapped[MissionTemplate] = relationship("MissionTemplate", back_populates="skills")
 
 
 class TemplateSubAgent(UUIDPrimaryKey, TimestampMixin, Base):
@@ -81,9 +75,7 @@ class TemplateSubAgent(UUIDPrimaryKey, TimestampMixin, Base):
 
     __tablename__ = "template_sub_agents"
     __table_args__ = (
-        UniqueConstraint(
-            "template_id", "name", name="uq_template_sub_agents_template_name"
-        ),
+        UniqueConstraint("template_id", "name", name="uq_template_sub_agents_template_name"),
     )
 
     template_id: Mapped[str] = mapped_column(
@@ -97,9 +89,7 @@ class TemplateSubAgent(UUIDPrimaryKey, TimestampMixin, Base):
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     allowed_tools: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
-    template: Mapped["MissionTemplate"] = relationship(
-        "MissionTemplate", back_populates="sub_agents"
-    )
+    template: Mapped[MissionTemplate] = relationship("MissionTemplate", back_populates="sub_agents")
 
 
 class TemplateVersion(UUIDPrimaryKey, TimestampMixin, Base):

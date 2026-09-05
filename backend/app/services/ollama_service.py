@@ -103,9 +103,7 @@ class OllamaService:
     def _base_url(self) -> str:
         url = get_settings().ollama_base_url.strip().rstrip("/")
         if not url:
-            raise EldirError(
-                "Ollama n'est pas configuré. Définis OLLAMA_BASE_URL dans .env."
-            )
+            raise EldirError("Ollama n'est pas configuré. Définis OLLAMA_BASE_URL dans .env.")
         return url
 
     def _timeout(self) -> float:
@@ -145,14 +143,10 @@ class OllamaService:
             )
 
     async def list_models(self) -> list[OllamaModelInfo]:
-        async with httpx.AsyncClient(
-            base_url=self._base_url(), timeout=self._timeout()
-        ) as client:
+        async with httpx.AsyncClient(base_url=self._base_url(), timeout=self._timeout()) as client:
             response = await client.get("/api/tags")
         if not response.is_success:
-            raise EldirError(
-                f"Ollama /api/tags a retourné {response.status_code}."
-            )
+            raise EldirError(f"Ollama /api/tags a retourné {response.status_code}.")
         data = response.json()
         models = data.get("models", []) if isinstance(data, dict) else []
         return [
@@ -184,24 +178,19 @@ class OllamaService:
         if system:
             body["system"] = system
 
-        async with httpx.AsyncClient(
-            base_url=self._base_url(), timeout=self._timeout()
-        ) as client:
+        async with httpx.AsyncClient(base_url=self._base_url(), timeout=self._timeout()) as client:
             response = await client.post("/api/generate", json=body)
 
         if not response.is_success:
             raise EldirError(
-                f"Ollama /api/generate a retourné {response.status_code} : "
-                f"{response.text[:200]}"
+                f"Ollama /api/generate a retourné {response.status_code} : {response.text[:200]}"
             )
         data = response.json()
         if not isinstance(data, dict) or "response" not in data:
             raise EldirError("Réponse inattendue d'Ollama.")
         return str(data["response"])
 
-    async def transform(
-        self, *, text: str, mode: TransformMode, model: str | None = None
-    ) -> str:
+    async def transform(self, *, text: str, mode: TransformMode, model: str | None = None) -> str:
         """Applique une des transformations prédéfinies localement.
 
         Le `mode` détermine le system prompt utilisé. Le texte transformé

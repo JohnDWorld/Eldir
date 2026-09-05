@@ -6,11 +6,13 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.auth_github_oauth import router as auth_github_oauth_router
 from app.api.v1.costs import router as costs_router
 from app.api.v1.health import router as health_router
-from app.api.v1.ollama import router as ollama_router
 from app.api.v1.mission_templates import (
     presets_router as templates_presets_router,
+)
+from app.api.v1.mission_templates import (
     router as mission_templates_router,
 )
+from app.api.v1.ollama import router as ollama_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.providers import router as providers_router
 from app.api.v1.sessions import router as sessions_router

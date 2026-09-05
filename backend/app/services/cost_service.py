@@ -74,9 +74,7 @@ class CostService:
         de les exiger en paramètre (le callback Manager ne les connaît pas).
         """
         row = await db.execute(
-            select(SessionRow.project_id, SessionRow.user_id).where(
-                SessionRow.id == session_id
-            )
+            select(SessionRow.project_id, SessionRow.user_id).where(SessionRow.id == session_id)
         )
         ctx = row.one_or_none()
         if ctx is None:
@@ -100,9 +98,7 @@ class CostService:
         db.add(cost)
         return cost
 
-    async def totals_for_session(
-        self, db: AsyncSession, *, session_id: str
-    ) -> CostTotals:
+    async def totals_for_session(self, db: AsyncSession, *, session_id: str) -> CostTotals:
         stmt = select(
             func.coalesce(func.sum(SessionCost.input_tokens), 0),
             func.coalesce(func.sum(SessionCost.output_tokens), 0),

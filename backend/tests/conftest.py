@@ -24,7 +24,7 @@ os.environ["REDIS_URL"] = "redis://localhost:6379/15"
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("JWT_SECRET", "test-secret-please-change")
 
-from app.core.config import get_settings  # noqa: E402
+from app.core.config import get_settings
 
 # S'assurer qu'aucun cache résiduel ne masque l'env test.
 get_settings.cache_clear()

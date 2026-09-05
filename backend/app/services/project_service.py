@@ -37,13 +37,9 @@ class SyncResult:
 
 
 class ProjectService:
-    async def list_for_user(
-        self, db: AsyncSession, user_id: str
-    ) -> list[Project]:
+    async def list_for_user(self, db: AsyncSession, user_id: str) -> list[Project]:
         result = await db.execute(
-            select(Project)
-            .where(Project.user_id == user_id)
-            .order_by(Project.created_at.desc())
+            select(Project).where(Project.user_id == user_id).order_by(Project.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -162,9 +158,7 @@ class ProjectService:
             )
 
         repo_path = Path(project.workspace_path)
-        token = await git_credential_service.get_active_token(
-            db, user_id, project.provider
-        )
+        token = await git_credential_service.get_active_token(db, user_id, project.provider)
         default_branch = project.default_branch
         upstream_ref = f"origin/{default_branch}"
 
@@ -208,9 +202,7 @@ class ProjectService:
                 )
             else:
                 try:
-                    await worktree_service.fast_forward_merge(
-                        repo_path, upstream_ref=upstream_ref
-                    )
+                    await worktree_service.fast_forward_merge(repo_path, upstream_ref=upstream_ref)
                     fast_forwarded = True
                     ahead, behind = await worktree_service.branch_ahead_behind(
                         repo_path, local=default_branch, remote=upstream_ref

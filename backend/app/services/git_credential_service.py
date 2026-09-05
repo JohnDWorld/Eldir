@@ -14,9 +14,7 @@ from app.services.claude_credential_service import mask_value
 
 
 class GitCredentialService:
-    async def list_for_user(
-        self, db: AsyncSession, user_id: str
-    ) -> list[GitCredential]:
+    async def list_for_user(self, db: AsyncSession, user_id: str) -> list[GitCredential]:
         result = await db.execute(
             select(GitCredential)
             .where(GitCredential.user_id == user_id)
@@ -24,9 +22,7 @@ class GitCredentialService:
         )
         return list(result.scalars().all())
 
-    async def get(
-        self, db: AsyncSession, credential_id: str, user_id: str
-    ) -> GitCredential:
+    async def get(self, db: AsyncSession, credential_id: str, user_id: str) -> GitCredential:
         result = await db.execute(
             select(GitCredential).where(
                 GitCredential.id == credential_id,
@@ -51,9 +47,7 @@ class GitCredentialService:
         )
         return result.scalars().first()
 
-    async def get_active_token(
-        self, db: AsyncSession, user_id: str, provider: str
-    ) -> str | None:
+    async def get_active_token(self, db: AsyncSession, user_id: str, provider: str) -> str | None:
         cred = await self.get_active(db, user_id, provider)
         if cred is None:
             return None
@@ -87,16 +81,14 @@ class GitCredentialService:
         await db.flush()
         return cred
 
-    async def delete(
-        self, db: AsyncSession, credential_id: str, user_id: str
-    ) -> None:
+    async def delete(self, db: AsyncSession, credential_id: str, user_id: str) -> None:
         cred = await self.get(db, credential_id, user_id)
         await db.delete(cred)
 
     async def reveal_masked(self, cred: GitCredential) -> str:
         try:
             plain = decrypt_secret(cred.encrypted_token)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return "…"
         return mask_value(plain)
 

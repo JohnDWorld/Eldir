@@ -5,6 +5,7 @@ from __future__ import annotations
 from redis.asyncio import Redis
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.db.session import async_session_factory
 from app.services.event_bus import EventBus
 from app.services.repo_watcher import RepoWatcher
@@ -36,9 +37,7 @@ async def init_singletons() -> None:
     _session_manager = SessionManager(event_bus=_event_bus)
     _session_service = SessionService(manager=_session_manager)
     _session_service.attach_session_factory(async_session_factory)
-    _template_generator = TemplateGeneratorService(
-        manager=_session_manager, event_bus=_event_bus
-    )
+    _template_generator = TemplateGeneratorService(manager=_session_manager, event_bus=_event_bus)
     _supervisor = SupervisorService(
         manager=_session_manager,
         sessions=_session_service,
@@ -60,8 +59,12 @@ async def shutdown_singletons() -> None:
         for active in _session_manager.list_active():
             try:
                 await _session_manager.stop(active.session_id)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception:
+                # L'arrêt d'une session ne doit pas empêcher les suivantes,
+                # mais il n'a aucune raison de disparaître sans trace.
+                get_logger(__name__).exception(
+                    "shutdown.session.stop.failed", session_id=active.session_id
+                )
     if _redis is not None:
         await _redis.aclose()
     _redis = None

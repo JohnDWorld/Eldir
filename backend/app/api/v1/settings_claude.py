@@ -28,9 +28,7 @@ def _to_read(cred, masked: str) -> ClaudeCredentialRead:  # type: ignore[no-unty
 
 
 @router.get("", response_model=list[ClaudeCredentialRead])
-async def list_credentials(
-    user_id: CurrentUserId, db: DbDep
-) -> list[ClaudeCredentialRead]:
+async def list_credentials(user_id: CurrentUserId, db: DbDep) -> list[ClaudeCredentialRead]:
     creds = await claude_credential_service.list_for_user(db, user_id)
     items: list[ClaudeCredentialRead] = []
     for cred in creds:

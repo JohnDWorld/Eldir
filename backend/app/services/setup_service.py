@@ -40,9 +40,7 @@ def _hash_token(token: str) -> str:
 
 class SetupService:
     async def get_or_create_state(self, db: AsyncSession) -> SetupState:
-        result = await db.execute(
-            select(SetupState).where(SetupState.id == _SETUP_STATE_ID)
-        )
+        result = await db.execute(select(SetupState).where(SetupState.id == _SETUP_STATE_ID))
         state = result.scalar_one_or_none()
         if state is None:
             state = SetupState(id=_SETUP_STATE_ID, bootstrap_completed=False)
@@ -59,9 +57,9 @@ class SetupService:
 
     async def claude_credentials_exist(self, db: AsyncSession) -> bool:
         result = await db.execute(
-            select(func.count()).select_from(ClaudeCredential).where(
-                ClaudeCredential.is_active.is_(True)
-            )
+            select(func.count())
+            .select_from(ClaudeCredential)
+            .where(ClaudeCredential.is_active.is_(True))
         )
         return result.scalar_one() > 0
 
@@ -110,10 +108,10 @@ class SetupService:
 
         Caller responsable de commit. Retourne l'admin créé.
         """
+        from app.schemas.claude_credential import ClaudeCredentialCreate
         from app.services.claude_credential_service import (  # local import: cycle
             claude_credential_service,
         )
-        from app.schemas.claude_credential import ClaudeCredentialCreate
 
         await self.verify_bootstrap_token(db, payload.bootstrap_token)
 

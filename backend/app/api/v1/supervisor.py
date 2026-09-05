@@ -16,9 +16,7 @@ router = APIRouter(prefix="/supervisor", tags=["supervisor"])
 
 
 @router.post("/session", response_model=SessionRead)
-async def ensure_supervisor_session(
-    user_id: CurrentUserId, db: DbDep
-) -> SessionRead:
+async def ensure_supervisor_session(user_id: CurrentUserId, db: DbDep) -> SessionRead:
     """Démarre (ou reprend) la session superviseur et la renvoie. Idempotent."""
     session = await get_supervisor_service().ensure_session(db, user_id)
     await db.commit()

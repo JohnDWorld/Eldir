@@ -21,9 +21,7 @@ class OllamaSettings(TimestampMixin, Base):
 
     __tablename__ = "ollama_settings"
 
-    id: Mapped[str] = mapped_column(
-        String(16), primary_key=True, default="singleton"
-    )
+    id: Mapped[str] = mapped_column(String(16), primary_key=True, default="singleton")
     # Si True, on injecte automatiquement le sub-agent 'mask-data' dans
     # chaque session Claude pour exposer Ollama comme outil délégable.
     expose_to_sessions: Mapped[bool] = mapped_column(

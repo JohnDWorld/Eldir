@@ -6,7 +6,6 @@ import json
 
 import httpx
 import pytest
-
 from app.core.exceptions import GitProviderError
 from app.services.git_providers.github import GitHubProvider
 
@@ -21,7 +20,7 @@ def _mount(provider: GitHubProvider, transport: httpx.MockTransport) -> None:
     async def _client() -> httpx.AsyncClient:
         return httpx.AsyncClient(
             base_url="https://api.github.com",
-            headers=provider._headers,  # noqa: SLF001
+            headers=provider._headers,
             transport=transport,
         )
 

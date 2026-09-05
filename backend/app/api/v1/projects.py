@@ -16,17 +16,13 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 @router.get("", response_model=list[ProjectRead])
-async def list_projects(
-    user_id: CurrentUserId, db: DbDep
-) -> list[ProjectRead]:
+async def list_projects(user_id: CurrentUserId, db: DbDep) -> list[ProjectRead]:
     items = await project_service.list_for_user(db, user_id)
     return [ProjectRead.model_validate(p) for p in items]
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
-async def get_project(
-    project_id: str, user_id: CurrentUserId, db: DbDep
-) -> ProjectRead:
+async def get_project(project_id: str, user_id: CurrentUserId, db: DbDep) -> ProjectRead:
     project = await project_service.get(db, project_id, user_id)
     return ProjectRead.model_validate(project)
 
@@ -53,20 +49,14 @@ async def create_project(
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(
-    project_id: str, user_id: CurrentUserId, db: DbDep
-) -> None:
+async def delete_project(project_id: str, user_id: CurrentUserId, db: DbDep) -> None:
     await project_service.delete(db, project_id, user_id)
     await db.commit()
 
 
 @router.post("/{project_id}/sync", response_model=ProjectSyncRead)
-async def sync_project(
-    project_id: str, user_id: CurrentUserId, db: DbDep
-) -> ProjectSyncRead:
-    result = await project_service.sync_with_remote(
-        db, project_id=project_id, user_id=user_id
-    )
+async def sync_project(project_id: str, user_id: CurrentUserId, db: DbDep) -> ProjectSyncRead:
+    result = await project_service.sync_with_remote(db, project_id=project_id, user_id=user_id)
     return ProjectSyncRead(
         fetched=result.fetched,
         fast_forwarded=result.fast_forwarded,
