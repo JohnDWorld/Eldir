@@ -170,7 +170,6 @@ export function SessionPage(): JSX.Element {
         >
           {deleteMut.isPending ? 'suppr…' : 'supprimer'}
         </button>
-        <Avatar size={24}>J</Avatar>
       </header>
 
       {/* Sélecteur de panneau, mobile uniquement */}
