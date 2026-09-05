@@ -59,6 +59,9 @@ services:
     volumes:
       - ./backend:/app
       - eldir_workspaces:/var/eldir/workspaces
+      # Cf. docker-compose.yml : les transcripts du CLI doivent survivre
+      # aux reconstructions d'image, sinon `resume` échoue.
+      - eldir_claude_home:/home/eldir/.claude
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,3 +89,4 @@ volumes:
   eldir_pg_data:
   eldir_redis_data:
   eldir_workspaces:
+  eldir_claude_home:
