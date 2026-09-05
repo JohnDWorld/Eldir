@@ -50,7 +50,7 @@ class TemplatePresetService:
         for path in sorted(self._dir.glob("*.json")):
             try:
                 preset = _load_preset(path)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("preset.load.failed", path=str(path))
                 continue
             cache[preset.slug] = preset
@@ -111,14 +111,14 @@ class TemplatePresetService:
         *,
         project_id: str,
         user_id: str,
-        preset: "TemplatePresetDetail",
+        preset: TemplatePresetDetail,
         overwrite: bool,
     ) -> MissionTemplate:
         """Variante d'`apply` qui prend directement un `TemplatePresetDetail`
         en mémoire. Utilisé par le générateur de template (preset produit
         par Claude à la volée, jamais persisté en fichier).
         """
-        template = await mission_template_service._get_or_create(  # noqa: SLF001 - intentionnel ici
+        template = await mission_template_service._get_or_create(
             db, project_id=project_id, user_id=user_id
         )
 
@@ -159,9 +159,7 @@ class TemplatePresetService:
         return template
 
 
-def _add_skill_from_preset(
-    db: AsyncSession, template_id: str, preset: TemplatePresetSkill
-) -> None:
+def _add_skill_from_preset(db: AsyncSession, template_id: str, preset: TemplatePresetSkill) -> None:
     db.add(
         TemplateSkill(
             template_id=template_id,

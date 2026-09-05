@@ -59,15 +59,11 @@ async def transform(
     result = await ollama_service.transform(
         text=payload.text, mode=payload.mode, model=payload.model
     )
-    return OllamaTransformResponse(
-        text=result, mode=payload.mode, model_used=used_model
-    )
+    return OllamaTransformResponse(text=result, mode=payload.mode, model_used=used_model)
 
 
 @router.get("/settings", response_model=OllamaSettingsRead)
-async def get_ollama_settings(
-    user_id: CurrentUserId, db: DbDep
-) -> OllamaSettingsRead:
+async def get_ollama_settings(user_id: CurrentUserId, db: DbDep) -> OllamaSettingsRead:
     row = await ollama_settings_service.get(db)
     return OllamaSettingsRead(expose_to_sessions=row.expose_to_sessions)
 
@@ -76,8 +72,6 @@ async def get_ollama_settings(
 async def set_ollama_settings(
     payload: OllamaSettingsWrite, user_id: CurrentUserId, db: DbDep
 ) -> OllamaSettingsRead:
-    row = await ollama_settings_service.set_expose(
-        db, value=payload.expose_to_sessions
-    )
+    row = await ollama_settings_service.set_expose(db, value=payload.expose_to_sessions)
     await db.commit()
     return OllamaSettingsRead(expose_to_sessions=row.expose_to_sessions)

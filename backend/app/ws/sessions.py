@@ -45,9 +45,7 @@ async def session_stream(
     # 2. Autorisation : la session appartient bien à cet user
     async with async_session_factory() as db:
         result = await db.execute(
-            select(Session).where(
-                Session.id == session_id, Session.user_id == user_id
-            )
+            select(Session).where(Session.id == session_id, Session.user_id == user_id)
         )
         if result.scalar_one_or_none() is None:
             await ws.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -79,9 +77,9 @@ async def _relay(bus: EventBus, session_id: str, ws: WebSocket) -> None:
         async for event in bus.subscribe(session_id):
             try:
                 await ws.send_json(event)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 break
     except asyncio.CancelledError:
         raise
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("ws.relay.error", session_id=session_id)

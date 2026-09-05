@@ -20,9 +20,7 @@ class WebSocketManager:
     async def connect(self, session_id: str, ws: WebSocket) -> None:
         await ws.accept()
         self._connections[session_id].add(ws)
-        logger.info(
-            "ws.connect", session_id=session_id, total=len(self._connections[session_id])
-        )
+        logger.info("ws.connect", session_id=session_id, total=len(self._connections[session_id]))
 
     def disconnect(self, session_id: str, ws: WebSocket) -> None:
         self._connections[session_id].discard(ws)
@@ -35,7 +33,7 @@ class WebSocketManager:
         for ws in self._connections.get(session_id, set()):
             try:
                 await ws.send_json(payload)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 dead.append(ws)
         for ws in dead:
             self.disconnect(session_id, ws)

@@ -12,18 +12,15 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
 from app.core.exceptions import AuthenticationError, WorkspaceError
 from app.db.models import Project, Session, User
-from app.schemas.claude_credential import ClaudeCredentialCreate
 from app.schemas.git_credential import GitCredentialCreate
 from app.services import session_service as svc_module
-from app.services.claude_credential_service import claude_credential_service
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers.base import PullRequestRef
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
 async def _run(cmd: list[str], cwd: Path) -> str:
@@ -125,9 +122,7 @@ async def test_git_status_clean(
     service: SessionService,
 ) -> None:
     _, session = project_session
-    status = await service.git_status(
-        db_session, user_id=admin.id, session_id=session.id
-    )
+    status = await service.git_status(db_session, user_id=admin.id, session_id=session.id)
     assert status["has_changes"] is False
     assert status["branch"] == "feat/eldir"
 
@@ -140,9 +135,7 @@ async def test_git_status_with_changes(
 ) -> None:
     _, session = project_session
     Path(session.worktree_path).joinpath("new.txt").write_text("hi")  # type: ignore[arg-type]
-    status = await service.git_status(
-        db_session, user_id=admin.id, session_id=session.id
-    )
+    status = await service.git_status(db_session, user_id=admin.id, session_id=session.id)
     assert status["has_changes"] is True
     assert status["untracked"] == 1
 
@@ -266,9 +259,7 @@ async def test_open_pr_calls_provider(
             title: str,
             body: str | None = None,
         ) -> PullRequestRef:
-            captured.update(
-                full_name=full_name, head=head, base=base, title=title, body=body
-            )
+            captured.update(full_name=full_name, head=head, base=base, title=title, body=body)
             return PullRequestRef(
                 number=42,
                 url="https://github.com/owner/repo/pull/42",

@@ -82,9 +82,7 @@ class WorktreeService:
     def repo_path(self, user_id: str, repo_slug: str) -> Path:
         return self.user_root(user_id) / repo_slug
 
-    def session_worktree_path(
-        self, user_id: str, repo_slug: str, session_id: str
-    ) -> Path:
+    def session_worktree_path(self, user_id: str, repo_slug: str, session_id: str) -> Path:
         return self.user_root(user_id) / SESSION_WORKTREE_TEMPLATE.format(
             repo_slug=repo_slug, session_id=session_id
         )
@@ -150,9 +148,7 @@ class WorktreeService:
         return WorktreeRef(path=wt_path, branch=branch, base_branch=base_branch)
 
     async def remove_worktree(self, repo_path: Path, worktree_path: Path) -> None:
-        await self._run_git(
-            "worktree", "remove", "--force", str(worktree_path), cwd=repo_path
-        )
+        await self._run_git("worktree", "remove", "--force", str(worktree_path), cwd=repo_path)
 
     # ── git status / commit / push ──────────────────────────────
     async def current_branch(self, repo_path: Path) -> str:
@@ -191,12 +187,8 @@ class WorktreeService:
         if not await self.has_changes(repo_path):
             raise WorkspaceError("Rien à commiter.", details={"path": str(repo_path)})
 
-        await self._run_git(
-            "config", "user.name", author_name or "Eldir", cwd=repo_path
-        )
-        await self._run_git(
-            "config", "user.email", author_email or "eldir@local", cwd=repo_path
-        )
+        await self._run_git("config", "user.name", author_name or "Eldir", cwd=repo_path)
+        await self._run_git("config", "user.email", author_email or "eldir@local", cwd=repo_path)
         await self._run_git("add", "-A", cwd=repo_path)
         await self._run_git("commit", "-m", message, cwd=repo_path)
         return await self._run_git("rev-parse", "HEAD", cwd=repo_path)
@@ -212,9 +204,7 @@ class WorktreeService:
     ) -> None:
         """Push la branche. Si token, injecte temporairement le PAT dans l'URL."""
         if token:
-            remote_url = await self._run_git(
-                "remote", "get-url", remote, cwd=repo_path
-            )
+            remote_url = await self._run_git("remote", "get-url", remote, cwd=repo_path)
             push_url = _inject_token(remote_url, token)
             args = ["push"]
             if set_upstream:
@@ -240,14 +230,10 @@ class WorktreeService:
         courant dans l'URL de l'origine avant de fetch.
         """
         if token:
-            remote_url = await self._run_git(
-                "remote", "get-url", remote, cwd=repo_path
-            )
+            remote_url = await self._run_git("remote", "get-url", remote, cwd=repo_path)
             new_url = _inject_token(remote_url, token)
             if new_url != remote_url:
-                await self._run_git(
-                    "remote", "set-url", remote, new_url, cwd=repo_path
-                )
+                await self._run_git("remote", "set-url", remote, new_url, cwd=repo_path)
         await self._run_git("fetch", remote, "--prune", cwd=repo_path)
 
     async def branch_ahead_behind(
@@ -285,30 +271,22 @@ class WorktreeService:
         """Fast-forward la branche courante sur `upstream_ref`. Échoue sinon."""
         await self._run_git("merge", "--ff-only", upstream_ref, cwd=repo_path)
 
-    async def merge_base(
-        self, repo_path: Path, *, a: str, b: str
-    ) -> str | None:
+    async def merge_base(self, repo_path: Path, *, a: str, b: str) -> str | None:
         """Retourne le SHA du merge-base entre `a` et `b`, ou None si absent."""
         try:
             return await self._run_git("merge-base", a, b, cwd=repo_path)
         except WorkspaceError:
             return None
 
-    async def diff_summary(
-        self, repo_path: Path, *, base_ref: str
-    ) -> list[FileChange]:
+    async def diff_summary(self, repo_path: Path, *, base_ref: str) -> list[FileChange]:
         """Liste les fichiers modifiés depuis `base_ref` (committed + working tree).
 
         Combine `git diff --name-status` et `git diff --numstat` pour avoir
         à la fois le statut (A/M/D/R/C) et les stats de lignes.
         """
         try:
-            name_status = await self._run_git(
-                "diff", "--name-status", base_ref, cwd=repo_path
-            )
-            numstat = await self._run_git(
-                "diff", "--numstat", base_ref, cwd=repo_path
-            )
+            name_status = await self._run_git("diff", "--name-status", base_ref, cwd=repo_path)
+            numstat = await self._run_git("diff", "--numstat", base_ref, cwd=repo_path)
         except WorkspaceError:
             return []
 
@@ -332,20 +310,14 @@ class WorktreeService:
             path = parts[-1]
             adds, dels = stats.get(path, (0, 0))
             changes.append(
-                FileChange(
-                    path=path, status=status_code, additions=adds, deletions=dels
-                )
+                FileChange(path=path, status=status_code, additions=adds, deletions=dels)
             )
         return changes
 
-    async def diff_file(
-        self, repo_path: Path, *, base_ref: str, path: str
-    ) -> str:
+    async def diff_file(self, repo_path: Path, *, base_ref: str, path: str) -> str:
         """Diff unifié d'un fichier vs `base_ref`. Retourne '' si pas de changement."""
         try:
-            return await self._run_git(
-                "diff", base_ref, "--", path, cwd=repo_path
-            )
+            return await self._run_git("diff", base_ref, "--", path, cwd=repo_path)
         except WorkspaceError:
             return ""
 
@@ -364,9 +336,7 @@ class WorktreeService:
     # ── helpers ─────────────────────────────────────────────────
     async def _detect_default_branch(self, repo_path: Path) -> str:
         try:
-            out = await self._run_git(
-                "symbolic-ref", "--short", "HEAD", cwd=repo_path
-            )
+            out = await self._run_git("symbolic-ref", "--short", "HEAD", cwd=repo_path)
             return out or "main"
         except WorkspaceError:
             return "main"

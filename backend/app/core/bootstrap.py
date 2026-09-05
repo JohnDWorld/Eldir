@@ -22,7 +22,7 @@ async def emit_bootstrap_token_if_needed() -> None:
                 return
             token = await setup_service.ensure_bootstrap_token(db)
             await db.commit()
-        except Exception:  # noqa: BLE001
+        except Exception:
             await db.rollback()
             logger.exception("bootstrap.emit.failed")
             return
@@ -31,4 +31,4 @@ async def emit_bootstrap_token_if_needed() -> None:
         # Marqueur stable pour parsing par install-eldir.sh
         logger.warning("bootstrap.token.ready", token_marker="ELDIR_BOOTSTRAP_TOKEN")
         # Ligne dédiée scriptable
-        print(f"ELDIR_BOOTSTRAP_TOKEN={token}", flush=True)  # noqa: T201
+        print(f"ELDIR_BOOTSTRAP_TOKEN={token}", flush=True)

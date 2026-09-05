@@ -31,9 +31,7 @@ def create_access_token(
     extra_claims: dict[str, Any] | None = None,
 ) -> str:
     settings = get_settings()
-    expire = datetime.now(UTC) + timedelta(
-        minutes=expires_minutes or settings.jwt_expire_minutes
-    )
+    expire = datetime.now(UTC) + timedelta(minutes=expires_minutes or settings.jwt_expire_minutes)
     payload: dict[str, Any] = {"sub": subject, "exp": expire, **(extra_claims or {})}
     return jwt.encode(
         payload,
@@ -59,9 +57,7 @@ def _fernet() -> Fernet:
     settings = get_settings()
     key = settings.encryption_key.get_secret_value()
     if not key:
-        raise RuntimeError(
-            "ENCRYPTION_KEY non configurée - générer via Fernet.generate_key()"
-        )
+        raise RuntimeError("ENCRYPTION_KEY non configurée - générer via Fernet.generate_key()")
     return Fernet(key.encode() if isinstance(key, str) else key)
 
 

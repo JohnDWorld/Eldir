@@ -24,6 +24,5 @@ def test_inject_token_https() -> None:
 def test_inject_token_ssh_passthrough() -> None:
     # On ne touche pas aux URL SSH (git@github.com:...).
     assert (
-        _inject_token("git@github.com:owner/repo.git", "ghp_abc")
-        == "git@github.com:owner/repo.git"
+        _inject_token("git@github.com:owner/repo.git", "ghp_abc") == "git@github.com:owner/repo.git"
     )

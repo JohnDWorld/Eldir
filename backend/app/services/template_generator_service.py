@@ -65,9 +65,7 @@ class GenerationResult:
 
 
 class TemplateGeneratorService:
-    def __init__(
-        self, manager: SessionManager, event_bus: EventBus
-    ) -> None:
+    def __init__(self, manager: SessionManager, event_bus: EventBus) -> None:
         self._manager = manager
         self._bus = event_bus
 
@@ -83,33 +81,24 @@ class TemplateGeneratorService:
         chosen_model = model or DEFAULT_MODEL
         if chosen_model not in ALLOWED_MODELS:
             raise EldirError(
-                f"Modèle '{chosen_model}' non supporté. "
-                f"Valeurs : {', '.join(ALLOWED_MODELS)}."
+                f"Modèle '{chosen_model}' non supporté. Valeurs : {', '.join(ALLOWED_MODELS)}."
             )
 
         # 1. Récupère le projet
         result = await db.execute(
-            select(Project).where(
-                Project.id == project_id, Project.user_id == user_id
-            )
+            select(Project).where(Project.id == project_id, Project.user_id == user_id)
         )
         project = result.scalar_one_or_none()
         if project is None:
             raise NotFoundError(f"Projet {project_id} introuvable.")
         if not project.workspace_path:
-            raise NotFoundError(
-                f"Projet {project_id} sans workspace cloné."
-            )
+            raise NotFoundError(f"Projet {project_id} sans workspace cloné.")
 
         # 2. Injecte les credentials Claude
-        await claude_credential_service.inject_active_into_env(
-            db, user_id=user_id
-        )
+        await claude_credential_service.inject_active_into_env(db, user_id=user_id)
 
         # 3. Récupère le prompt système (avec override utilisateur si présent)
-        meta_prompt = await system_prompt_service.resolve(
-            db, "template_generator"
-        )
+        meta_prompt = await system_prompt_service.resolve(db, "template_generator")
 
         # 4. Crée la row Session marquée 'is_system'
         session = SessionRow(
@@ -161,9 +150,7 @@ class TemplateGeneratorService:
 
         return GenerationResult(preset=preset, session_id=session.id)
 
-    async def _run_generation(
-        self, session_id: str, project_name: str
-    ) -> TemplatePresetDetail:
+    async def _run_generation(self, session_id: str, project_name: str) -> TemplatePresetDetail:
         """Envoie le message et collecte la réponse text + détecte le STOP."""
         message = (
             f"Analyse le repo `{project_name}` cloné dans ton cwd. "
@@ -231,9 +218,7 @@ def _parse_preset(raw: str) -> TemplatePresetDetail:
     try:
         data: dict[str, Any] = json.loads(json_text)
     except json.JSONDecodeError as exc:
-        raise EldirError(
-            f"Le bloc <preset> n'est pas un JSON valide : {exc.msg}"
-        ) from exc
+        raise EldirError(f"Le bloc <preset> n'est pas un JSON valide : {exc.msg}") from exc
 
     # Validation + normalisation
     skills_raw = data.get("skills") or []
@@ -268,6 +253,4 @@ def _parse_preset(raw: str) -> TemplatePresetDetail:
             ],
         )
     except (KeyError, TypeError, ValueError) as exc:
-        raise EldirError(
-            f"Preset généré invalide : {exc}"
-        ) from exc
+        raise EldirError(f"Preset généré invalide : {exc}") from exc

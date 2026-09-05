@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.core.exceptions import AuthenticationError
 from app.core.security import (
     create_access_token,

@@ -30,36 +30,22 @@ router = APIRouter(prefix="/costs", tags=["costs"])
 @router.get("/dashboard", response_model=CostDashboard)
 async def dashboard(user_id: CurrentUserId, db: DbDep) -> CostDashboard:
     now = datetime.now(UTC)
-    start_today = datetime.combine(
-        now.date(), datetime.min.time(), tzinfo=UTC
-    )
+    start_today = datetime.combine(now.date(), datetime.min.time(), tzinfo=UTC)
     start_7d = now - timedelta(days=7)
     start_30d = now - timedelta(days=30)
 
-    today_tot = await cost_service.totals_for_user(
-        db, user_id=user_id, since=start_today
-    )
-    week_tot = await cost_service.totals_for_user(
-        db, user_id=user_id, since=start_7d
-    )
-    month_tot = await cost_service.totals_for_user(
-        db, user_id=user_id, since=start_30d
-    )
+    today_tot = await cost_service.totals_for_user(db, user_id=user_id, since=start_today)
+    week_tot = await cost_service.totals_for_user(db, user_id=user_id, since=start_7d)
+    month_tot = await cost_service.totals_for_user(db, user_id=user_id, since=start_30d)
 
-    daily = await cost_service.daily_for_user(
-        db, user_id=user_id, days=7
-    )
-    by_project = await cost_service.by_project_for_user(
-        db, user_id=user_id, since=start_30d
-    )
+    daily = await cost_service.daily_for_user(db, user_id=user_id, days=7)
+    by_project = await cost_service.by_project_for_user(db, user_id=user_id, since=start_30d)
 
     # On récupère le nom du projet pour l'affichage (un seul SELECT IN)
     project_names: dict[str, str] = {}
     if by_project:
         ids = [p.project_id for p in by_project]
-        result = await db.execute(
-            select(Project.id, Project.name).where(Project.id.in_(ids))
-        )
+        result = await db.execute(select(Project.id, Project.name).where(Project.id.in_(ids)))
         project_names = {str(pid): name for pid, name in result.all()}
 
     return CostDashboard(
@@ -91,9 +77,7 @@ async def dashboard(user_id: CurrentUserId, db: DbDep) -> CostDashboard:
 
 
 @router.get("/sessions/{session_id}", response_model=CostTotalsRead)
-async def session_totals(
-    session_id: str, user_id: CurrentUserId, db: DbDep
-) -> CostTotalsRead:
+async def session_totals(session_id: str, user_id: CurrentUserId, db: DbDep) -> CostTotalsRead:
     # Note : pas de check d'ownership ici - le check se fait via les routes
     # /sessions/{id} ailleurs. En mono-user V1, c'est suffisant.
     totals = await cost_service.totals_for_session(db, session_id=session_id)
@@ -101,9 +85,7 @@ async def session_totals(
 
 
 @router.get("/export.csv")
-async def export_csv(
-    user_id: CurrentUserId, db: DbDep
-) -> StreamingResponse:
+async def export_csv(user_id: CurrentUserId, db: DbDep) -> StreamingResponse:
     """Export brut des lignes session_costs pour facturation/comptabilité."""
     result = await db.execute(
         select(SessionCost)

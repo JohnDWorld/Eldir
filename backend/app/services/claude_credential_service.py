@@ -51,9 +51,7 @@ class ClaudeCredentialService:
     pour rester découplé des deps FastAPI (testable en unitaire).
     """
 
-    async def list_for_user(
-        self, db: AsyncSession, user_id: str
-    ) -> list[ClaudeCredential]:
+    async def list_for_user(self, db: AsyncSession, user_id: str) -> list[ClaudeCredential]:
         result = await db.execute(
             select(ClaudeCredential)
             .where(ClaudeCredential.user_id == user_id)
@@ -112,9 +110,7 @@ class ClaudeCredentialService:
         cred = await self.get(db, credential_id, user_id)
         await db.delete(cred)
 
-    async def resolve_active(
-        self, db: AsyncSession, user_id: str
-    ) -> ResolvedCredential | None:
+    async def resolve_active(self, db: AsyncSession, user_id: str) -> ResolvedCredential | None:
         """Retourne le credential le plus prioritaire (oauth_token > api_key)."""
         result = await db.execute(
             select(ClaudeCredential).where(
@@ -140,9 +136,7 @@ class ClaudeCredentialService:
                     )
         return None
 
-    async def inject_active_into_env(
-        self, db: AsyncSession, *, user_id: str
-    ) -> "ResolvedCredential":
+    async def inject_active_into_env(self, db: AsyncSession, *, user_id: str) -> ResolvedCredential:
         """Injecte le credential actif dans os.environ pour le SDK Claude.
 
         Raise AuthenticationError si aucun credential n'est actif.
@@ -153,9 +147,7 @@ class ClaudeCredentialService:
 
         resolved = await self.resolve_active(db, user_id)
         if resolved is None:
-            raise AuthenticationError(
-                "Aucun credential Claude configuré. Settings > Claude."
-            )
+            raise AuthenticationError("Aucun credential Claude configuré. Settings > Claude.")
         os.environ.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
         os.environ.pop("ANTHROPIC_API_KEY", None)
         os.environ[resolved.env_var_name] = resolved.value
@@ -165,7 +157,7 @@ class ClaudeCredentialService:
         """Retourne uniquement la queue masquée - ne JAMAIS exposer le clair."""
         try:
             plain = decrypt_secret(cred.encrypted_value)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return MASK_PREFIX
         return mask_value(plain)
 

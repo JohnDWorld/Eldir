@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import AuthenticationError, ConflictError
 from app.db.models import User
 from app.schemas.git_credential import GitCredentialCreate
@@ -16,6 +14,7 @@ from app.services.git_credential_service import git_credential_service
 from app.services.git_providers.base import RepoRef
 from app.services.project_service import project_service
 from app.services.worktree_service import CloneResult
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -60,14 +59,12 @@ def patch_provider_and_clone(monkeypatch, tmp_path: Path):  # type: ignore[no-un
     )
 
     async def _fake_clone(*, user_id: str, repo_full_name: str, **_: Any) -> CloneResult:
-        slug = repo_full_name.split("/")[-1].lower()
+        slug = repo_full_name.rsplit("/", maxsplit=1)[-1].lower()
         path = tmp_path / user_id / slug
         path.mkdir(parents=True, exist_ok=True)
         return CloneResult(path=path, default_branch="main", repo_slug=slug)
 
-    monkeypatch.setattr(
-        project_service_module.worktree_service, "clone_repo", _fake_clone
-    )
+    monkeypatch.setattr(project_service_module.worktree_service, "clone_repo", _fake_clone)
 
 
 async def test_create_from_repo_requires_credential(

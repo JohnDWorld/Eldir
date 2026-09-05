@@ -87,17 +87,13 @@ class SupervisorService:
         manager.register_persist_callback(self._on_event)
 
     # ── cycle de vie ────────────────────────────────────────────
-    async def ensure_session(
-        self, db: AsyncSession, user_id: str
-    ) -> SessionRow:
+    async def ensure_session(self, db: AsyncSession, user_id: str) -> SessionRow:
         """Renvoie la session superviseur, démarrée si besoin (idempotent)."""
         row = await self._find_row(db, user_id)
         if row is not None and self._manager.is_active(row.id):
             return row
 
-        await claude_credential_service.inject_active_into_env(
-            db, user_id=user_id
-        )
+        await claude_credential_service.inject_active_into_env(db, user_id=user_id)
         prompt = await self._build_prompt(db)
         cwd = get_settings().workspaces_root / _CWD_DIRNAME
         cwd.mkdir(parents=True, exist_ok=True)
@@ -125,23 +121,19 @@ class SupervisorService:
 
         try:
             await self._start_sdk(row, user_id, prompt)
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Transcript SDK disparu (redémarrage du conteneur, purge…) :
             # on repart d'une conversation neuve plutôt que de rester bloqué.
             if not row.sdk_session_id:
                 raise
-            logger.warning(
-                "supervisor.resume.failed", session_id=row.id, exc_info=True
-            )
+            logger.warning("supervisor.resume.failed", session_id=row.id, exc_info=True)
             row.sdk_session_id = None
             await db.flush()
             await self._start_sdk(row, user_id, prompt)
         logger.info("supervisor.started", session_id=row.id)
         return row
 
-    async def _start_sdk(
-        self, row: SessionRow, user_id: str, prompt: str
-    ) -> None:
+    async def _start_sdk(self, row: SessionRow, user_id: str, prompt: str) -> None:
         await self._manager.start(
             session_id=row.id,
             project_id=None,
@@ -155,9 +147,7 @@ class SupervisorService:
             mcp_servers={_MCP_SERVER: self._build_mcp_server(user_id)},
         )
 
-    async def _find_row(
-        self, db: AsyncSession, user_id: str
-    ) -> SessionRow | None:
+    async def _find_row(self, db: AsyncSession, user_id: str) -> SessionRow | None:
         result = await db.execute(
             select(SessionRow)
             .where(
@@ -188,9 +178,7 @@ class SupervisorService:
         async def list_projects(_args: dict[str, Any]) -> dict[str, Any]:
             async with self._factory() as db:
                 result = await db.execute(
-                    select(Project)
-                    .where(Project.user_id == user_id)
-                    .order_by(Project.name.asc())
+                    select(Project).where(Project.user_id == user_id).order_by(Project.name.asc())
                 )
                 projects = list(result.scalars().all())
             if not projects:
@@ -330,9 +318,7 @@ class SupervisorService:
             body = current.content.strip() if current.is_overridden else ""
             if line in body:
                 return "Préférence déjà enregistrée."
-            await system_prompt_service.upsert(
-                db, SUPERVISOR_PREFS_SLUG, f"{body}\n{line}".strip()
-            )
+            await system_prompt_service.upsert(db, SUPERVISOR_PREFS_SLUG, f"{body}\n{line}".strip())
             await db.commit()
         logger.info("supervisor.remember", fait=fait)
         return f"Noté : {fait}"
@@ -373,9 +359,7 @@ class SupervisorService:
             await db.commit()
             return created.id, project.name, True
 
-    async def _run_child(
-        self, user_id: str, session_id: str, consigne: str
-    ) -> None:
+    async def _run_child(self, user_id: str, session_id: str, consigne: str) -> None:
         """Fait tourner le tour de la session enfant hors de la requête."""
         try:
             # La DB n'est utilisée que pour le contrôle d'accès et le resume :
@@ -383,12 +367,10 @@ class SupervisorService:
             async with self._factory() as db:
                 await self._sessions.get(db, session_id, user_id)
                 if not self._manager.is_active(session_id):
-                    await self._sessions.resume(
-                        db, user_id=user_id, session_id=session_id
-                    )
+                    await self._sessions.resume(db, user_id=user_id, session_id=session_id)
                 await db.commit()
             await self._manager.send_message(session_id, consigne)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("supervisor.dispatch.failed", session_id=session_id)
             self._pending.discard(session_id)
             self._spawn(
@@ -400,9 +382,7 @@ class SupervisorService:
             )
 
     # ── ping de fin de tour ─────────────────────────────────────
-    async def _on_event(
-        self, session_id: str, event_type: str, data: dict[str, Any]
-    ) -> None:
+    async def _on_event(self, session_id: str, event_type: str, data: dict[str, Any]) -> None:
         """Callback branché sur le SessionManager (tous les events)."""
         if event_type not in (EVENT_TYPE_STOP, EVENT_TYPE_ERROR):
             return
@@ -429,11 +409,7 @@ class SupervisorService:
         if event_type == EVENT_TYPE_ERROR:
             body = f"Elle a échoué : {data.get('message', 'erreur inconnue')}"
         else:
-            body = (
-                f"Compte rendu :\n{cr}"
-                if cr
-                else "Elle n'a pas produit de compte rendu <cr>."
-            )
+            body = f"Compte rendu :\n{cr}" if cr else "Elle n'a pas produit de compte rendu <cr>."
         await self._tell_supervisor(
             user_id,
             f"[Eldir] La session {session_id} ({project_name}, branche "
@@ -449,7 +425,7 @@ class SupervisorService:
                 supervisor = await self.ensure_session(db, user_id)
                 await db.commit()
             await self._manager.send_message(supervisor.id, content)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("supervisor.notify.failed")
 
     def _spawn(self, coro: Any) -> None:

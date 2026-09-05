@@ -45,10 +45,7 @@ def upgrade() -> None:
         ),
     )
     # Seed la ligne singleton au défaut (désactivé)
-    op.execute(
-        "INSERT INTO ollama_settings (id, expose_to_sessions) "
-        "VALUES ('singleton', false)"
-    )
+    op.execute("INSERT INTO ollama_settings (id, expose_to_sessions) VALUES ('singleton', false)")
 
 
 def downgrade() -> None:

@@ -12,9 +12,7 @@ _SINGLETON_ID = "singleton"
 
 class OllamaSettingsService:
     async def get(self, db: AsyncSession) -> OllamaSettings:
-        result = await db.execute(
-            select(OllamaSettings).where(OllamaSettings.id == _SINGLETON_ID)
-        )
+        result = await db.execute(select(OllamaSettings).where(OllamaSettings.id == _SINGLETON_ID))
         existing = result.scalar_one_or_none()
         if existing is not None:
             return existing
@@ -25,9 +23,7 @@ class OllamaSettingsService:
         await db.flush()
         return row
 
-    async def set_expose(
-        self, db: AsyncSession, *, value: bool
-    ) -> OllamaSettings:
+    async def set_expose(self, db: AsyncSession, *, value: bool) -> OllamaSettings:
         row = await self.get(db)
         row.expose_to_sessions = value
         await db.flush()

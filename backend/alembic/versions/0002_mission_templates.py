@@ -45,9 +45,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.UniqueConstraint("project_id", name="uq_mission_templates_project_id"),
     )
-    op.create_index(
-        "ix_mission_templates_project_id", "mission_templates", ["project_id"]
-    )
+    op.create_index("ix_mission_templates_project_id", "mission_templates", ["project_id"])
 
     op.create_table(
         "template_skills",
@@ -68,16 +66,10 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.ForeignKeyConstraint(
-            ["template_id"], ["mission_templates.id"], ondelete="CASCADE"
-        ),
-        sa.UniqueConstraint(
-            "template_id", "name", name="uq_template_skills_template_name"
-        ),
+        sa.ForeignKeyConstraint(["template_id"], ["mission_templates.id"], ondelete="CASCADE"),
+        sa.UniqueConstraint("template_id", "name", name="uq_template_skills_template_name"),
     )
-    op.create_index(
-        "ix_template_skills_template_id", "template_skills", ["template_id"]
-    )
+    op.create_index("ix_template_skills_template_id", "template_skills", ["template_id"])
 
     op.create_table(
         "template_sub_agents",
@@ -99,12 +91,8 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.ForeignKeyConstraint(
-            ["template_id"], ["mission_templates.id"], ondelete="CASCADE"
-        ),
-        sa.UniqueConstraint(
-            "template_id", "name", name="uq_template_sub_agents_template_name"
-        ),
+        sa.ForeignKeyConstraint(["template_id"], ["mission_templates.id"], ondelete="CASCADE"),
+        sa.UniqueConstraint("template_id", "name", name="uq_template_sub_agents_template_name"),
     )
     op.create_index(
         "ix_template_sub_agents_template_id",
@@ -131,9 +119,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.ForeignKeyConstraint(
-            ["template_id"], ["mission_templates.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["template_id"], ["mission_templates.id"], ondelete="CASCADE"),
     )
     op.create_index(
         "ix_template_versions_template_id",
@@ -143,19 +129,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_template_versions_template_id", table_name="template_versions"
-    )
+    op.drop_index("ix_template_versions_template_id", table_name="template_versions")
     op.drop_table("template_versions")
-    op.drop_index(
-        "ix_template_sub_agents_template_id", table_name="template_sub_agents"
-    )
+    op.drop_index("ix_template_sub_agents_template_id", table_name="template_sub_agents")
     op.drop_table("template_sub_agents")
-    op.drop_index(
-        "ix_template_skills_template_id", table_name="template_skills"
-    )
+    op.drop_index("ix_template_skills_template_id", table_name="template_skills")
     op.drop_table("template_skills")
-    op.drop_index(
-        "ix_mission_templates_project_id", table_name="mission_templates"
-    )
+    op.drop_index("ix_mission_templates_project_id", table_name="mission_templates")
     op.drop_table("mission_templates")

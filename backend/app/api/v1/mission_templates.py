@@ -51,9 +51,7 @@ def _serialize_template(template) -> MissionTemplateRead:  # type: ignore[no-unt
         created_at=template.created_at,
         updated_at=template.updated_at,
         skills=[TemplateSkillRead.model_validate(s) for s in template.skills],
-        sub_agents=[
-            TemplateSubAgentRead.model_validate(a) for a in template.sub_agents
-        ],
+        sub_agents=[TemplateSubAgentRead.model_validate(a) for a in template.sub_agents],
     )
 
 
@@ -61,9 +59,7 @@ def _serialize_template(template) -> MissionTemplateRead:  # type: ignore[no-unt
 async def get_template(
     project_id: str, user_id: CurrentUserId, db: DbDep
 ) -> MissionTemplateRead | None:
-    template = await mission_template_service.get(
-        db, project_id=project_id, user_id=user_id
-    )
+    template = await mission_template_service.get(db, project_id=project_id, user_id=user_id)
     if template is None:
         return None
     return _serialize_template(template)
@@ -85,21 +81,15 @@ async def upsert_template(
     )
     await db.commit()
     # Recharge avec les skills/sub-agents pour le payload de retour.
-    reloaded = await mission_template_service.get(
-        db, project_id=project_id, user_id=user_id
-    )
+    reloaded = await mission_template_service.get(db, project_id=project_id, user_id=user_id)
     if reloaded is None:
         raise NotFoundError("Template introuvable après upsert.")
     return _serialize_template(reloaded)
 
 
 @router.delete("/template", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_template(
-    project_id: str, user_id: CurrentUserId, db: DbDep
-) -> None:
-    await mission_template_service.delete(
-        db, project_id=project_id, user_id=user_id
-    )
+async def delete_template(project_id: str, user_id: CurrentUserId, db: DbDep) -> None:
+    await mission_template_service.delete(db, project_id=project_id, user_id=user_id)
     await db.commit()
 
 
@@ -112,9 +102,7 @@ class TemplateGenerateResponse(EldirModel):
     session_id: str
 
 
-@router.post(
-    "/template/generate", response_model=TemplateGenerateResponse
-)
+@router.post("/template/generate", response_model=TemplateGenerateResponse)
 async def generate_template(
     project_id: str,
     payload: TemplateGenerateRequest,
@@ -132,9 +120,7 @@ async def generate_template(
         project_id=project_id,
         model=payload.model,
     )
-    return TemplateGenerateResponse(
-        preset=result.preset, session_id=result.session_id
-    )
+    return TemplateGenerateResponse(preset=result.preset, session_id=result.session_id)
 
 
 class TemplateApplyInlineRequest(EldirModel):
@@ -142,9 +128,7 @@ class TemplateApplyInlineRequest(EldirModel):
     overwrite: bool = True
 
 
-@router.post(
-    "/template/apply-inline", response_model=MissionTemplateRead
-)
+@router.post("/template/apply-inline", response_model=MissionTemplateRead)
 async def apply_inline_preset(
     project_id: str,
     payload: TemplateApplyInlineRequest,
@@ -168,9 +152,7 @@ async def apply_inline_preset(
         overwrite=payload.overwrite,
     )
     await db.commit()
-    reloaded = await mission_template_service.get(
-        db, project_id=project_id, user_id=user_id
-    )
+    reloaded = await mission_template_service.get(db, project_id=project_id, user_id=user_id)
     if reloaded is None:
         raise NotFoundError("Template introuvable après apply-inline.")
     return _serialize_template(reloaded)
@@ -198,9 +180,7 @@ async def apply_preset(
         overwrite=payload.overwrite,
     )
     await db.commit()
-    reloaded = await mission_template_service.get(
-        db, project_id=project_id, user_id=user_id
-    )
+    reloaded = await mission_template_service.get(db, project_id=project_id, user_id=user_id)
     if reloaded is None:
         raise NotFoundError("Template introuvable après apply-preset.")
     return _serialize_template(reloaded)
@@ -217,9 +197,7 @@ async def list_template_versions(
     return [TemplateVersionRead.model_validate(v) for v in versions]
 
 
-@router.post(
-    "/template/versions/{version_id}/restore", response_model=MissionTemplateRead
-)
+@router.post("/template/versions/{version_id}/restore", response_model=MissionTemplateRead)
 async def restore_template_version(
     project_id: str,
     version_id: str,
@@ -235,9 +213,7 @@ async def restore_template_version(
         note=payload.note,
     )
     await db.commit()
-    reloaded = await mission_template_service.get(
-        db, project_id=project_id, user_id=user_id
-    )
+    reloaded = await mission_template_service.get(db, project_id=project_id, user_id=user_id)
     if reloaded is None:
         raise NotFoundError("Template introuvable après restauration.")
     return _serialize_template(reloaded)
@@ -248,9 +224,7 @@ async def restore_template_version(
 async def list_skills(
     project_id: str, user_id: CurrentUserId, db: DbDep
 ) -> list[TemplateSkillRead]:
-    skills = await mission_template_service.list_skills(
-        db, project_id=project_id, user_id=user_id
-    )
+    skills = await mission_template_service.list_skills(db, project_id=project_id, user_id=user_id)
     return [TemplateSkillRead.model_validate(s) for s in skills]
 
 
@@ -291,9 +265,7 @@ async def update_skill(
     return TemplateSkillRead.model_validate(skill)
 
 
-@router.delete(
-    "/template/skills/{skill_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/template/skills/{skill_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_skill(
     project_id: str,
     skill_id: str,
@@ -307,9 +279,7 @@ async def delete_skill(
 
 
 # ── Sub-agents ────────────────────────────────────────────────
-@router.get(
-    "/template/sub-agents", response_model=list[TemplateSubAgentRead]
-)
+@router.get("/template/sub-agents", response_model=list[TemplateSubAgentRead])
 async def list_sub_agents(
     project_id: str, user_id: CurrentUserId, db: DbDep
 ) -> list[TemplateSubAgentRead]:
@@ -337,9 +307,7 @@ async def create_sub_agent(
     return TemplateSubAgentRead.model_validate(agent)
 
 
-@router.put(
-    "/template/sub-agents/{agent_id}", response_model=TemplateSubAgentRead
-)
+@router.put("/template/sub-agents/{agent_id}", response_model=TemplateSubAgentRead)
 async def update_sub_agent(
     project_id: str,
     agent_id: str,
@@ -358,9 +326,7 @@ async def update_sub_agent(
     return TemplateSubAgentRead.model_validate(agent)
 
 
-@router.delete(
-    "/template/sub-agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/template/sub-agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_sub_agent(
     project_id: str,
     agent_id: str,

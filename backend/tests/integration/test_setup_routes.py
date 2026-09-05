@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from app.services.setup_service import setup_service
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from app.services.setup_service import setup_service
 
 
 async def _emit_token(session_factory: async_sessionmaker[AsyncSession]) -> str:

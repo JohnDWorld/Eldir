@@ -85,7 +85,7 @@ class ActiveSession:
     state: str = SESSION_STATE_IDLE
     sdk_session_id: str | None = None
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    client: "ClaudeSDKClient | None" = None
+    client: ClaudeSDKClient | None = None
     reader_task: asyncio.Task[None] | None = None
     message_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -262,18 +262,14 @@ class SessionManager:
     async def send_message(self, session_id: str, content: str) -> None:
         active = self.get(session_id)
         if active.client is None:
-            raise SessionNotFoundError(
-                f"Session {session_id} sans client SDK actif."
-            )
+            raise SessionNotFoundError(f"Session {session_id} sans client SDK actif.")
 
         # Une seule réception en cours à la fois par session.
         async with active.message_lock:
             # Trace le message utilisateur (WS + DB) AVANT d'interroger
             # Claude, pour que l'historique soit lisible même si la session
             # est rechargée en cours de réponse.
-            await self._publish(
-                session_id, EVENT_TYPE_USER_MESSAGE, {"text": content}
-            )
+            await self._publish(session_id, EVENT_TYPE_USER_MESSAGE, {"text": content})
             await self._publish_state(session_id, SESSION_STATE_THINKING)
             await active.client.query(content)
             await self._consume_response(active)
@@ -295,7 +291,7 @@ class SessionManager:
     # ── internals ───────────────────────────────────────────────
     async def _consume_response(self, active: ActiveSession) -> None:
         """Boucle de lecture du stream Claude. Capture session_id, publie events."""
-        assert active.client is not None  # noqa: S101 - invariant
+        assert active.client is not None
         from claude_agent_sdk import (
             AssistantMessage,
             ResultMessage,
@@ -332,9 +328,7 @@ class SessionManager:
                                 {"text": getattr(block, "text", "")},
                             )
                         elif isinstance(block, ToolUseBlock):
-                            await self._publish_state(
-                                active.session_id, SESSION_STATE_TOOL_USE
-                            )
+                            await self._publish_state(active.session_id, SESSION_STATE_TOOL_USE)
 
                 elif isinstance(message, ResultMessage):
                     # Capture usage / coût du tour avant de signaler la fin.
@@ -347,9 +341,7 @@ class SessionManager:
                         try:
                             primary_model = max(
                                 model_usage.items(),
-                                key=lambda kv: int(
-                                    (kv[1] or {}).get("output_tokens", 0)
-                                ),
+                                key=lambda kv: int((kv[1] or {}).get("output_tokens", 0)),
                             )[0]
                         except (TypeError, ValueError):  # pragma: no cover
                             primary_model = next(iter(model_usage.keys()), None)
@@ -359,18 +351,12 @@ class SessionManager:
                         {
                             "input_tokens": int(usage.get("input_tokens", 0) or 0),
                             "output_tokens": int(usage.get("output_tokens", 0) or 0),
-                            "cache_read_tokens": int(
-                                usage.get("cache_read_input_tokens", 0) or 0
-                            ),
+                            "cache_read_tokens": int(usage.get("cache_read_input_tokens", 0) or 0),
                             "cache_write_tokens": int(
                                 usage.get("cache_creation_input_tokens", 0) or 0
                             ),
-                            "cost_usd": float(
-                                getattr(message, "total_cost_usd", 0.0) or 0.0
-                            ),
-                            "duration_ms": int(
-                                getattr(message, "duration_ms", 0) or 0
-                            ),
+                            "cost_usd": float(getattr(message, "total_cost_usd", 0.0) or 0.0),
+                            "duration_ms": int(getattr(message, "duration_ms", 0) or 0),
                             "num_turns": int(getattr(message, "num_turns", 1) or 1),
                             "model": primary_model,
                         },
@@ -383,7 +369,7 @@ class SessionManager:
                     )
                     break
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("session.consume.error", session_id=active.session_id)
             await self._publish(
                 active.session_id,
@@ -397,12 +383,10 @@ class SessionManager:
             active.state = state
         await self._publish(session_id, EVENT_TYPE_STATE, {"state": state})
 
-    async def _publish(
-        self, session_id: str, event_type: str, data: dict[str, Any]
-    ) -> None:
+    async def _publish(self, session_id: str, event_type: str, data: dict[str, Any]) -> None:
         await self._bus.publish(session_id, event_type=event_type, data=data)
         for cb in self._on_event_persist:
             try:
                 await cb(session_id, event_type, data)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("session.persist.callback.error")

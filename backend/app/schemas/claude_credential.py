@@ -28,7 +28,7 @@ class ClaudeCredentialCreate(EldirModel):
     label: str | None = Field(default=None, max_length=120)
 
     @model_validator(mode="after")
-    def _kind_matches_value(self) -> "ClaudeCredentialCreate":
+    def _kind_matches_value(self) -> ClaudeCredentialCreate:
         """Refuse une clé API rangée en token OAuth, et l'inverse.
 
         Se tromper de mode ne se voit pas au moment de la saisie : la valeur

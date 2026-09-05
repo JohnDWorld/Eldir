@@ -18,6 +18,4 @@ class ClaudeCredential(UUIDPrimaryKey, TimestampMixin, Base):
     label: Mapped[str | None] = mapped_column(String(120), nullable=True)
     encrypted_value: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_validated_at: Mapped[str | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_validated_at: Mapped[str | None] = mapped_column(DateTime(timezone=True), nullable=True)

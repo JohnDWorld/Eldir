@@ -32,9 +32,7 @@ from app.db.models import SystemPromptOverride
 logger = get_logger(__name__)
 
 # Dossier des prompts par défaut (versionnés en git)
-_DEFAULTS_DIR: Final[Path] = (
-    Path(__file__).resolve().parents[1] / "data" / "system_prompts"
-)
+_DEFAULTS_DIR: Final[Path] = Path(__file__).resolve().parents[1] / "data" / "system_prompts"
 
 
 @dataclass(slots=True, frozen=True)
@@ -72,9 +70,7 @@ class SystemPromptService:
     def _load_default(self, slug: str) -> tuple[dict[str, str], str]:
         path = _DEFAULTS_DIR / f"{slug}.md"
         if not path.is_file():
-            raise NotFoundError(
-                f"Prompt système '{slug}' introuvable (cherché : {path})."
-            )
+            raise NotFoundError(f"Prompt système '{slug}' introuvable (cherché : {path}).")
         return _parse_file(path)
 
     def list_available_slugs(self) -> list[str]:
@@ -123,9 +119,7 @@ class SystemPromptService:
         """Renvoie juste le contenu effectif. Appel le plus fréquent."""
         return (await self.get(db, slug)).content
 
-    async def upsert(
-        self, db: AsyncSession, slug: str, content: str
-    ) -> SystemPromptRead:
+    async def upsert(self, db: AsyncSession, slug: str, content: str) -> SystemPromptRead:
         # On vérifie que le slug existe en défaut - sinon on refuse
         # (pas de prompt fantôme sans contrepartie git)
         self._load_default(slug)

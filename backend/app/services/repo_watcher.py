@@ -58,7 +58,7 @@ class RepoWatcher:
             await asyncio.sleep(self._interval)
             try:
                 await self.sync_all()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("repo_watcher.cycle.failed")
 
     async def sync_all(self) -> int:
@@ -73,12 +73,10 @@ class RepoWatcher:
                     sync = await project_service.sync_with_remote(
                         db, project_id=project.id, user_id=project.user_id
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     # Un repo cassé ou un token expiré ne doit pas arrêter
                     # la surveillance des autres.
-                    logger.exception(
-                        "repo_watcher.project.failed", project_id=project.id
-                    )
+                    logger.exception("repo_watcher.project.failed", project_id=project.id)
                     continue
                 if sync.fast_forwarded:
                     updated += 1

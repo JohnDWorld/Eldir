@@ -12,7 +12,6 @@ import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.core.config import get_settings
 from app.core.exceptions import SessionLimitError, SessionNotFoundError
 from app.services.event_bus import EventBus
@@ -32,7 +31,7 @@ def fake_sdk(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 
         async def receive_response(self):
             if False:
-                yield None  # noqa: SIM301
+                yield None
 
     class FakeOptions:
         def __init__(self, *args: object, **kwargs: object) -> None:
@@ -62,9 +61,7 @@ def manager() -> SessionManager:
     return SessionManager(event_bus=bus)
 
 
-async def test_start_registers_session(
-    manager: SessionManager, fake_sdk: MagicMock
-) -> None:
+async def test_start_registers_session(manager: SessionManager, fake_sdk: MagicMock) -> None:
     session = await manager.start(
         session_id="s1",
         project_id="p1",
@@ -105,9 +102,7 @@ async def test_stop_unknown_raises(manager: SessionManager) -> None:
         await manager.stop("ghost")
 
 
-async def test_stop_disconnects_client(
-    manager: SessionManager, fake_sdk: MagicMock
-) -> None:
+async def test_stop_disconnects_client(manager: SessionManager, fake_sdk: MagicMock) -> None:
     await manager.start(
         session_id="s1",
         project_id="p1",

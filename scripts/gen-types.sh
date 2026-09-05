@@ -24,10 +24,12 @@ echo "→ Export OpenAPI depuis le backend FastAPI..."
 )
 echo "  ✓ shared/openapi.json"
 
+# `npx` et non `pnpm dlx` : la CI installe Node avec npm, pas pnpm, et le
+# check types-drift échouait en `pnpm: command not found` (exit 127).
 echo "→ Génération des types TS (openapi-typescript)..."
 (
   cd "$FRONTEND"
-  pnpm dlx openapi-typescript@7 \
+  npx -y openapi-typescript@7.13.0 \
     "$SHARED/openapi.json" \
     --output "src/lib/types/api-generated.ts" \
     --root-types true \

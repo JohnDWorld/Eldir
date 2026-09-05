@@ -28,9 +28,7 @@ async def _client_for(db, user_id: str, provider: str):  # type: ignore[no-untyp
     _check_provider(provider)
     token = await git_credential_service.get_active_token(db, user_id, provider)
     if not token:
-        raise AuthenticationError(
-            f"Aucun credential {provider} configuré. Va dans Settings > Git."
-        )
+        raise AuthenticationError(f"Aucun credential {provider} configuré. Va dans Settings > Git.")
     # base_url uniquement pour Forgejo
     cred = await git_credential_service.get_active(db, user_id, provider)
     base_url = cred.base_url if cred and cred.base_url else None
