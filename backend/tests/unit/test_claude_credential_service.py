@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User
@@ -109,3 +110,17 @@ async def test_resolve_returns_none_when_no_credentials(
 ) -> None:
     resolved = await claude_credential_service.resolve_active(db_session, admin.id)
     assert resolved is None
+
+
+def test_refuse_une_cle_api_rangee_en_token_oauth() -> None:
+    """Se tromper de mode ne se voyait qu'au 401, en pleine session."""
+    with pytest.raises(ValidationError):
+        ClaudeCredentialCreate(kind="oauth_token", value="sk-ant-api03-abcdefgh")
+    with pytest.raises(ValidationError):
+        ClaudeCredentialCreate(kind="api_key", value="sk-ant-oat01-abcdefgh")
+
+
+def test_accepte_un_prefixe_inconnu() -> None:
+    """Le jour où Anthropic change de format, Eldir ne doit pas bloquer."""
+    cred = ClaudeCredentialCreate(kind="oauth_token", value="sk-ant-futur-xyz  ")
+    assert cred.value == "sk-ant-futur-xyz"
