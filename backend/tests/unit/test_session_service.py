@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from app.core.exceptions import AuthenticationError, NotFoundError
-from app.db.models import Project, User
+from app.db.models import Project, Session, User
 from app.schemas.claude_credential import ClaudeCredentialCreate
 from app.services.claude_credential_service import claude_credential_service
 from app.services.session_manager import SessionManager
@@ -202,3 +202,50 @@ async def test_send_message_starts_if_not_active(
         content="hello",
     )
     assert service._manager.is_active(session.id) is True
+
+
+async def test_resume_repart_de_zero_si_le_transcript_a_disparu(
+    db_session: AsyncSession,
+    admin: User,
+    project: Project,
+    service: SessionService,
+) -> None:
+    """Une image reconstruite efface les transcripts du CLI.
+
+    Sans filet, `resume` échoue et la session devient inutilisable. On
+    accepte de perdre le contexte côté SDK (l'historique reste en base)
+    plutôt que de rendre la session morte.
+    """
+    session = Session(
+        project_id=project.id,
+        user_id=admin.id,
+        branch="claude/x",
+        worktree_path=str(project.workspace_path),
+        sdk_session_id="transcript-disparu",
+    )
+    db_session.add(session)
+    await claude_credential_service.create(
+        db_session,
+        admin.id,
+        ClaudeCredentialCreate(kind="oauth_token", value="sk-ant-oat01-test"),
+    )
+    await db_session.commit()
+
+    calls: list[str | None] = []
+    manager = service._manager
+    original_start = manager.start
+
+    async def flaky_start(**kwargs: Any) -> Any:
+        calls.append(kwargs.get("resume_sdk_id"))
+        if kwargs.get("resume_sdk_id") is not None:
+            raise RuntimeError("No conversation found with session ID")
+        return await original_start(**kwargs)
+
+    manager.start = flaky_start  # type: ignore[method-assign]
+    try:
+        await service.resume(db_session, user_id=admin.id, session_id=session.id)
+    finally:
+        manager.start = original_start  # type: ignore[method-assign]
+
+    assert calls == ["transcript-disparu", None]
+    assert session.sdk_session_id is None
