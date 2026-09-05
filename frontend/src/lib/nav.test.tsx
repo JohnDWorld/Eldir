@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isNavItemActive, NAV_ITEMS } from '@/lib/nav';
+import { currentNavLabel, isNavItemActive, NAV_ITEMS } from '@/lib/nav';
 
 describe('navigation', () => {
   it('marque Ops actif seulement sur la racine', () => {
@@ -16,9 +16,14 @@ describe('navigation', () => {
     expect(isNavItemActive(settings, '/costs')).toBe(false);
   });
 
-  it('expose un pictogramme et un libellé pour chaque entrée', () => {
+  it('donne le libellé de la page courante pour la topbar mobile', () => {
+    expect(currentNavLabel('/settings/ollama')).toBe('Settings');
+    expect(currentNavLabel('/sessions/abc')).toBeNull();
+  });
+
+  it('fournit une icône à chaque entrée (jamais un emoji)', () => {
     for (const item of NAV_ITEMS) {
-      expect(item.glyph).toBeTruthy();
+      expect(typeof item.icon).toBe('object');
       expect(item.label).toBeTruthy();
     }
   });

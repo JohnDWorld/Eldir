@@ -30,14 +30,17 @@ export function Tile({
   return (
     <div
       className={cn(
-        'rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-2.5 py-2',
+        // `min-w-0` + `overflow-hidden` : dans une grille, un enfant garde
+        // sinon la largeur de son contenu et pousse la page en scroll
+        // horizontal. La valeur est tronquée, jamais coupée à cheval.
+        'min-w-0 overflow-hidden rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-2.5 py-2',
         className,
       )}
     >
-      <div className="font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-gray">
+      <div className="truncate font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-gray">
         {label}
       </div>
-      <div className="mt-1.5 text-[22px] font-bold leading-tight tabular-nums text-eldir-ink">
+      <div className="mt-1 truncate text-lg font-bold leading-tight tabular-nums text-eldir-ink md:mt-1.5 md:text-[22px]">
         {value}
       </div>
       {spark ? (
@@ -50,7 +53,9 @@ export function Tile({
           />
         </div>
       ) : sub !== undefined ? (
-        <div className="mt-1 font-mono text-2xs text-eldir-gray">{sub}</div>
+        <div className="mt-1 break-words font-mono text-2xs leading-tight text-eldir-gray">
+          {sub}
+        </div>
       ) : null}
     </div>
   );

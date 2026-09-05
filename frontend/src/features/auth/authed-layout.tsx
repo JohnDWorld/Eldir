@@ -7,7 +7,6 @@
 import { Outlet } from 'react-router-dom';
 
 import { AppTopbar } from '@/components/eldir/app-topbar';
-import { BottomNav } from '@/components/eldir/bottom-nav';
 import { RequireAuth } from '@/features/auth/require-auth';
 import { useSessionNotifier } from '@/hooks/use-session-notifier';
 
@@ -30,7 +29,6 @@ function AuthedInner(): JSX.Element {
       <div className="min-h-0 flex-1 overflow-auto">
         <Outlet />
       </div>
-      <BottomNav />
     </div>
   );
 }

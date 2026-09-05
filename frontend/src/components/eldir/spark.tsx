@@ -1,7 +1,9 @@
 /**
- * Spark - sparkline minimaliste sans dépendance.
+ * Spark - sparkline minimaliste sans dépendance, largeur fluide.
  * Cf. DA/shared.jsx · Spark.
  */
+
+import { cn } from '@/lib/utils';
 
 interface SparkProps {
   data: readonly number[];
@@ -21,7 +23,7 @@ export function Spark({
   className,
 }: SparkProps): JSX.Element {
   if (data.length < 2) {
-    return <svg width={width} height={height} className={className} aria-hidden />;
+    return <svg className={cn('h-4 w-full', className)} aria-hidden />;
   }
   const max = Math.max(...data);
   const min = Math.min(...data);
@@ -35,11 +37,14 @@ export function Spark({
     .join(' ');
   const area = `0,${height} ${points} ${width},${height}`;
 
+  // Largeur fluide : `width`/`height` ne servent plus qu'au calcul des
+  // coordonnées. Une taille fixe débordait de sa colonne sur mobile et
+  // provoquait un scroll horizontal de toute la page.
   return (
     <svg
-      width={width}
-      height={height}
-      className={className}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      className={cn('h-4 w-full', className)}
       role="img"
       aria-label="sparkline"
     >
@@ -49,6 +54,7 @@ export function Spark({
         fill="none"
         stroke={stroke}
         strokeWidth={1.4}
+        vectorEffect="non-scaling-stroke"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
