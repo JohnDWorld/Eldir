@@ -177,6 +177,27 @@ Deux précautions :
   `sops updatekeys *.enc.env`. Si une valeur a fuité, la seule vraie correction
   est de la régénérer, pas de supprimer le fichier.
 
+## 5 ter. Les mises à jour suivantes
+
+Une fois la stack en place, tout passe par le script à la racine :
+
+```bash
+ssh <serveur>
+cd eldir && ./deploy.sh
+```
+
+Il fait un `git pull --ff-only`, regarde **ce qui a changé** entre l'ancien et
+le nouveau HEAD, et ne reconstruit que les services concernés : `backend/` pour
+le backend, `frontend/` pour le frontend, `docker/` pour Caddy, et toute la
+stack si `docker-compose.yml` bouge. Une PR qui ne touche que la doc ne
+reconstruit rien.
+
+Il prévient aussi quand un `.env.example` a changé, puisque ton `.env`, lui,
+n'est pas versionné et ne se met pas à jour tout seul. Les migrations Alembic
+sont jouées au démarrage du backend, il n'y a rien à lancer à la main.
+
+`./deploy.sh --force` reconstruit tout, même sans nouveau commit.
+
 ## 6. Le compte admin
 
 Le script d'install détecte une stack déjà lancée et lit le nom d'hôte dans
