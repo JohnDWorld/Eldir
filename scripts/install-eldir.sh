@@ -68,24 +68,6 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 ok "docker, docker compose, curl, python3 OK"
 
-CLAUDE_BIN=""
-if command -v claude >/dev/null 2>&1; then
-    CLAUDE_BIN="claude"
-    ok "claude CLI déjà installé ($(claude --version 2>/dev/null | head -n1))"
-elif command -v npx >/dev/null 2>&1; then
-    ok "npx disponible - claude sera lancé via 'npx -y @anthropic-ai/claude-code'"
-    CLAUDE_BIN="npx -y @anthropic-ai/claude-code"
-else
-    warn "Ni 'claude' ni 'npx' trouvés dans le PATH."
-    warn "Pour générer automatiquement le token Pro/Max, installe Node.js ≥ 18"
-    warn "(https://nodejs.org). Sinon, tu pourras coller un token déjà généré."
-fi
-
-HAS_CLAUDE_HELPER="0"
-if [[ -n "$CLAUDE_BIN" ]]; then
-    HAS_CLAUDE_HELPER="1"
-fi
-
 # ── 1. démarrer la stack (sauf si elle tourne déjà) ──────────────
 # En prod, la stack est lancée par `docker compose up -d` avec le compose
 # de prod. Relancer ici avec le compose de dev ferait échouer l'install sur
@@ -120,6 +102,31 @@ if ! curl -fsS "$API_URL/api/v1/setup/status" >/dev/null 2>&1; then
     fail "Le backend ne répond pas sur $API_URL - voir 'docker compose -f $COMPOSE_FILE logs backend'."
 fi
 ok "Backend en ligne"
+
+# ── 2 bis. où trouver le CLI claude ? ────────────────────────────
+# Ordre de préférence : l'hôte, puis npx, puis le container backend, qui
+# embarque toujours le CLI (cf. backend/Dockerfile). Cette détection vient
+# APRÈS le démarrage de la stack, sinon le container n'existe pas encore.
+CLAUDE_BIN=""
+if command -v claude >/dev/null 2>&1; then
+    CLAUDE_BIN="claude"
+    ok "claude CLI déjà installé ($(claude --version 2>/dev/null | head -n1))"
+elif command -v npx >/dev/null 2>&1; then
+    ok "npx disponible - claude sera lancé via 'npx -y @anthropic-ai/claude-code'"
+    CLAUDE_BIN="npx -y @anthropic-ai/claude-code"
+elif docker exec "$BACKEND_CONTAINER" claude --version >/dev/null 2>&1; then
+    ok "claude CLI disponible dans le container $BACKEND_CONTAINER"
+    CLAUDE_BIN="docker exec -i $BACKEND_CONTAINER claude"
+else
+    warn "Aucun CLI claude trouvé (ni sur l'hôte, ni via npx, ni dans le container)."
+    warn "Tu pourras coller un token déjà généré, ou passer par une clé API Console."
+fi
+
+HAS_CLAUDE_HELPER="0"
+if [[ -n "$CLAUDE_BIN" ]]; then
+    HAS_CLAUDE_HELPER="1"
+fi
+
 
 STATUS_JSON="$(curl -fsS "$API_URL/api/v1/setup/status")"
 NEEDS_BOOTSTRAP="$(printf '%s' "$STATUS_JSON" | python3 -c 'import sys, json; print(json.load(sys.stdin)["needs_bootstrap"])')"
@@ -161,7 +168,9 @@ ask "Nom affiché (optionnel) :"; read -r ADMIN_DISPLAY
 # ── 5. token Claude Pro/Max ──────────────────────────────────────
 step "Connexion Claude Pro/Max"
 echo "Eldir va te connecter à ton compte Claude Pro/Max (recommandé)."
-echo "Une fenêtre navigateur va s'ouvrir pour autoriser Eldir."
+echo "Le CLI affiche un lien à ouvrir dans un navigateur, puis attend le code."
+echo "Sur un serveur sans navigateur : ouvre le lien depuis ta machine, ou"
+echo "génère le token chez toi ('claude setup-token') et colle-le plus bas."
 echo
 
 CLAUDE_OAUTH_TOKEN=""
