@@ -44,7 +44,10 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://eldir:eldir@localhost:5432/eldir_test
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET: ci-only-not-a-real-secret
-      ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      # Clé Fernet valide (32 octets base64url), factice mais décodable.
+      # Les 44 "a" précédents avaient la bonne longueur mais décodaient sur
+      # 33 octets : tout test touchant au chiffrement plantait en CI.
+      ENCRYPTION_KEY: ZWxkaXItY2kta2V5LW5vdC1hLXJlYWwtc2VjcmV0ISE=
       ENV: test
 
     steps:
