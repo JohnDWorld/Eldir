@@ -40,9 +40,9 @@ Un Mission Template est composé de :
 
 | Stack typique du repo | Modèle conseillé |
 |---|---|
-| Refactor lourd, archi complexe, monorepo | `claude-opus-4-7` |
-| Stack standard (Django, FastAPI, Next.js…) | `claude-sonnet-4-6` |
-| Scripts, projet simple, doc-heavy | `claude-haiku-4-5-20251001` |
+| Refactor lourd, archi complexe, monorepo | `claude-opus-5` |
+| Stack standard (Django, FastAPI, Next.js…) | `claude-sonnet-5` |
+| Scripts, projet simple, doc-heavy | `claude-haiku-4-5` |
 | Inconnu / mixte | `null` (laisser le défaut Eldir) |
 
 ## Structure du system_prompt à générer
@@ -84,7 +84,7 @@ Réponds avec **un seul bloc** enveloppé dans des balises `<preset>...</preset>
   "title": "Nom Repo (auto-généré)",
   "description": "Phrase d'1 ligne sur ce que fait le projet.",
   "tags": ["python", "fastapi"],
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-5",
   "allowed_tools": null,
   "system_prompt": "Tu es l'agent maintainer de...\n\n## Sources de vérité\n- ...",
   "skills": [
