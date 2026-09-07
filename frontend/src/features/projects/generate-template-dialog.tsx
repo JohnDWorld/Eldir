@@ -7,16 +7,21 @@
  *  1. `choose-model` : sélection du modèle (Haiku par défaut)
  *  2. `generating`   : spinner + lien vers la session live
  *  3. `review`       : preview du preset + boutons Apply / Annuler
+ *
+ * L'analyse tourne côté serveur (1 à 3 min) : on récupère un `session_id`
+ * immédiatement puis on interroge son état. Fermer l'onglet ou perdre le
+ * réseau n'annule plus la génération, et le poll rattrape le résultat.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { PresetPreview } from '@/features/projects/apply-preset-dialog';
 import { ApiError } from '@/lib/api/client';
 import {
   useApplyInlinePreset,
-  useGenerateTemplate,
+  useStartTemplateGeneration,
+  useTemplateGenerationStatus,
 } from '@/lib/api/queries';
 import type { TemplatePresetDetail } from '@/lib/api/queries';
 import { CLAUDE_MODELS, ECO_MODEL } from '@/lib/models';
@@ -48,26 +53,40 @@ export function GenerateTemplateDialog({
   const [overwrite, setOverwrite] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const generate = useGenerateTemplate(projectId);
+  const start = useStartTemplateGeneration(projectId);
   const apply = useApplyInlinePreset(projectId);
+  const generation = useTemplateGenerationStatus(
+    projectId,
+    step === 'generating' ? sessionId : null,
+  );
 
   const launch = async () => {
     setError(null);
     setStep('generating');
     try {
-      const result = await generate.mutateAsync({ model });
-      setPreset(result.preset);
-      setSessionId(result.session_id);
-      setStep('review');
+      const started = await start.mutateAsync({ model });
+      setSessionId(started.session_id);
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Erreur pendant la génération.',
+          : 'Impossible de lancer la génération.',
       );
       setStep('error');
     }
   };
+
+  const result = generation.data;
+  useEffect(() => {
+    if (step !== 'generating' || !result) return;
+    if (result.status === 'done' && result.preset) {
+      setPreset(result.preset);
+      setStep('review');
+    } else if (result.status === 'error') {
+      setError(result.detail ?? 'Erreur pendant la génération.');
+      setStep('error');
+    }
+  }, [result, step]);
 
   const handleApply = async () => {
     if (!preset) return;

@@ -1,13 +1,21 @@
 """TemplateGeneratorService - génère un Mission Template via Claude.
 
+La génération prend 1 à 3 minutes selon la taille du repo, donc elle tourne
+en **tâche de fond** : `start()` rend la main tout de suite avec un
+`session_id`, le client interroge `result()` jusqu'à obtenir le preset. Tenir
+une requête HTTP ouverte pendant tout ce temps ne marchait pas (navigateur qui
+abandonne, écran de téléphone qui s'éteint, proxy qui coupe : le travail était
+fait, payé, et la réponse perdue).
+
 Flow :
-1. Récupère le prompt système `template_generator` (depuis fichier + override DB)
-2. Crée une row Session marquée `is_system=True`, `system_kind='template_generator'`
-3. Lance un ClaudeSDKClient en lecture seule (Read/Glob/Grep uniquement) sur
-   le clone principal du projet
-4. Envoie un message d'analyse, attend la fin du tour via pubsub Redis
-5. Parse le bloc `<preset>...</preset>` de la réponse → JSON → TemplatePresetDetail
-6. Stoppe la session
+1. `start()` : prompt système + row Session (`is_system=True`,
+   `system_kind='template_generator'`) commitée tout de suite, puis une tâche
+   asyncio détachée ; renvoie le `session_id`.
+2. La tâche lance un ClaudeSDKClient en lecture seule (Read/Glob/Grep) sur le
+   clone principal du projet et attend la fin du tour via pubsub Redis.
+3. `result()` : relit les events `text` déjà persistés en base et y cherche le
+   bloc `<preset>...</preset>`. Aucun état en mémoire à conserver : le résultat
+   est reconstruit depuis la DB, donc il survit à la perte du client.
 
 Les coûts du tour sont capturés normalement (cf. `cost_service`) - rien
 n'est masqué dans le dashboard.
@@ -28,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.constants import EVENT_TYPE_STOP, EVENT_TYPE_TEXT
 from app.core.exceptions import EldirError, NotFoundError
 from app.core.logging import get_logger
-from app.db.models import Project
+from app.db.models import Project, SessionEvent
 from app.db.models import Session as SessionRow
 from app.schemas.mission_template import (
     TemplatePresetDetail,
@@ -59,24 +67,32 @@ DEFAULT_MODEL = "claude-haiku-4-5"
 
 
 @dataclass(slots=True, frozen=True)
-class GenerationResult:
-    preset: TemplatePresetDetail
-    session_id: str  # session système conservée en DB pour audit des coûts
+class GenerationStatus:
+    """État d'une génération, reconstruit depuis la DB à chaque appel."""
+
+    status: str  # running | done | error
+    preset: TemplatePresetDetail | None = None
+    detail: str | None = None
 
 
 class TemplateGeneratorService:
     def __init__(self, manager: SessionManager, event_bus: EventBus) -> None:
         self._manager = manager
         self._bus = event_bus
+        # Générations en cours dans ce process. Perdu au redémarrage, et c'est
+        # voulu : `result()` retombe alors sur la relecture des events.
+        self._running: set[str] = set()
+        self._errors: dict[str, str] = {}
+        self._tasks: set[asyncio.Task[None]] = set()
 
-    async def generate(
+    async def start(
         self,
         db: AsyncSession,
         *,
         user_id: str,
         project_id: str,
         model: str | None = None,
-    ) -> GenerationResult:
+    ) -> str:
         # Validation modèle
         chosen_model = model or DEFAULT_MODEL
         if chosen_model not in ALLOWED_MODELS:
@@ -119,36 +135,101 @@ class TemplateGeneratorService:
         # voir le live en ouvrant /sessions/{id}).
         await db.commit()
 
-        try:
-            # 5. Démarre le SDK Claude en lecture seule sur le clone principal
-            await self._manager.start(
+        # 5. La génération part en tâche de fond : la requête HTTP appelante
+        #    n'attend pas (cf. docstring du module).
+        self._running.add(session.id)
+        self._errors.pop(session.id, None)
+        task = asyncio.create_task(
+            self._run_in_background(
                 session_id=session.id,
                 project_id=project_id,
                 user_id=user_id,
                 cwd=project.workspace_path,
-                system_prompt=meta_prompt,
+                prompt=meta_prompt,
                 model=chosen_model,
+                project_name=project.name,
+            )
+        )
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return session.id
+
+    async def _run_in_background(
+        self,
+        *,
+        session_id: str,
+        project_id: str,
+        user_id: str,
+        cwd: str,
+        prompt: str,
+        model: str,
+        project_name: str,
+    ) -> None:
+        """Fait tourner Claude jusqu'au bout, quoi qu'il advienne du client."""
+        try:
+            await self._manager.start(
+                session_id=session_id,
+                project_id=project_id,
+                user_id=user_id,
+                cwd=cwd,
+                system_prompt=prompt,
+                model=model,
                 allowed_tools=_READONLY_TOOLS,
             )
-
-            # 6. Lance le tour + attend la fin via pubsub
-            preset = await asyncio.wait_for(
-                self._run_generation(session.id, project.name),
+            await asyncio.wait_for(
+                self._run_generation(session_id, project_name),
                 timeout=_GENERATION_TIMEOUT_S,
             )
+        except TimeoutError:
+            self._errors[session_id] = (
+                f"Claude n'a pas fini l'analyse en {int(_GENERATION_TIMEOUT_S)}s. "
+                "Réessaye, ou configure le template à la main."
+            )
+            logger.warning("template_generator.timeout", session_id=session_id)
+        except Exception as exc:
+            self._errors[session_id] = str(exc) or type(exc).__name__
+            logger.exception("template_generator.failed", session_id=session_id)
         finally:
             # Toujours stopper la session SDK (mais on garde la row DB
             # pour traçabilité des coûts)
             try:
-                if self._manager.is_active(session.id):
-                    await self._manager.stop(session.id)
+                if self._manager.is_active(session_id):
+                    await self._manager.stop(session_id)
             except Exception:
                 logger.exception(
                     "template_generator.stop.failed",
-                    session_id=session.id,
+                    session_id=session_id,
                 )
+            self._running.discard(session_id)
 
-        return GenerationResult(preset=preset, session_id=session.id)
+    async def result(self, db: AsyncSession, *, user_id: str, session_id: str) -> GenerationStatus:
+        """État d'une génération : running, done (avec preset) ou error.
+
+        Le preset est reconstruit depuis les events `text` persistés, donc un
+        client qui a perdu la connexion pendant l'analyse retrouve le résultat
+        (et son coût n'est pas perdu).
+        """
+        row = await db.get(SessionRow, session_id)
+        if row is None or row.user_id != user_id or row.system_kind != "template_generator":
+            raise NotFoundError(f"Génération {session_id} introuvable.")
+        if session_id in self._running:
+            return GenerationStatus(status="running")
+        failure = self._errors.get(session_id)
+        if failure is not None:
+            return GenerationStatus(status="error", detail=failure)
+
+        events = await db.execute(
+            select(SessionEvent.payload)
+            .where(SessionEvent.session_id == session_id, SessionEvent.type == EVENT_TYPE_TEXT)
+            .order_by(SessionEvent.created_at.asc())
+        )
+        full_text = "".join(
+            str(payload.get("text", "")) for (payload,) in events.all() if isinstance(payload, dict)
+        )
+        try:
+            return GenerationStatus(status="done", preset=_parse_preset(full_text))
+        except EldirError as exc:
+            return GenerationStatus(status="error", detail=str(exc))
 
     async def _run_generation(self, session_id: str, project_name: str) -> TemplatePresetDetail:
         """Envoie le message et collecte la réponse text + détecte le STOP."""

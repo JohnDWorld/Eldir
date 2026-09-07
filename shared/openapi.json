@@ -1752,21 +1752,56 @@
         "title": "TemplateGenerateRequest",
         "type": "object"
       },
-      "TemplateGenerateResponse": {
+      "TemplateGenerateStartResponse": {
         "properties": {
-          "preset": {
-            "$ref": "#/components/schemas/TemplatePresetDetail"
-          },
           "session_id": {
             "title": "Session Id",
             "type": "string"
           }
         },
         "required": [
-          "preset",
           "session_id"
         ],
-        "title": "TemplateGenerateResponse",
+        "title": "TemplateGenerateStartResponse",
+        "type": "object"
+      },
+      "TemplateGenerateStatusResponse": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplatePresetDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "running",
+              "done",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "TemplateGenerateStatusResponse",
         "type": "object"
       },
       "TemplatePresetApply": {
@@ -3606,8 +3641,8 @@
     },
     "/api/v1/projects/{project_id}/template/generate": {
       "post": {
-        "description": "Génère un preset via Claude en lecture seule sur le repo cloné.\n\nCrée une session système (is_system=True) - les coûts apparaissent\ndans le dashboard comme n'importe quelle autre session.",
-        "operationId": "generate_template_api_v1_projects__project_id__template_generate_post",
+        "description": "Lance l'analyse du repo par Claude et rend la main immédiatement.\n\nCrée une session système (is_system=True) - les coûts apparaissent\ndans le dashboard comme n'importe quelle autre session. L'analyse dure\n1 à 3 minutes : le client suit son avancement via GET\n`/template/generate/{session_id}`.",
+        "operationId": "start_template_generation_api_v1_projects__project_id__template_generate_post",
         "parameters": [
           {
             "in": "path",
@@ -3646,11 +3681,11 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TemplateGenerateResponse"
+                  "$ref": "#/components/schemas/TemplateGenerateStartResponse"
                 }
               }
             },
@@ -3667,7 +3702,66 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Generate Template",
+        "summary": "Start Template Generation",
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/template/generate/{session_id}": {
+      "get": {
+        "description": "État de la génération : `running`, `done` (avec preset) ou `error`.\n\nLe preset est relu depuis les events persistés, donc rafraîchir la page\nou perdre le réseau pendant l'analyse ne fait pas perdre le résultat.",
+        "operationId": "template_generation_status_api_v1_projects__project_id__template_generate__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateGenerateStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Template Generation Status",
         "tags": [
           "templates"
         ]

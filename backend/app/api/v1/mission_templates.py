@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, status
 
 from app.core.deps import CurrentUserId, DbDep
@@ -97,30 +99,62 @@ class TemplateGenerateRequest(EldirModel):
     model: str | None = None
 
 
-class TemplateGenerateResponse(EldirModel):
-    preset: TemplatePresetDetail
+class TemplateGenerateStartResponse(EldirModel):
     session_id: str
 
 
-@router.post("/template/generate", response_model=TemplateGenerateResponse)
-async def generate_template(
+class TemplateGenerateStatusResponse(EldirModel):
+    status: Literal["running", "done", "error"]
+    preset: TemplatePresetDetail | None = None
+    detail: str | None = None
+
+
+@router.post(
+    "/template/generate",
+    response_model=TemplateGenerateStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_template_generation(
     project_id: str,
     payload: TemplateGenerateRequest,
     user_id: CurrentUserId,
     db: DbDep,
-) -> TemplateGenerateResponse:
-    """Génère un preset via Claude en lecture seule sur le repo cloné.
+) -> TemplateGenerateStartResponse:
+    """Lance l'analyse du repo par Claude et rend la main immédiatement.
 
     Crée une session système (is_system=True) - les coûts apparaissent
-    dans le dashboard comme n'importe quelle autre session.
+    dans le dashboard comme n'importe quelle autre session. L'analyse dure
+    1 à 3 minutes : le client suit son avancement via GET
+    `/template/generate/{session_id}`.
     """
-    result = await get_template_generator().generate(
+    session_id = await get_template_generator().start(
         db,
         user_id=user_id,
         project_id=project_id,
         model=payload.model,
     )
-    return TemplateGenerateResponse(preset=result.preset, session_id=result.session_id)
+    await db.commit()
+    return TemplateGenerateStartResponse(session_id=session_id)
+
+
+@router.get(
+    "/template/generate/{session_id}",
+    response_model=TemplateGenerateStatusResponse,
+)
+async def template_generation_status(
+    session_id: str,
+    user_id: CurrentUserId,
+    db: DbDep,
+) -> TemplateGenerateStatusResponse:
+    """État de la génération : `running`, `done` (avec preset) ou `error`.
+
+    Le preset est relu depuis les events persistés, donc rafraîchir la page
+    ou perdre le réseau pendant l'analyse ne fait pas perdre le résultat.
+    """
+    result = await get_template_generator().result(db, user_id=user_id, session_id=session_id)
+    return TemplateGenerateStatusResponse(
+        status=result.status, preset=result.preset, detail=result.detail
+    )
 
 
 class TemplateApplyInlineRequest(EldirModel):
