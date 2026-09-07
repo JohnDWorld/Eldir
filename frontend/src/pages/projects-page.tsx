@@ -40,14 +40,14 @@ export function ProjectsPage(): JSX.Element {
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-8">
-      <header className="flex items-end justify-between gap-3">
-        <div>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <div className="eldir-caps">Projects</div>
           <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
             Projets clonés
           </h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setNewRepoOpen(true)}
@@ -158,22 +158,26 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
 
   return (
     <li className="flex flex-col gap-1 px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <GitMark provider={project.provider} size={14} className="text-eldir-gray" />
-          <div>
-            <div className="font-mono text-sm font-semibold text-eldir-ink">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <GitMark
+            provider={project.provider}
+            size={14}
+            className="mt-0.5 shrink-0 text-eldir-gray"
+          />
+          <div className="min-w-0">
+            <div className="break-all font-mono text-sm font-semibold text-eldir-ink">
               {project.repo_full_name}
             </div>
-            <div className="mt-0.5 font-mono text-xs text-eldir-gray">
+            <div className="mt-0.5 break-all font-mono text-xs text-eldir-gray">
               slug: {project.slug} · branch: {project.default_branch}
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
           <Link
             to={`/projects/${project.id}/template`}
-            className="inline-flex items-center rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase leading-none tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+            className="inline-flex min-h-11 items-center rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase leading-none tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
           >
             template
           </Link>
@@ -181,7 +185,7 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
             type="button"
             onClick={handleSync}
             disabled={syncMut.isPending}
-            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
           >
             {syncMut.isPending ? 'sync…' : 'sync'}
           </button>
@@ -193,7 +197,7 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
               }
             }}
             disabled={deleteMut.isPending}
-            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
           >
             supprimer
           </button>
