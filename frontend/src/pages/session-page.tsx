@@ -139,7 +139,7 @@ export function SessionPage(): JSX.Element {
   return (
     <div className="flex h-full flex-col bg-eldir-paper">
       {/* Topbar */}
-      <header className="flex h-[42px] items-center gap-3.5 border-b border-eldir-gray-3 bg-eldir-cream-2 px-4">
+      <header className="flex min-h-[42px] shrink-0 flex-wrap items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 py-1.5 md:h-[42px] md:flex-nowrap md:gap-3.5 md:px-4 md:py-0">
         <a
           href="/"
           className="font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"

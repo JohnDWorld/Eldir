@@ -108,8 +108,8 @@ export function ProjectTemplatePage(): JSX.Element {
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 p-4 md:p-8">
-      <header className="flex items-start justify-between gap-3">
-        <div>
+      <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
           <div className="eldir-caps">Projects · template</div>
           <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
             Template du projet {project?.name ?? '…'}
@@ -125,7 +125,7 @@ export function ProjectTemplatePage(): JSX.Element {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 md:shrink-0">
           <button
             type="button"
             onClick={() => setGenerateOpen(true)}
