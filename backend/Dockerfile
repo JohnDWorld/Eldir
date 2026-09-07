@@ -43,10 +43,16 @@ RUN npm install -g @anthropic-ai/claude-code@latest \
 # restent lisibles/écrivables sans `sudo`.
 ARG UID=1000
 ARG GID=1000
+# `/var/eldir/workspaces` et `/home/eldir/.claude` reçoivent tous deux un
+# volume nommé. Docker initialise un volume vide en recopiant le contenu ET
+# le propriétaire du répertoire présent dans l'image : si le répertoire
+# n'existe pas ici, le volume appartient à root et le CLI, qui tourne en
+# `eldir`, ne peut plus rien y écrire (les transcripts du SDK finissent en
+# "Permission denied", et une session ne démarre plus).
 RUN groupadd -g $GID eldir \
  && useradd -u $UID -g eldir -m -s /bin/bash eldir \
- && mkdir -p /var/eldir/workspaces \
- && chown -R eldir:eldir /var/eldir
+ && mkdir -p /var/eldir/workspaces /home/eldir/.claude \
+ && chown -R eldir:eldir /var/eldir /home/eldir
 
 WORKDIR /app
 
