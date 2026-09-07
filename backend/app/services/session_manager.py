@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -31,11 +32,16 @@ from app.core.constants import (
     EVENT_TYPE_TOOL_USE,
     EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
+    SESSION_CONNECT_TIMEOUT_S,
     SESSION_STATE_IDLE,
     SESSION_STATE_THINKING,
     SESSION_STATE_TOOL_USE,
 )
-from app.core.exceptions import SessionLimitError, SessionNotFoundError
+from app.core.exceptions import (
+    SessionLimitError,
+    SessionNotFoundError,
+    SessionStartTimeoutError,
+)
 from app.core.logging import get_logger
 from app.services.event_bus import EventBus
 
@@ -206,8 +212,20 @@ class SessionManager:
         # EVENT_TYPE_STOP {"reason": "turn_complete"} quand un ResultMessage
         # arrive. Doubler la publication faisait apparaître "TOUR TERMINÉ"
         # deux fois côté UI.
+        def _on_cli_stderr(line: str) -> None:
+            """Remonte le stderr du CLI dans les logs Eldir.
+
+            Sans ça, un échec de démarrage se résume à
+            `ProcessError: Check stderr output for details`, et le détail
+            n'existe nulle part.
+            """
+            text = line.strip()
+            if text:
+                logger.warning("session.cli.stderr", session_id=session_id, line=text)
+
         options_kwargs: dict[str, Any] = {
             "cwd": cwd,
+            "stderr": _on_cli_stderr,
             # Pas de TTY côté serveur → le mode "default" bloque toute action
             # qui demande approbation. Chaque session vit dans son worktree
             # isolé et l'UI Eldir streame chaque tool_use en temps réel, donc
@@ -245,7 +263,29 @@ class SessionManager:
 
         options = ClaudeAgentOptions(**options_kwargs)
         client = ClaudeSDKClient(options=options)
-        await client.connect()
+        try:
+            await asyncio.wait_for(client.connect(), timeout=SESSION_CONNECT_TIMEOUT_S)
+        except TimeoutError as exc:
+            # Vu en production : le CLI démarre, reste en attente, et la
+            # requête HTTP ne rend jamais la main. Mieux vaut une erreur
+            # explicite qu'un silence de plusieurs minutes.
+            with suppress(Exception):
+                await client.disconnect()
+            await self._publish(
+                session_id,
+                EVENT_TYPE_ERROR,
+                {
+                    "message": (
+                        f"Le CLI Claude n'a pas répondu en "
+                        f"{SESSION_CONNECT_TIMEOUT_S}s au démarrage de la session."
+                    ),
+                    "type": "ConnectTimeout",
+                },
+            )
+            raise SessionStartTimeoutError(
+                f"Démarrage de session interrompu après "
+                f"{SESSION_CONNECT_TIMEOUT_S}s (voir les logs `session.cli.stderr`)."
+            ) from exc
         active.client = client
 
         self._sessions[session_id] = active

@@ -9,6 +9,10 @@ from typing import Final
 # Le plafond de sessions actives dépend de la RAM du serveur (chaque session
 # fait vivre un process `claude` Node) : il est réglable via l'env
 # MAX_CONCURRENT_SESSIONS, cf. app.core.config.Settings.
+# Un `connect()` qui ne rend jamais la main bloque la requête HTTP sans
+# aucun signal côté interface : au-delà de ce délai, on remonte une erreur.
+SESSION_CONNECT_TIMEOUT_S: Final[float] = 90.0
+
 SESSION_BRANCH_PREFIX: Final[str] = "claude/"
 SESSION_WORKTREE_TEMPLATE: Final[str] = "{repo_slug}.{session_id}"
 
