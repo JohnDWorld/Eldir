@@ -98,7 +98,7 @@ Dépose un fichier dans `backend/app/data/template_presets/{slug}.json` :
   "title": "Django + DRF",
   "description": "Projet Django REST Framework standard.",
   "tags": ["python", "django", "rest"],
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-5",
   "allowed_tools": null,
   "system_prompt": "Tu es l'agent maintainer d'un projet Django + DRF...\n\n## Conventions\n- ...",
   "skills": [

@@ -51,11 +51,11 @@ _GENERATION_TIMEOUT_S: float = 180.0
 _PRESET_RE = re.compile(r"<preset>(.*?)</preset>", re.DOTALL)
 
 ALLOWED_MODELS = (
-    "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-6",
-    "claude-opus-4-7",
+    "claude-haiku-4-5",
+    "claude-sonnet-5",
+    "claude-opus-5",
 )
-DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_MODEL = "claude-haiku-4-5"
 
 
 @dataclass(slots=True, frozen=True)

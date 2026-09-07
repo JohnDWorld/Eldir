@@ -112,9 +112,12 @@ Chaque worktree partage le même `.git/` (objets), donc le clonage de N sessions
 
 Configurables au niveau du Mission Template du projet, ou override par session :
 
-- `claude-opus-4-7` — le plus puissant (par défaut sur le preset Eldir)
-- `claude-sonnet-4-6` — équilibré
-- `claude-haiku-4-5-20251001` — le plus rapide / le moins cher (utilisé par "Mode économe")
+- `claude-opus-5` — le plus puissant (par défaut sur le preset Eldir)
+- `claude-sonnet-5` — équilibré
+- `claude-haiku-4-5` — le plus rapide / le moins cher (utilisé par "Mode économe")
+
+> Haiku n'a pas de version 5 : la génération courante reste Haiku 4.5. Les
+> identifiants ne portent jamais de suffixe de date.
 
 Le SDK suit aussi le défaut configuré côté Anthropic si on ne précise rien.
 

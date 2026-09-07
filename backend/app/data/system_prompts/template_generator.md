@@ -11,7 +11,7 @@ L'utilisateur vient de cloner un repo dans Eldir (dashboard self-hosted qui orch
 Un Mission Template est composé de :
 
 - **`system_prompt`** : texte envoyé à toute session Claude lancée sur ce projet. Doit briefer l'agent sur la stack, les conventions, les sources de vérité du repo.
-- **`model`** : `claude-opus-4-7` / `claude-sonnet-4-6` / `claude-haiku-4-5-20251001` / `null` (défaut). Choisir selon la complexité typique des tâches du projet.
+- **`model`** : `claude-opus-5` / `claude-sonnet-5` / `claude-haiku-4-5` / `null` (défaut). Choisir selon la complexité typique des tâches du projet.
 - **`allowed_tools`** : optionnel. Laisser `null` pour autoriser tous les outils built-in (recommandé).
 - **`skills`** : liste de commandes nommées (`backend-tests`, `frontend-typecheck`, `gen-types`...). Atomiques, une par "action récurrente" du projet.
 - **`sub_agents`** : liste d'agents spécialisés invocables par l'agent principal (`test-runner`, `doc-keeper`, etc.).

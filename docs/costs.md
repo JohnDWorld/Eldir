@@ -19,7 +19,7 @@ ResultMessage(
         "cache_creation_input_tokens": 0,
     },
     model_usage={
-        "claude-opus-4-7": { ... },
+        "claude-opus-5": { ... },
     },
     ...
 )
@@ -78,7 +78,7 @@ Le rail droit affiche un panneau "Spend · 7-day" plus large avec lien vers `/co
 
 ## Mode économe
 
-Switch dans la modale **+ NEW SESSION**. Quand activé, force `model: claude-haiku-4-5-20251001` pour la session courante, ignorant le modèle configuré dans le Mission Template.
+Switch dans la modale **+ NEW SESSION**. Quand activé, force `model: claude-haiku-4-5` pour la session courante, ignorant le modèle configuré dans le Mission Template.
 
 Haiku ≈ 1/15 du prix d'Opus en output token. À utiliser pour les tâches déterministes (recherche, classification, refactos simples).
 
@@ -110,7 +110,7 @@ session_costs (
   session_id      uuid FK (sessions, ON DELETE CASCADE),
   project_id      uuid FK (projects, ON DELETE SET NULL),  -- dénormalisé
   user_id         uuid FK (users, ON DELETE SET NULL),     -- dénormalisé
-  model           varchar(64),                              -- ex "claude-opus-4-7"
+  model           varchar(64),                              -- ex "claude-opus-5"
   input_tokens    int,
   output_tokens   int,
   cache_read_tokens   int,

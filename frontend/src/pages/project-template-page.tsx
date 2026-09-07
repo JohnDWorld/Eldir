@@ -20,12 +20,11 @@ import { GenerateTemplateDialog } from '@/features/projects/generate-template-di
 import { SkillsEditor } from '@/features/projects/skills-editor';
 import { SubAgentsEditor } from '@/features/projects/sub-agents-editor';
 import { TemplateHistory } from '@/features/projects/template-history';
+import { CLAUDE_MODELS } from '@/lib/models';
 
 const MODEL_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'défaut serveur' },
-  { value: 'claude-opus-4-7', label: 'Opus 4.7 (raisonnement long)' },
-  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6 (équilibré)' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5 (économe)' },
+  ...CLAUDE_MODELS.map(({ value, label }) => ({ value, label })),
 ];
 
 const TOOL_OPTIONS = [

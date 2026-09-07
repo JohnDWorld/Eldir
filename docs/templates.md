@@ -56,7 +56,7 @@ Va sur **Projects > [ton projet] > Template** (ou `/projects/{id}/template`).
 ### Bloc principal
 
 - **System prompt** : textarea longue, prompt envoyé à l'agent au boot
-- **Model** : `Défaut` / `claude-opus-4-7` / `claude-sonnet-4-6` / `claude-haiku-4-5`
+- **Model** : `Défaut` / `claude-opus-5` / `claude-sonnet-5` / `claude-haiku-4-5`
 - **Tools** : multi-select de tool pills (laisser vide = tous les built-ins autorisés)
 
 ### Skills
@@ -122,7 +122,7 @@ Plus de presets viendront (Django, FastAPI standalone, React + Vite générique,
   "title": "Affichage UI",
   "description": "1-2 phrases sur l'usage du preset",
   "tags": ["django", "rest"],
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-5",
   "allowed_tools": null,
   "system_prompt": "Tu es ...",
   "skills": [
