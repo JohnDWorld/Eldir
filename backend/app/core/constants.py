@@ -15,6 +15,9 @@ from typing import Final
 # faut lui laisser le temps de démarrer Node.
 CREDENTIAL_TEST_TIMEOUT_S: Final[float] = 60.0
 
+# Un CLI bloqué ne doit pas empêcher d'arrêter ou de supprimer sa session.
+SESSION_DISCONNECT_TIMEOUT_S: Final[float] = 15.0
+
 SESSION_CONNECT_TIMEOUT_S: Final[float] = 90.0
 
 SESSION_BRANCH_PREFIX: Final[str] = "claude/"
