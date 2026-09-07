@@ -332,13 +332,38 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Generate Template
-         * @description Génère un preset via Claude en lecture seule sur le repo cloné.
+         * Start Template Generation
+         * @description Lance l'analyse du repo par Claude et rend la main immédiatement.
          *
          *     Crée une session système (is_system=True) - les coûts apparaissent
-         *     dans le dashboard comme n'importe quelle autre session.
+         *     dans le dashboard comme n'importe quelle autre session. L'analyse dure
+         *     1 à 3 minutes : le client suit son avancement via GET
+         *     `/template/generate/{session_id}`.
          */
-        post: operations["generate_template_api_v1_projects__project_id__template_generate_post"];
+        post: operations["start_template_generation_api_v1_projects__project_id__template_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/template/generate/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Template Generation Status
+         * @description État de la génération : `running`, `done` (avec preset) ou `error`.
+         *
+         *     Le preset est relu depuis les events persistés, donc rafraîchir la page
+         *     ou perdre le réseau pendant l'analyse ne fait pas perdre le résultat.
+         */
+        get: operations["template_generation_status_api_v1_projects__project_id__template_generate__session_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1595,11 +1620,21 @@ export interface components {
             /** Model */
             model?: string | null;
         };
-        /** TemplateGenerateResponse */
-        TemplateGenerateResponse: {
-            preset: components["schemas"]["TemplatePresetDetail"];
+        /** TemplateGenerateStartResponse */
+        TemplateGenerateStartResponse: {
             /** Session Id */
             session_id: string;
+        };
+        /** TemplateGenerateStatusResponse */
+        TemplateGenerateStatusResponse: {
+            /** Detail */
+            detail?: string | null;
+            preset?: components["schemas"]["TemplatePresetDetail"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: TemplateGenerateStatusResponseStatus;
         };
         /**
          * TemplatePresetApply
@@ -1888,7 +1923,8 @@ export type SchemaSystemPromptRead = components['schemas']['SystemPromptRead'];
 export type SchemaSystemPromptWrite = components['schemas']['SystemPromptWrite'];
 export type SchemaTemplateApplyInlineRequest = components['schemas']['TemplateApplyInlineRequest'];
 export type SchemaTemplateGenerateRequest = components['schemas']['TemplateGenerateRequest'];
-export type SchemaTemplateGenerateResponse = components['schemas']['TemplateGenerateResponse'];
+export type SchemaTemplateGenerateStartResponse = components['schemas']['TemplateGenerateStartResponse'];
+export type SchemaTemplateGenerateStatusResponse = components['schemas']['TemplateGenerateStatusResponse'];
 export type SchemaTemplatePresetApply = components['schemas']['TemplatePresetApply'];
 export type SchemaTemplatePresetDetail = components['schemas']['TemplatePresetDetail'];
 export type SchemaTemplatePresetSkill = components['schemas']['TemplatePresetSkill'];
@@ -2638,7 +2674,7 @@ export interface operations {
             };
         };
     };
-    generate_template_api_v1_projects__project_id__template_generate_post: {
+    start_template_generation_api_v1_projects__project_id__template_generate_post: {
         parameters: {
             query?: never;
             header?: {
@@ -2656,12 +2692,45 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateGenerateStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    template_generation_status_api_v1_projects__project_id__template_generate__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TemplateGenerateResponse"];
+                    "application/json": components["schemas"]["TemplateGenerateStatusResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4083,4 +4152,9 @@ export enum SessionReadState {
     tool_use = "tool_use",
     waiting_input = "waiting_input",
     blocked = "blocked"
+}
+export enum TemplateGenerateStatusResponseStatus {
+    running = "running",
+    done = "done",
+    error = "error"
 }

@@ -63,6 +63,8 @@ export const queryKeys = {
     ['projects', projectId, 'template', 'skills'] as const,
   projectTemplateSubAgents: (projectId: string) =>
     ['projects', projectId, 'template', 'sub-agents'] as const,
+  templateGeneration: (projectId: string, sessionId: string) =>
+    ['projects', projectId, 'template', 'generate', sessionId] as const,
   templatePresets: ['templates', 'presets'] as const,
   templatePreset: (slug: string) => ['templates', 'presets', slug] as const,
   templateVersions: (projectId: string) =>
@@ -738,9 +740,14 @@ export type TemplatePresetDetail = {
   sub_agents: TemplatePresetSubAgent[];
 };
 
-export type TemplateGenerateResponse = {
-  preset: TemplatePresetDetail;
+export type TemplateGenerateStart = {
   session_id: string;
+};
+
+export type TemplateGenerationStatus = {
+  status: 'running' | 'done' | 'error';
+  preset: TemplatePresetDetail | null;
+  detail: string | null;
 };
 
 export function useTemplatePresets() {
@@ -855,13 +862,44 @@ export function useApplyInlinePreset(projectId: string) {
   });
 }
 
-export function useGenerateTemplate(projectId: string) {
+/**
+ * Lance la génération et rend la main tout de suite : l'analyse dure 1 à 3
+ * minutes côté serveur, on la suit ensuite avec `useTemplateGenerationStatus`.
+ */
+export function useStartTemplateGeneration(projectId: string) {
   return useMutation({
     mutationFn: (body: { model?: string | null }) =>
-      apiClient.post<TemplateGenerateResponse, { model?: string | null }>(
+      apiClient.post<TemplateGenerateStart, { model?: string | null }>(
         `/projects/${projectId}/template/generate`,
         body,
       ),
+  });
+}
+
+/**
+ * Poll l'état d'une génération. Le serveur relit le résultat depuis les events
+ * persistés : une coupure réseau pendant l'analyse ne fait rien perdre, le
+ * poll reprend tout seul.
+ */
+export function useTemplateGenerationStatus(
+  projectId: string,
+  sessionId: string | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.templateGeneration(projectId, sessionId ?? ''),
+    queryFn: () =>
+      apiClient.get<TemplateGenerationStatus>(
+        `/projects/${projectId}/template/generate/${sessionId ?? ''}`,
+      ),
+    enabled: sessionId !== null,
+    // On continue à interroger tant qu'on n'a pas d'état terminal, y compris
+    // après une erreur réseau (data reste undefined) : c'est exactement le cas
+    // qu'on veut rattraper.
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'done' || status === 'error' ? false : 3_000;
+    },
+    gcTime: 0,
   });
 }
 
