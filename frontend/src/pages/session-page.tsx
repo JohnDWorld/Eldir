@@ -46,17 +46,14 @@ export function SessionPage(): JSX.Element {
     setMobileTab(tab);
     if (tab !== 'chat') setRightTab(tab);
   };
-  // Le superviseur n'a ni repo ni worktree : pas de git, pas de diff.
-  const isSupervisor = session.data?.is_system === true;
+  // Les sessions système (superviseur, générateur de template) n'exposent ni
+  // git ni diff. Seul le superviseur porte le nom « Eldir ».
+  const isSystem = session.data?.is_system === true;
+  const isSupervisor = session.data?.system_kind === 'supervisor';
 
   const handleDelete = async () => {
     if (!sessionId) return;
-    if (
-      !confirm(
-        'Supprimer cette session ? L\'historique et les events seront effacés.',
-      )
-    )
-      return;
+    if (!confirm("Supprimer cette session ? L'historique et les events seront effacés.")) return;
     try {
       await deleteMut.mutateAsync(sessionId);
       navigate('/');
@@ -80,9 +77,7 @@ export function SessionPage(): JSX.Element {
     const consider = (item: NormalizedEvent) => {
       const fingerprint = `${item.type}|${JSON.stringify(item.data)}`;
       const ts = Date.parse(item.timestamp);
-      const dup = seen.some(
-        (s) => s.fingerprint === fingerprint && Math.abs(s.ts - ts) < 2000,
-      );
+      const dup = seen.some((s) => s.fingerprint === fingerprint && Math.abs(s.ts - ts) < 2000);
       if (dup) return;
       seen.push({ fingerprint, ts });
       merged.push(item);
@@ -154,7 +149,7 @@ export function SessionPage(): JSX.Element {
           {session.data.branch} · {session.data.model ?? 'default model'}
         </span>
         <div className="flex-1" />
-        {!isSupervisor && <SessionGitActions sessionId={sessionId} />}
+        {!isSystem && <SessionGitActions sessionId={sessionId} />}
         <button
           type="button"
           onClick={() => stopMut.mutate(sessionId)}
@@ -194,41 +189,49 @@ export function SessionPage(): JSX.Element {
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr_320px]">
         {/* Sidebar sessions */}
         <aside className="hidden flex-col overflow-y-auto border-r border-eldir-gray-3 py-2.5 md:flex">
-          <div className="px-3 pb-2 eldir-caps">Sessions</div>
-          {(sessions.data ?? []).map((s) => {
-            const project = projects.data?.find((p) => p.id === s.project_id);
-            const label = s.is_system
-              ? 'Eldir · superviseur'
-              : (project?.name ?? 'projet inconnu');
-            const active = s.id === sessionId;
-            return (
-              <a
-                key={s.id}
-                href={`/sessions/${s.id}`}
-                className={cn(
-                  'flex flex-col gap-0.5 border-l-2 px-3 py-2 font-mono text-xs',
-                  active
-                    ? 'border-l-eldir-orange bg-eldir-cream text-eldir-ink'
-                    : 'border-l-transparent text-eldir-gray hover:bg-eldir-cream-2',
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <StatePill state={s.state} />
-                  <span
-                    className={cn(
-                      'truncate font-semibold',
-                      active ? 'text-eldir-ink' : 'text-eldir-ink-2',
-                    )}
-                  >
-                    {label}
-                  </span>
-                </div>
-                <span className="ml-5 truncate text-eldir-gray">
-                  {s.id.slice(0, 8)}
-                </span>
-              </a>
-            );
-          })}
+          <div className="eldir-caps px-3 pb-2">Sessions</div>
+          {(sessions.data ?? [])
+            .filter(
+              // Les générateurs de template sont des sessions jetables gardées
+              // pour l'audit des coûts : hors de la navigation, sauf celle
+              // qu'on regarde.
+              (s) => !s.is_system || s.system_kind === 'supervisor' || s.id === sessionId,
+            )
+            .map((s) => {
+              const project = projects.data?.find((p) => p.id === s.project_id);
+              const label =
+                s.system_kind === 'supervisor'
+                  ? 'Eldir · superviseur'
+                  : s.is_system
+                    ? `système · ${s.system_kind ?? 'inconnu'}`
+                    : (project?.name ?? 'projet inconnu');
+              const active = s.id === sessionId;
+              return (
+                <a
+                  key={s.id}
+                  href={`/sessions/${s.id}`}
+                  className={cn(
+                    'flex flex-col gap-0.5 border-l-2 px-3 py-2 font-mono text-xs',
+                    active
+                      ? 'border-l-eldir-orange bg-eldir-cream text-eldir-ink'
+                      : 'border-l-transparent text-eldir-gray hover:bg-eldir-cream-2',
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <StatePill state={s.state} />
+                    <span
+                      className={cn(
+                        'truncate font-semibold',
+                        active ? 'text-eldir-ink' : 'text-eldir-ink-2',
+                      )}
+                    >
+                      {label}
+                    </span>
+                  </div>
+                  <span className="ml-5 truncate text-eldir-gray">{s.id.slice(0, 8)}</span>
+                </a>
+              );
+            })}
         </aside>
 
         {/* Chat */}
@@ -244,10 +247,7 @@ export function SessionPage(): JSX.Element {
               {error}
             </div>
           )}
-          <form
-            onSubmit={handleSend}
-            className="border-t border-eldir-gray-3 bg-eldir-paper p-3"
-          >
+          <form onSubmit={handleSend} className="border-t border-eldir-gray-3 bg-eldir-paper p-3">
             <div className="flex items-center gap-2 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2">
               <span className="font-mono text-xs text-eldir-orange">›</span>
               <input
@@ -274,15 +274,10 @@ export function SessionPage(): JSX.Element {
             <div className="eldir-caps">Session meta</div>
             <Kv k="id" v={session.data.id.slice(0, 12)} />
             {(() => {
-              const project = projects.data?.find(
-                (p) => p.id === session.data.project_id,
-              );
+              const project = projects.data?.find((p) => p.id === session.data.project_id);
               return (
                 <>
-                  <Kv
-                    k="project"
-                    v={isSupervisor ? 'superviseur' : (project?.name ?? '-')}
-                  />
+                  <Kv k="project" v={isSupervisor ? 'superviseur' : (project?.name ?? '-')} />
                   <Kv k="repo" v={project?.repo_full_name ?? '-'} />
                 </>
               );
@@ -302,14 +297,13 @@ export function SessionPage(): JSX.Element {
             numTurns={costs.data?.num_turns ?? 0}
           />
 
-
           <div className="flex border-b border-eldir-gray-3 bg-eldir-cream-2">
             <RightTab
               label={`live · ${live.state}`}
               active={rightTab === 'live'}
               onClick={() => setRightTab('live')}
             />
-            {!isSupervisor && (
+            {!isSystem && (
               <RightTab
                 label="diff"
                 active={rightTab === 'diff'}
@@ -318,7 +312,7 @@ export function SessionPage(): JSX.Element {
             )}
           </div>
 
-          {rightTab === 'live' || isSupervisor ? (
+          {rightTab === 'live' || isSystem ? (
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-eldir-ink">
               <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-cream">
                 {events.map((e) => (
@@ -354,17 +348,11 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
   // Filtre : on affiche text + tool_use + stop + user_message.
   const visible = events.filter(
     (e) =>
-      e.type === 'text' ||
-      e.type === 'tool_use' ||
-      e.type === 'stop' ||
-      e.type === 'user_message',
+      e.type === 'text' || e.type === 'tool_use' || e.type === 'stop' || e.type === 'user_message',
   );
 
   return (
-    <div
-      ref={scroll}
-      className="flex-1 space-y-3 overflow-y-auto bg-eldir-paper p-4"
-    >
+    <div ref={scroll} className="flex-1 space-y-3 overflow-y-auto bg-eldir-paper p-4">
       {visible.length === 0 && (
         <p className="text-center font-mono text-xs text-eldir-gray">
           Pose ta première question à Claude…
@@ -372,16 +360,10 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
       )}
       {visible.map((e) => {
         if (e.type === 'user_message') {
-          return (
-            <UserBubble key={e.key}>{String(e.data.text ?? '')}</UserBubble>
-          );
+          return <UserBubble key={e.key}>{String(e.data.text ?? '')}</UserBubble>;
         }
         if (e.type === 'text') {
-          return (
-            <ClaudeBubble key={e.key}>
-              {String(e.data.text ?? '')}
-            </ClaudeBubble>
-          );
+          return <ClaudeBubble key={e.key}>{String(e.data.text ?? '')}</ClaudeBubble>;
         }
         if (e.type === 'tool_use') {
           return (
@@ -442,9 +424,7 @@ function ToolRow({ name, arg }: { name: string; arg: string }): JSX.Element {
     <div className="flex min-w-0 max-w-full items-center gap-2 rounded-eldir border border-dashed border-eldir-gray-2 px-2.5 py-1.5 font-mono text-2xs text-eldir-gray">
       <span className="shrink-0 text-eldir-gold">◇</span>
       <span className="shrink-0 text-eldir-ink">{name}</span>
-      {arg && (
-        <span className="min-w-0 flex-1 truncate opacity-70">({arg})</span>
-      )}
+      {arg && <span className="min-w-0 flex-1 truncate opacity-70">({arg})</span>}
     </div>
   );
 }
@@ -465,12 +445,12 @@ function LogLine({ event }: { event: NormalizedEvent }): JSX.Element {
     event.type === 'text'
       ? String(event.data.text ?? '').slice(0, 120)
       : event.type === 'tool_use'
-      ? String(event.data.tool_name ?? '')
-      : event.type === 'state'
-      ? String(event.data.state ?? event.data.sdk_session_id ?? '')
-      : event.type === 'error'
-      ? String(event.data.message ?? '')
-      : '';
+        ? String(event.data.tool_name ?? '')
+        : event.type === 'state'
+          ? String(event.data.state ?? event.data.sdk_session_id ?? '')
+          : event.type === 'error'
+            ? String(event.data.message ?? '')
+            : '';
   return (
     <div className="flex gap-2">
       <span className="text-eldir-gray">{time}</span>
@@ -500,16 +480,15 @@ function SessionCostPanel({
 }): JSX.Element {
   const totalBillable = inputTokens + outputTokens;
   const overBudget = totalBillable > SESSION_TOKEN_BUDGET;
-  const cacheRatio = totalBillable + cacheReadTokens > 0
-    ? Math.round((cacheReadTokens / (totalBillable + cacheReadTokens)) * 100)
-    : 0;
+  const cacheRatio =
+    totalBillable + cacheReadTokens > 0
+      ? Math.round((cacheReadTokens / (totalBillable + cacheReadTokens)) * 100)
+      : 0;
   return (
     <div
       className={cn(
         'flex flex-col gap-2 border-b p-4',
-        overBudget
-          ? 'border-eldir-red/50 bg-eldir-red/5'
-          : 'border-eldir-gray-3 bg-eldir-paper',
+        overBudget ? 'border-eldir-red/50 bg-eldir-red/5' : 'border-eldir-gray-3 bg-eldir-paper',
       )}
     >
       <div className="flex items-center justify-between">
@@ -521,9 +500,7 @@ function SessionCostPanel({
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-base font-bold text-eldir-ink">
-          ${costUsd.toFixed(4)}
-        </span>
+        <span className="font-mono text-base font-bold text-eldir-ink">${costUsd.toFixed(4)}</span>
         <span className="font-mono text-2xs text-eldir-gray">
           {numTurns} tour{numTurns > 1 ? 's' : ''}
         </span>
