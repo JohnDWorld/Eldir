@@ -3,7 +3,7 @@
   "title": "n8n workflows",
   "description": "Workflows n8n self-hosted. Documente chaque node, garde la palette propre, tests via webhook → mock data.",
   "tags": ["automation", "n8n", "low-code"],
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-5",
   "allowed_tools": null,
   "system_prompt": "Tu es l'agent maintainer d'une instance n8n self-hosted.\n\nConventions :\n- Chaque workflow exporté dans `workflows/<slug>.json`.\n- Nom de workflow lisible (pas de UUID).\n- Chaque node a un name explicite (verb-object), pas de noms auto type 'Set1'.\n- Toujours wrapper les appels HTTP par un Error Trigger + Slack notification.\n- Pour les credentials, référence par nom, jamais en clair.\n- Tester via webhook + curl avant d'activer en production.\n\nQuand tu reçois un export de workflow, valide qu'il n'y a pas de credentials embarqués (champ `credentials` avec contenu) avant de commit.",
   "skills": [

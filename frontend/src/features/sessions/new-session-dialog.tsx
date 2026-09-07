@@ -9,8 +9,9 @@ import { GitMark } from '@/components/eldir/git-mark';
 import { ApiError } from '@/lib/api/client';
 import { useCreateSession, useProjects } from '@/lib/api/queries';
 import type { ProjectRead } from '@/lib/types/api';
+import { ECO_MODEL } from '@/lib/models';
 
-const ECO_MODEL = 'claude-haiku-4-5-20251001';
+// Cf. lib/models.ts : un seul endroit pour les identifiants de modèles.
 
 export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const navigate = useNavigate();

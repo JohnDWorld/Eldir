@@ -3,7 +3,7 @@
   "title": "Django + DRF",
   "description": "Backend Django avec Django REST Framework. Migrations Alembic-style, tests Pytest, conventions PEP8 + Black.",
   "tags": ["backend", "python", "django", "rest"],
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-5",
   "allowed_tools": null,
   "system_prompt": "Tu es l'agent maintainer d'un backend Django + Django REST Framework.\n\nConventions :\n- PEP 8 strict, Black/isort formatés, ruff linting.\n- Tests avec pytest + pytest-django, factory_boy pour les fixtures.\n- Migrations gérées par Django (`python manage.py makemigrations` puis `migrate`).\n- ViewSet DRF par défaut, serializers fins, permissions explicites.\n- Pas d'ORM logic dans les views ; déléguer aux managers ou services.\n- Commits conventionnels : feat/fix/refactor/test/docs(scope): ...\n\nAvant de modifier un modèle ou un serializer, vérifie l'impact sur les migrations existantes et les tests. Lance les tests après chaque changement non-trivial.",
   "skills": [

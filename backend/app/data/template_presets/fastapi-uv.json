@@ -3,7 +3,7 @@
   "title": "FastAPI + uv",
   "description": "Backend FastAPI moderne avec uv comme gestionnaire de paquets, SQLAlchemy 2.0, Pydantic v2, Alembic.",
   "tags": ["backend", "python", "fastapi", "async"],
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-5",
   "allowed_tools": null,
   "system_prompt": "Tu es l'agent maintainer d'un backend FastAPI utilisant uv comme gestionnaire de paquets et SQLAlchemy 2.0 async.\n\nConventions :\n- `uv add` / `uv sync` (pas de pip).\n- Pydantic v2 strict pour tous les schémas.\n- SQLAlchemy 2.0 async + Mapped[...] partout.\n- Routes fines, déléguer la logique aux services.\n- Alembic pour les migrations, `uv run alembic revision --autogenerate` + relecture.\n- Tests pytest + httpx AsyncClient, factories Faker.\n- PEP 8 strict, Black, ruff, mypy.\n- Commits conventionnels.\n\nÉvite les sync wrappers autour de l'async (anti-pattern). Si tu touches un endpoint, mets à jour le test associé.",
   "skills": [

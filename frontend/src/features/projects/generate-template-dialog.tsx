@@ -19,6 +19,7 @@ import {
   useGenerateTemplate,
 } from '@/lib/api/queries';
 import type { TemplatePresetDetail } from '@/lib/api/queries';
+import { CLAUDE_MODELS, ECO_MODEL } from '@/lib/models';
 import { cn } from '@/lib/utils';
 
 interface GenerateTemplateDialogProps {
@@ -30,27 +31,9 @@ interface GenerateTemplateDialogProps {
 
 type Step = 'choose-model' | 'generating' | 'review' | 'error';
 
-const MODEL_OPTIONS: ReadonlyArray<{
-  value: string;
-  label: string;
-  hint: string;
-}> = [
-  {
-    value: 'claude-haiku-4-5-20251001',
-    label: 'Haiku 4.5',
-    hint: 'Recommandé · rapide & économique · suffisant pour l\'analyse',
-  },
-  {
-    value: 'claude-sonnet-4-6',
-    label: 'Sonnet 4.6',
-    hint: 'Plus précis sur les repos très atypiques',
-  },
-  {
-    value: 'claude-opus-4-7',
-    label: 'Opus 4.7',
-    hint: 'Le plus puissant · pour gros monorepos complexes',
-  },
-];
+// L'analyse d'un repo se contente très bien du modèle économe : on propose
+// donc la liste partagée, mais dans l'ordre du moins cher au plus cher.
+const MODEL_OPTIONS = [...CLAUDE_MODELS].reverse();
 
 export function GenerateTemplateDialog({
   projectId,
@@ -59,7 +42,7 @@ export function GenerateTemplateDialog({
   onApplied,
 }: GenerateTemplateDialogProps): JSX.Element {
   const [step, setStep] = useState<Step>('choose-model');
-  const [model, setModel] = useState<string>('claude-haiku-4-5-20251001');
+  const [model, setModel] = useState<string>(ECO_MODEL);
   const [preset, setPreset] = useState<TemplatePresetDetail | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [overwrite, setOverwrite] = useState(true);

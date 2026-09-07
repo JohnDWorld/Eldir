@@ -386,7 +386,7 @@ class SessionManager:
                     model_usage = getattr(message, "model_usage", None) or {}
                     primary_model: str | None = None
                     if isinstance(model_usage, dict) and model_usage:
-                        # Le SDK renvoie {"claude-opus-4-7": {...}} : on prend
+                        # Le SDK renvoie {"claude-opus-5": {...}} : on prend
                         # la clé qui totalise le plus de tokens output.
                         try:
                             primary_model = max(

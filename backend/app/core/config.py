@@ -71,7 +71,7 @@ class Settings(BaseSettings):
 
     # ── Claude ──────────────────────────────────────────────────
     anthropic_api_key: SecretStr | None = None
-    claude_default_model: str = "claude-sonnet-4-6"
+    claude_default_model: str = "claude-sonnet-5"
 
     # ── Ollama (Phase 6 - mode "données sensibles") ────────────
     # URL du serveur Ollama. Laisser vide = Ollama désactivé.
