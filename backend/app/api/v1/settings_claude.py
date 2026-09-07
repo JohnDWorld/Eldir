@@ -8,6 +8,7 @@ from app.core.deps import CurrentUserId, DbDep
 from app.schemas.claude_credential import (
     ClaudeCredentialCreate,
     ClaudeCredentialRead,
+    ClaudeCredentialTestResult,
 )
 from app.services.claude_credential_service import claude_credential_service
 
@@ -64,3 +65,20 @@ async def delete_credential(
 ) -> None:
     await claude_credential_service.delete(db, credential_id, user_id)
     await db.commit()
+
+
+@router.post("/{credential_id}/test", response_model=ClaudeCredentialTestResult)
+async def test_credential(
+    credential_id: str,
+    user_id: CurrentUserId,
+    db: DbDep,
+) -> ClaudeCredentialTestResult:
+    """Demande au CLI Claude si ce credential est accepté.
+
+    Un token peut avoir le bon préfixe, la bonne longueur et aucun espace
+    parasite tout en étant refusé par l'API. Seul le CLI sait trancher, et
+    son verdict n'était jusqu'ici visible qu'au milieu d'une session.
+    """
+    result = await claude_credential_service.test(db, credential_id, user_id)
+    await db.commit()
+    return ClaudeCredentialTestResult(ok=result.ok, detail=result.detail)

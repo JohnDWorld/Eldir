@@ -60,6 +60,13 @@ class ClaudeCredentialRead(TimestampedModel):
     masked_value: str  # ex. "sk-ant-…aB12" (4 derniers chars)
 
 
+class ClaudeCredentialTestResult(EldirModel):
+    """Verdict du CLI Claude sur un credential."""
+
+    ok: bool
+    detail: str
+
+
 class ClaudeCredentialUpdate(EldirModel):
     label: str | None = Field(default=None, max_length=120)
     is_active: bool | None = None
