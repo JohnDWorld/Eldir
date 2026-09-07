@@ -50,6 +50,9 @@ services:
       - "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - eldir_workspaces:/var/eldir/workspaces
+      # Transcripts du CLI Claude. Sans ce volume, chaque reconstruction de
+      # l'image efface l'historique côté SDK et tout `resume` échoue.
+      - eldir_claude_home:/home/eldir/.claude
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,5 +100,6 @@ volumes:
   eldir_pg_data:
   eldir_redis_data:
   eldir_workspaces:
+  eldir_claude_home:
   eldir_caddy_data:
   eldir_caddy_config:

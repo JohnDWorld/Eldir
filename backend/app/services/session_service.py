@@ -276,6 +276,19 @@ class SessionService:
 
         await self._inject_claude_env(db, user_id)
 
+        try:
+            await self._start(session, user_id, resume=True)
+        except Exception:
+            # Le transcript du CLI a disparu (image reconstruite, purge) :
+            # mieux vaut une session repartie de zéro qu'une session morte.
+            # L'historique reste lisible, il vit dans `session_events`.
+            logger.warning("session.resume.failed", session_id=session.id, exc_info=True)
+            session.sdk_session_id = None
+            await db.flush()
+            await self._start(session, user_id, resume=False)
+        return session
+
+    async def _start(self, session: Session, user_id: str, *, resume: bool) -> None:
         await self._manager.start(
             session_id=session.id,
             project_id=session.project_id,
@@ -283,9 +296,8 @@ class SessionService:
             cwd=session.worktree_path or "",
             system_prompt=session.system_prompt,
             model=session.model,
-            resume_sdk_id=session.sdk_session_id,
+            resume_sdk_id=session.sdk_session_id if resume else None,
         )
-        return session
 
     async def send_message(
         self,
