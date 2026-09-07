@@ -177,6 +177,11 @@ export interface LoginResponse extends TokenResponse {
 // ── Claude credentials ─────────────────────────────────────────
 export type ClaudeCredentialKind = 'oauth_token' | 'api_key';
 
+export interface ClaudeCredentialTestResult {
+  ok: boolean;
+  detail: string;
+}
+
 export interface ClaudeCredentialRead {
   id: string;
   kind: ClaudeCredentialKind;

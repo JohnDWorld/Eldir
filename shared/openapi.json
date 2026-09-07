@@ -216,6 +216,25 @@
         "title": "ClaudeCredentialRead",
         "type": "object"
       },
+      "ClaudeCredentialTestResult": {
+        "description": "Verdict du CLI Claude sur un credential.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "detail"
+        ],
+        "title": "ClaudeCredentialTestResult",
+        "type": "object"
+      },
       "CommitPushRequest": {
         "properties": {
           "message": {
@@ -5391,6 +5410,65 @@
           }
         },
         "summary": "Delete Credential",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/claude-credentials/{credential_id}/test": {
+      "post": {
+        "description": "Demande au CLI Claude si ce credential est accepté.\n\nUn token peut avoir le bon préfixe, la bonne longueur et aucun espace\nparasite tout en étant refusé par l'API. Seul le CLI sait trancher, et\nson verdict n'était jusqu'ici visible qu'au milieu d'une session.",
+        "operationId": "test_credential_api_v1_settings_claude_credentials__credential_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "credential_id",
+            "required": true,
+            "schema": {
+              "title": "Credential Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaudeCredentialTestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Credential",
         "tags": [
           "settings"
         ]

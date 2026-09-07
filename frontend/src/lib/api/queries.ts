@@ -9,6 +9,7 @@ import { apiClient } from '@/lib/api/client';
 import type {
   ClaudeCredentialCreate,
   ClaudeCredentialRead,
+  ClaudeCredentialTestResult,
   CommitPushRequest,
   CommitPushResponse,
   CostDashboard,
@@ -135,6 +136,19 @@ export function useDeleteClaudeCredential() {
   return useMutation({
     mutationFn: (id: string) =>
       apiClient.delete<void>(`/settings/claude-credentials/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.claudeCredentials }),
+  });
+}
+
+/** Demande au CLI Claude si ce credential est accepté (peut prendre ~10 s). */
+export function useTestClaudeCredential() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.post<ClaudeCredentialTestResult, Record<string, never>>(
+        `/settings/claude-credentials/${id}/test`,
+        {},
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.claudeCredentials }),
   });
 }

@@ -12,8 +12,13 @@ import {
   useClaudeCredentials,
   useCreateClaudeCredential,
   useDeleteClaudeCredential,
+  useTestClaudeCredential,
 } from '@/lib/api/queries';
-import type { ClaudeCredentialKind, ClaudeCredentialRead } from '@/lib/types/api';
+import type {
+  ClaudeCredentialKind,
+  ClaudeCredentialRead,
+  ClaudeCredentialTestResult,
+} from '@/lib/types/api';
 import { cn } from '@/lib/utils';
 
 const KIND_LABEL: Record<ClaudeCredentialKind, string> = {
@@ -117,25 +122,74 @@ function CredentialRow({
   onDelete: () => void;
   deleting: boolean;
 }): JSX.Element {
+  const testMut = useTestClaudeCredential();
+  const [verdict, setVerdict] = useState<ClaudeCredentialTestResult | null>(null);
+
+  const handleTest = async () => {
+    setVerdict(null);
+    try {
+      setVerdict(await testMut.mutateAsync(cred.id));
+    } catch (err) {
+      setVerdict({
+        ok: false,
+        detail: err instanceof Error ? err.message : 'Test impossible.',
+      });
+    }
+  };
+
   return (
-    <li className="flex items-center justify-between gap-3 px-4 py-3">
-      <div>
-        <div className="font-mono text-xs font-semibold text-eldir-ink">
-          {KIND_LABEL[cred.kind]}
-          {cred.label && <span className="ml-2 text-eldir-gray">· {cred.label}</span>}
+    <li className="flex flex-col gap-2 px-4 py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="min-w-0">
+          <div className="font-mono text-xs font-semibold text-eldir-ink">
+            {KIND_LABEL[cred.kind]}
+            {cred.label && <span className="ml-2 text-eldir-gray">· {cred.label}</span>}
+          </div>
+          <div className="mt-1 break-all font-mono text-xs text-eldir-gray">
+            {cred.masked_value}
+            {cred.last_validated_at && (
+              <span className="ml-2">
+                · validé le{' '}
+                {new Date(cred.last_validated_at).toLocaleDateString('fr-FR')}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="mt-1 font-mono text-xs text-eldir-gray">
-          {cred.masked_value}
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={testMut.isPending}
+            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+          >
+            {testMut.isPending ? 'test…' : 'tester'}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+          >
+            supprimer
+          </button>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={deleting}
-        className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
-      >
-        supprimer
-      </button>
+
+      {verdict && (
+        <div
+          className={cn(
+            'rounded-eldir border px-3 py-2 font-mono text-[11px] leading-relaxed',
+            verdict.ok
+              ? 'border-eldir-gray-3 bg-eldir-cream text-eldir-ink'
+              : 'border-eldir-red/40 bg-eldir-red/5 text-eldir-red',
+          )}
+        >
+          <div className="font-semibold uppercase tracking-caps">
+            {verdict.ok ? 'credential accepté' : 'credential refusé'}
+          </div>
+          <div className="mt-1 whitespace-pre-wrap break-words">{verdict.detail}</div>
+        </div>
+      )}
     </li>
   );
 }

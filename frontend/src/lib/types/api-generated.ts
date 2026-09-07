@@ -696,6 +696,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/claude-credentials/{credential_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Credential
+         * @description Demande au CLI Claude si ce credential est accepté.
+         *
+         *     Un token peut avoir le bon préfixe, la bonne longueur et aucun espace
+         *     parasite tout en étant refusé par l'API. Seul le CLI sait trancher, et
+         *     son verdict n'était jusqu'ici visible qu'au milieu d'une session.
+         */
+        post: operations["test_credential_api_v1_settings_claude_credentials__credential_id__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/git-credentials": {
         parameters: {
             query?: never;
@@ -968,6 +992,16 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * ClaudeCredentialTestResult
+         * @description Verdict du CLI Claude sur un credential.
+         */
+        ClaudeCredentialTestResult: {
+            /** Detail */
+            detail: string;
+            /** Ok */
+            ok: boolean;
         };
         /** CommitPushRequest */
         CommitPushRequest: {
@@ -1811,6 +1845,7 @@ export type SchemaBootstrapRequest = components['schemas']['BootstrapRequest'];
 export type SchemaBootstrapResponse = components['schemas']['BootstrapResponse'];
 export type SchemaClaudeCredentialCreate = components['schemas']['ClaudeCredentialCreate'];
 export type SchemaClaudeCredentialRead = components['schemas']['ClaudeCredentialRead'];
+export type SchemaClaudeCredentialTestResult = components['schemas']['ClaudeCredentialTestResult'];
 export type SchemaCommitPushRequest = components['schemas']['CommitPushRequest'];
 export type SchemaCommitPushResponse = components['schemas']['CommitPushResponse'];
 export type SchemaCostDashboard = components['schemas']['CostDashboard'];
@@ -3587,6 +3622,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_credential_api_v1_settings_claude_credentials__credential_id__test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaudeCredentialTestResult"];
+                };
             };
             /** @description Validation Error */
             422: {
