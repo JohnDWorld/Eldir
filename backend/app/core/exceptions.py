@@ -63,6 +63,13 @@ class SessionLimitError(EldirError):
     code = "session_limit_reached"
 
 
+class SessionStartTimeoutError(EldirError):
+    """Le CLI Claude n'a pas terminé son initialisation dans le délai imparti."""
+
+    status_code = 504
+    code = "session_start_timeout"
+
+
 class GitProviderError(EldirError):
     """Erreur lors d'une interaction avec un provider Git."""
 
