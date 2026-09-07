@@ -33,6 +33,7 @@ from app.core.constants import (
     EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
     SESSION_CONNECT_TIMEOUT_S,
+    SESSION_DISCONNECT_TIMEOUT_S,
     SESSION_STATE_IDLE,
     SESSION_STATE_THINKING,
     SESSION_STATE_TOOL_USE,
@@ -323,7 +324,16 @@ class SessionManager:
             if active.reader_task is not None:
                 active.reader_task.cancel()
             if active.client is not None:
-                await active.client.disconnect()
+                # Un CLI bloqué faisait traîner `disconnect()` indéfiniment,
+                # et avec lui la requête d'arrêt ou de suppression. La
+                # session est de toute façon déjà sortie du pool.
+                try:
+                    await asyncio.wait_for(
+                        active.client.disconnect(),
+                        timeout=SESSION_DISCONNECT_TIMEOUT_S,
+                    )
+                except TimeoutError:
+                    logger.warning("session.disconnect.timeout", session_id=session_id)
         finally:
             await self._publish(session_id, EVENT_TYPE_STOP, {})
             logger.info("session.stopped", session_id=session_id)

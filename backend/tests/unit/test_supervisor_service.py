@@ -156,3 +156,18 @@ async def test_ping_uniquement_pour_les_sessions_dispatchees(
     _, content = manager.sent[0]
     assert "munin" in content
     assert "FAIT: ajout de la compétence" in content
+
+
+async def test_suppression_dune_session_sans_projet(
+    db_session: AsyncSession, admin: User, supervisor: SupervisorService
+) -> None:
+    """Le superviseur n'a pas de projet : la suppression ne doit pas le chercher."""
+    row = await supervisor.ensure_session(db_session, admin.id)
+    await db_session.commit()
+    assert row.project_id is None
+
+    sessions = supervisor._sessions  # type: ignore[attr-defined]
+    await sessions.delete(db_session, user_id=admin.id, session_id=row.id)
+    await db_session.commit()
+
+    assert await db_session.get(Session, row.id) is None
