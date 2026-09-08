@@ -40,16 +40,66 @@ type Step = 'choose-model' | 'generating' | 'review' | 'error';
 // donc la liste partagée, mais dans l'ordre du moins cher au plus cher.
 const MODEL_OPTIONS = [...CLAUDE_MODELS].reverse();
 
+// La génération tourne côté serveur : on garde son id en local pour pouvoir
+// rouvrir la modale et retomber dessus (onglet fermé, page rechargée, PWA
+// mise en veille par le téléphone) au lieu de relancer - et de repayer.
+const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+
+function pendingKey(projectId: string): string {
+  return `eldir.template-generation.${projectId}`;
+}
+
+function readPending(projectId: string): string | null {
+  try {
+    const raw = localStorage.getItem(pendingKey(projectId));
+    if (!raw) return null;
+    const { sessionId, at } = JSON.parse(raw) as {
+      sessionId?: string;
+      at?: number;
+    };
+    if (!sessionId || !at || Date.now() - at > PENDING_TTL_MS) {
+      localStorage.removeItem(pendingKey(projectId));
+      return null;
+    }
+    return sessionId;
+  } catch {
+    // Navigation privée, stockage bloqué, JSON corrompu : on repart à zéro.
+    return null;
+  }
+}
+
+function writePending(projectId: string, sessionId: string): void {
+  try {
+    localStorage.setItem(
+      pendingKey(projectId),
+      JSON.stringify({ sessionId, at: Date.now() }),
+    );
+  } catch {
+    // Sans stockage, on perd juste la reprise : la génération, elle, continue.
+  }
+}
+
+function clearPending(projectId: string): void {
+  try {
+    localStorage.removeItem(pendingKey(projectId));
+  } catch {
+    // idem
+  }
+}
+
 export function GenerateTemplateDialog({
   projectId,
   projectName,
   onClose,
   onApplied,
 }: GenerateTemplateDialogProps): JSX.Element {
-  const [step, setStep] = useState<Step>('choose-model');
+  // Une génération de ce projet est peut-être déjà en route (ou déjà finie) :
+  // on la reprend au lieu d'en lancer une seconde.
+  const [resumed] = useState(() => readPending(projectId));
+  const [step, setStep] = useState<Step>(resumed ? 'generating' : 'choose-model');
   const [model, setModel] = useState<string>(ECO_MODEL);
   const [preset, setPreset] = useState<TemplatePresetDetail | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(resumed);
   const [overwrite, setOverwrite] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +115,7 @@ export function GenerateTemplateDialog({
     setStep('generating');
     try {
       const started = await start.mutateAsync({ model });
+      writePending(projectId, started.session_id);
       setSessionId(started.session_id);
     } catch (err) {
       setError(
@@ -83,16 +134,28 @@ export function GenerateTemplateDialog({
       setPreset(result.preset);
       setStep('review');
     } else if (result.status === 'error') {
+      clearPending(projectId);
       setError(result.detail ?? 'Erreur pendant la génération.');
       setStep('error');
     }
-  }, [result, step]);
+  }, [result, step, projectId]);
+
+  // Repartir de zéro : on oublie la génération mémorisée, la suivante en
+  // relancera (et repaiera) une neuve.
+  const regenerate = () => {
+    clearPending(projectId);
+    setPreset(null);
+    setSessionId(null);
+    setError(null);
+    setStep('choose-model');
+  };
 
   const handleApply = async () => {
     if (!preset) return;
     setError(null);
     try {
       await apply.mutateAsync({ preset, overwrite });
+      clearPending(projectId);
       onApplied?.();
       onClose();
     } catch (err) {
@@ -115,10 +178,9 @@ export function GenerateTemplateDialog({
           <button
             type="button"
             onClick={onClose}
-            disabled={step === 'generating'}
-            className="font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink disabled:opacity-40"
+            className="font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
           >
-            {step === 'generating' ? '...' : 'fermer'}
+            fermer
           </button>
         </header>
 
@@ -145,6 +207,7 @@ export function GenerateTemplateDialog({
             error={error}
             onCancel={onClose}
             onApply={handleApply}
+            onRegenerate={regenerate}
           />
         )}
 
@@ -263,6 +326,10 @@ function GeneratingStep({
           Lecture des fichiers de configuration, détection de la stack et
           construction du template. Compte 30s à 2min selon la taille du repo.
         </p>
+        <p className="mt-2 text-xs text-eldir-gray">
+          Tu peux fermer cette fenêtre : l&apos;analyse continue côté serveur.
+          Rouvre-la pour retrouver le résultat.
+        </p>
       </div>
       {sessionId && (
         <Link
@@ -287,6 +354,7 @@ function ReviewStep({
   error,
   onCancel,
   onApply,
+  onRegenerate,
 }: {
   preset: TemplatePresetDetail;
   sessionId: string | null;
@@ -296,6 +364,7 @@ function ReviewStep({
   error: string | null;
   onCancel: () => void;
   onApply: () => void;
+  onRegenerate: () => void;
 }): JSX.Element {
   return (
     <>
@@ -334,6 +403,13 @@ function ReviewStep({
           <span className="font-mono text-xs text-eldir-red">{error}</span>
         )}
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onRegenerate}
+            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+          >
+            regénérer
+          </button>
           <button
             type="button"
             onClick={onCancel}
