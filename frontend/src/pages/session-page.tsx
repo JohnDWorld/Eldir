@@ -425,7 +425,7 @@ function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div className="rounded-eldir border border-eldir-gray-3 border-l-2 border-l-eldir-orange bg-eldir-cream-2 px-3 py-2">
       <div className="eldir-caps mb-1 text-eldir-orange">Eldir · automatique</div>
-      <div className="whitespace-pre-wrap font-sans text-sm text-eldir-ink-2">
+      <div className="whitespace-pre-wrap break-words font-sans text-sm text-eldir-ink-2">
         {children}
       </div>
     </div>
