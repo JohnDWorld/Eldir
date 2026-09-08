@@ -267,8 +267,14 @@ export function SessionPage(): JSX.Element {
             </div>
           )}
           <form onSubmit={handleSend} className="border-t border-eldir-gray-3 bg-eldir-paper p-3">
-            <div className="flex items-end gap-2 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2">
-              <span className="pb-1 font-mono text-xs text-eldir-orange">›</span>
+            {/* Pas de padding vertical sur la ligne : la zone de saisie et le
+                bouton font tous les deux 44px, donc ils s'alignent d'eux-mêmes
+                sur une ligne. Sinon le bouton, plus haut que le texte, créait
+                un vide au-dessus qui ressemblait à un saut de ligne. */}
+            <div className="flex items-end gap-2 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3">
+              <span className="self-start py-3 font-mono text-xs leading-5 text-eldir-orange">
+                ›
+              </span>
               <textarea
                 ref={composer}
                 rows={1}
@@ -285,7 +291,7 @@ export function SessionPage(): JSX.Element {
                 }}
                 placeholder="Reply, /command, ou @file…"
                 disabled={sendMessage.isPending}
-                className="max-h-40 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1 font-sans text-sm leading-relaxed text-eldir-ink focus:outline-none disabled:opacity-50"
+                className="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-3 font-sans text-sm leading-5 text-eldir-ink focus:outline-none disabled:opacity-50"
               />
               <button
                 type="submit"
