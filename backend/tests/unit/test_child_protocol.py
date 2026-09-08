@@ -6,7 +6,7 @@ superviseur relit du vide ; si le refus casse, un agent publie sans validation.
 
 from __future__ import annotations
 
-from app.services.session_manager import _denies_publish
+from app.services.session_manager import _denies_publish, _publish_denial
 from app.services.session_service import extract_cr
 
 
@@ -53,3 +53,27 @@ def test_denies_publish_laisse_passer_la_lecture() -> None:
 def test_denies_publish_ignore_les_autres_outils() -> None:
     assert not _denies_publish("Read", {"file_path": "git push"})
     assert not _denies_publish("Bash", None)
+
+
+def test_publication_autorisee_laisse_passer_commit_et_push() -> None:
+    for command in (
+        "git commit -m 'feat: x'",
+        "git push -u origin claude/abc",
+        "gh pr create --fill",
+    ):
+        assert _publish_denial("Bash", {"command": command}, publish_allowed=True) is None, command
+        assert _publish_denial("Bash", {"command": command}, publish_allowed=False) is not None, (
+            command
+        )
+
+
+def test_push_force_refuse_meme_autorise() -> None:
+    for command in (
+        "git push --force origin main",
+        "git push -f origin claude/abc",
+        "git push --force-with-lease",
+        "git push --mirror autre-remote",
+    ):
+        assert _publish_denial("Bash", {"command": command}, publish_allowed=True) is not None, (
+            command
+        )

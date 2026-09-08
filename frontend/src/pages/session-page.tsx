@@ -15,6 +15,7 @@ import { SessionGitActions } from '@/features/sessions/git-actions';
 import { useSessionStream } from '@/hooks/use-session-stream';
 import {
   useDeleteSession,
+  useSetPublishPermission,
   useProjects,
   useSendMessage,
   useSession,
@@ -37,6 +38,7 @@ export function SessionPage(): JSX.Element {
   const sendMessage = useSendMessage(sessionId);
   const stopMut = useStopSession();
   const deleteMut = useDeleteSession();
+  const publishPermission = useSetPublishPermission(sessionId);
   const navigate = useNavigate();
   const [rightTab, setRightTab] = useState<'live' | 'diff'>('live');
   // Sous `md`, les trois colonnes ne tiennent pas : on n'en montre qu'une,
@@ -149,7 +151,16 @@ export function SessionPage(): JSX.Element {
           {session.data.branch} · {session.data.model ?? 'default model'}
         </span>
         <div className="flex-1" />
-        {!isSystem && <SessionGitActions sessionId={sessionId} />}
+        {!isSystem && (
+          <>
+            <PublishToggle
+              allowed={session.data.publish_allowed}
+              pending={publishPermission.isPending}
+              onToggle={(allowed) => publishPermission.mutate(allowed)}
+            />
+            <SessionGitActions sessionId={sessionId} />
+          </>
+        )}
         <button
           type="button"
           onClick={() => stopMut.mutate(sessionId)}
@@ -384,6 +395,43 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Porte de publication. Par défaut une session ne peut ni commiter ni pousser :
+ * ses commandes git sont refusées au niveau du hook. Ce bouton est le seul
+ * moyen d'ouvrir, avec l'outil `allow_publish` du superviseur quand John le lui
+ * demande. Le push forcé reste refusé dans tous les cas.
+ */
+function PublishToggle({
+  allowed,
+  pending,
+  onToggle,
+}: {
+  allowed: boolean;
+  pending: boolean;
+  onToggle: (allowed: boolean) => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(!allowed)}
+      disabled={pending}
+      title={
+        allowed
+          ? 'Cette session peut commiter, pousser et ouvrir une PR. Clique pour refermer.'
+          : 'Publication refusée pour cette session. Clique pour l’autoriser.'
+      }
+      className={cn(
+        'min-h-11 rounded-eldir border px-3 py-1.5 font-mono text-xs uppercase tracking-caps disabled:opacity-50',
+        allowed
+          ? 'border-eldir-gold bg-eldir-gold/15 text-eldir-ink'
+          : 'border-eldir-gray-3 bg-eldir-paper text-eldir-gray hover:text-eldir-ink',
+      )}
+    >
+      {allowed ? 'publication ouverte' : 'publication bloquée'}
+    </button>
   );
 }
 

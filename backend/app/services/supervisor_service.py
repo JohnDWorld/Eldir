@@ -41,7 +41,13 @@ SUPERVISOR_PROMPT_SLUG = "supervisor"
 SUPERVISOR_PREFS_SLUG = "supervisor_prefs"
 
 _MCP_SERVER = "eldir"
-_TOOL_NAMES = ("list_projects", "list_sessions", "dispatch", "remember")
+_TOOL_NAMES = (
+    "list_projects",
+    "list_sessions",
+    "dispatch",
+    "allow_publish",
+    "remember",
+)
 ALLOWED_TOOLS = [f"mcp__{_MCP_SERVER}__{name}" for name in _TOOL_NAMES]
 # Le superviseur ne touche ni au disque ni au réseau : il délègue, point.
 # `allowed_tools` seul ne suffit pas à retirer les outils intégrés quand la
@@ -279,6 +285,45 @@ class SupervisorService:
             )
 
         @tool(
+            "allow_publish",
+            "Autorise une session à publier (commit, push, PR) ou lui retire "
+            "ce droit. À n'utiliser QUE si John le demande explicitement : "
+            "c'est sa porte de validation, pas la tienne.",
+            {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "session concernée (cf. list_sessions)",
+                    },
+                    "autoriser": {
+                        "type": "boolean",
+                        "description": "true pour autoriser, false pour retirer",
+                    },
+                },
+                "required": ["session_id", "autoriser"],
+            },
+        )
+        async def allow_publish(args: dict[str, Any]) -> dict[str, Any]:
+            session_id = str(args.get("session_id") or "").strip()
+            allowed = bool(args.get("autoriser"))
+            if not session_id:
+                return _text("Erreur : session_id est obligatoire.")
+            try:
+                async with self._factory() as db:
+                    await self._sessions.set_publish_allowed(
+                        db, user_id=user_id, session_id=session_id, allowed=allowed
+                    )
+                    await db.commit()
+            except NotFoundError as exc:
+                return _text(f"Erreur : {exc.message}")
+            etat = "autorisée" if allowed else "de nouveau bloquée"
+            return _text(
+                f"Publication {etat} pour la session {session_id}. "
+                "Le push forcé reste refusé dans tous les cas."
+            )
+
+        @tool(
             "remember",
             "Enregistre une préférence de travail durable de John (elle sera "
             "dans ton prompt aux prochains démarrages). Uniquement pour ce qui "
@@ -302,7 +347,7 @@ class SupervisorService:
 
         return create_sdk_mcp_server(
             name=_MCP_SERVER,
-            tools=[list_projects, list_sessions, dispatch, remember],
+            tools=[list_projects, list_sessions, dispatch, allow_publish, remember],
         )
 
     async def remember_preference(self, fait: str) -> str:

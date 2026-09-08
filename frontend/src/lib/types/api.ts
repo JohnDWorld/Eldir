@@ -75,6 +75,8 @@ export interface SessionRead {
   model: string | null;
   is_system: boolean;
   system_kind: string | null;
+  /** Publication (commit/push/PR) autorisée par John pour cette session. */
+  publish_allowed: boolean;
   created_at: string;
   updated_at: string;
 }

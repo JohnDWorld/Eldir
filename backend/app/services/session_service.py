@@ -247,6 +247,7 @@ class SessionService:
                 system_prompt=effective_system_prompt,
                 model=session.model,
                 allowed_tools=effective_allowed_tools,
+                publish_allowed=session.publish_allowed,
             )
         except Exception:
             try:
@@ -297,6 +298,7 @@ class SessionService:
             system_prompt=session.system_prompt,
             model=session.model,
             resume_sdk_id=session.sdk_session_id if resume else None,
+            publish_allowed=session.publish_allowed,
         )
 
     async def send_message(
@@ -351,6 +353,22 @@ class SessionService:
                 )
 
         await db.delete(session)
+
+    async def set_publish_allowed(
+        self, db: AsyncSession, *, user_id: str, session_id: str, allowed: bool
+    ) -> Session:
+        """Autorise (ou retire) la publication pour cette session.
+
+        Le drapeau est persisté (une session dormante le retrouve à son
+        prochain démarrage) et appliqué tout de suite si elle tourne : John
+        peut débloquer un agent en plein tour sans le relancer.
+        """
+        session = await self.get(db, session_id, user_id)
+        session.publish_allowed = allowed
+        self._manager.set_publish_allowed(session_id, allowed)
+        await db.flush()
+        logger.info("session.publish_allowed.changed", session_id=session_id, allowed=allowed)
+        return session
 
     # ── diff (chantier 5) ───────────────────────────────────────
     async def diff_summary(

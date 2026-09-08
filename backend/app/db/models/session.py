@@ -41,6 +41,12 @@ class Session(UUIDPrimaryKey, TimestampMixin, Base):
         Boolean, default=False, nullable=False, server_default="false"
     )
     system_kind: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Autorisation de publier (commit, push, PR) donnée par John pour cette
+    # session. False par défaut : le hook `PreToolUse` refuse. Cf.
+    # `session_manager._denies_publish`.
+    publish_allowed: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
 
 
 class SessionEvent(UUIDPrimaryKey, TimestampMixin, Base):

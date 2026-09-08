@@ -80,12 +80,13 @@ async def test_ensure_session_cree_une_session_sans_projet(
     assert row.project_id is None
     assert row.is_system is True
     assert row.system_kind == SUPERVISOR_KIND
-    # Les 4 outils Eldir et rien d'autre : pas de Bash, pas de Read.
+    # Les outils Eldir et rien d'autre : pas de Bash, pas de Read.
     started = supervisor._manager.started[0]  # type: ignore[attr-defined]
     assert started["allowed_tools"] == [
         "mcp__eldir__list_projects",
         "mcp__eldir__list_sessions",
         "mcp__eldir__dispatch",
+        "mcp__eldir__allow_publish",
         "mcp__eldir__remember",
     ]
     assert "eldir" in started["mcp_servers"]
