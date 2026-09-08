@@ -32,6 +32,7 @@ from app.core.constants import (
     EVENT_TYPE_TOOL_USE,
     EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
+    MESSAGE_ORIGIN_USER,
     SESSION_CONNECT_TIMEOUT_S,
     SESSION_DISCONNECT_TIMEOUT_S,
     SESSION_STATE_IDLE,
@@ -300,7 +301,17 @@ class SessionManager:
         await self._publish_state(session_id, SESSION_STATE_IDLE)
         return active
 
-    async def send_message(self, session_id: str, content: str) -> None:
+    async def send_message(
+        self, session_id: str, content: str, *, origin: str = MESSAGE_ORIGIN_USER
+    ) -> None:
+        """Envoie un message à la session.
+
+        `origin` dit qui parle : John (`user`) ou Eldir lui-même (`eldir`,
+        pour une consigne dispatchée ou un ping de fin de tour). Pour Claude
+        c'est le même message, mais l'UI doit pouvoir les distinguer : afficher
+        un message d'Eldir comme s'il venait de John est un mensonge sur qui a
+        demandé quoi.
+        """
         active = self.get(session_id)
         if active.client is None:
             raise SessionNotFoundError(f"Session {session_id} sans client SDK actif.")
@@ -310,7 +321,9 @@ class SessionManager:
             # Trace le message utilisateur (WS + DB) AVANT d'interroger
             # Claude, pour que l'historique soit lisible même si la session
             # est rechargée en cours de réponse.
-            await self._publish(session_id, EVENT_TYPE_USER_MESSAGE, {"text": content})
+            await self._publish(
+                session_id, EVENT_TYPE_USER_MESSAGE, {"text": content, "origin": origin}
+            )
             await self._publish_state(session_id, SESSION_STATE_THINKING)
             await active.client.query(content)
             await self._consume_response(active)

@@ -47,7 +47,7 @@ class _FakeManager(SessionManager):
     def __init__(self) -> None:
         super().__init__(event_bus=EventBus(redis=None))  # type: ignore[arg-type]
         self.started: list[dict[str, Any]] = []
-        self.sent: list[tuple[str, str]] = []
+        self.sent: list[tuple[str, str, str]] = []
 
     async def start(self, **kwargs: Any) -> Any:  # type: ignore[override]
         self.started.append(kwargs)
@@ -55,8 +55,10 @@ class _FakeManager(SessionManager):
         self._sessions[session_id] = type("Active", (), {"session_id": session_id})()  # type: ignore[misc]
         return self._sessions[session_id]
 
-    async def send_message(self, session_id: str, content: str) -> None:  # type: ignore[override]
-        self.sent.append((session_id, content))
+    async def send_message(  # type: ignore[override]
+        self, session_id: str, content: str, *, origin: str = "user"
+    ) -> None:
+        self.sent.append((session_id, content, origin))
 
 
 @pytest.fixture
@@ -153,9 +155,11 @@ async def test_ping_uniquement_pour_les_sessions_dispatchees(
         if manager.sent:
             break
     assert len(manager.sent) == 1
-    _, content = manager.sent[0]
+    _, content, origin = manager.sent[0]
     assert "munin" in content
     assert "FAIT: ajout de la compétence" in content
+    # Le ping vient d'Eldir, pas de John : l'UI doit pouvoir le distinguer.
+    assert origin == "eldir"
 
 
 async def test_suppression_dune_session_sans_projet(

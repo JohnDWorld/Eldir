@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
-from app.core.constants import EVENT_TYPE_ERROR, EVENT_TYPE_STOP
+from app.core.constants import EVENT_TYPE_ERROR, EVENT_TYPE_STOP, MESSAGE_ORIGIN_ELDIR
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
 from app.db.models import Project
@@ -369,7 +369,7 @@ class SupervisorService:
                 if not self._manager.is_active(session_id):
                     await self._sessions.resume(db, user_id=user_id, session_id=session_id)
                 await db.commit()
-            await self._manager.send_message(session_id, consigne)
+            await self._manager.send_message(session_id, consigne, origin=MESSAGE_ORIGIN_ELDIR)
         except Exception as exc:
             logger.exception("supervisor.dispatch.failed", session_id=session_id)
             self._pending.discard(session_id)
@@ -419,12 +419,12 @@ class SupervisorService:
         )
 
     async def _tell_supervisor(self, user_id: str, content: str) -> None:
-        """Envoie un message système au superviseur (comme si John parlait)."""
+        """Envoie un message au superviseur au nom d'Eldir, pas de John."""
         try:
             async with self._factory() as db:
                 supervisor = await self.ensure_session(db, user_id)
                 await db.commit()
-            await self._manager.send_message(supervisor.id, content)
+            await self._manager.send_message(supervisor.id, content, origin=MESSAGE_ORIGIN_ELDIR)
         except Exception:
             logger.exception("supervisor.notify.failed")
 
