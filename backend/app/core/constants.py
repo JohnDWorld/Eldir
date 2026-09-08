@@ -52,6 +52,12 @@ EVENT_TYPE_STATE: Final[str] = "state"
 EVENT_TYPE_STOP: Final[str] = "stop"
 EVENT_TYPE_ERROR: Final[str] = "error"
 EVENT_TYPE_USER_MESSAGE: Final[str] = "user_message"
+
+# Qui a écrit un `user_message` : John, ou Eldir lui-même (consigne dispatchée
+# par le superviseur, ping de fin de tour). Les events écrits avant l'ajout de
+# ce champ n'ont pas d'origine : ils sont traités comme venant de John.
+MESSAGE_ORIGIN_USER: Final[str] = "user"
+MESSAGE_ORIGIN_ELDIR: Final[str] = "eldir"
 EVENT_TYPE_USAGE: Final[str] = "usage"
 
 # ── Budget tokens par session (Phase 5) ─────────────────────────
