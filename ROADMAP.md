@@ -212,6 +212,12 @@ Remis à V2 :
       système éditable (Settings > Prompts), relu à chaque démarrage.
 - [x] **Surveillance des repos** : `RepoWatcher`, fetch + fast-forward périodique
       des clones (`REPO_SYNC_INTERVAL_MINUTES`, jamais sur un working tree sale).
+- [x] **Toolchain par projet** : le Mission Template déclare les commandes qui
+      installent ce que le repo exige (SDK Flutter, JDK, Go…) dans
+      `$ELDIR_TOOLCHAIN`, installées à la demande depuis l'UI, avec le poids
+      disque affiché. Sans ça un agent ne peut pas vérifier son travail
+      (`flutter analyze` introuvable) et le signale à chaque tour.
+      Doc : [`docs/templates.md`](./docs/templates.md#toolchain-du-repo-setup_commands).
 - [ ] Parallélisme explicite : dispatcher deux chantiers simultanés sur un même repo
       sans passer par la création manuelle de la seconde session.
 

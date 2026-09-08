@@ -58,6 +58,17 @@ class Settings(BaseSettings):
     # (jamais quand le working tree est sale). 0 = désactivé.
     repo_sync_interval_minutes: int = 15
 
+    # ── Toolchains par projet ───────────────────────────────────
+    # Un dossier par projet, monté en volume : installé une fois, réutilisé
+    # par toutes ses sessions. Cf. `ToolchainService`.
+    toolchains_root: Path = Path("/var/eldir/toolchains")
+    # Un SDK complet peut être long à télécharger (Flutter : ~3 Go).
+    toolchain_install_timeout_s: int = 1_800
+    # On refuse d'installer si le disque descend sous ce seuil : mieux vaut un
+    # refus explicite qu'un serveur à 100% avec Postgres qui ne peut plus
+    # écrire.
+    toolchain_min_free_gb: int = 5
+
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"
 

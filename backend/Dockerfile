@@ -51,7 +51,7 @@ ARG GID=1000
 # "Permission denied", et une session ne démarre plus).
 RUN groupadd -g $GID eldir \
  && useradd -u $UID -g eldir -m -s /bin/bash eldir \
- && mkdir -p /var/eldir/workspaces /home/eldir/.claude \
+ && mkdir -p /var/eldir/workspaces /var/eldir/toolchains /home/eldir/.claude \
  && chown -R eldir:eldir /var/eldir /home/eldir
 
 WORKDIR /app

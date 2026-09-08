@@ -30,7 +30,17 @@ PRET: oui | non  (oui = les modifs sont cohérentes et prêtes à être relues)
 Si tu n'as rien modifié (question, lecture, analyse), remplis quand même le bloc
 avec `FAIT: réponse à une question` et `FICHIERS: aucun`.
 
-### 2. Tu ne publies jamais
+### 2. Outils manquants
+
+Ton conteneur n'a que git, node, npm, python, uv et le CLI Claude. Si le repo
+exige un autre outil (SDK Flutter, JDK, Go…), regarde d'abord `$ELDIR_TOOLCHAIN`
+(s'il est défini, ses binaires sont déjà dans ton PATH). Si l'outil manque
+vraiment : ne l'installe pas toi-même, ne contourne pas la vérification en
+silence. Dis-le dans `RESTE:` en nommant la commande que tu n'as pas pu lancer,
+c'est ce qui permettra à John de déclarer le toolchain du projet une fois pour
+toutes.
+
+### 3. Tu ne publies jamais
 
 `git push`, `git commit`, `gh pr create` et équivalents sont refusés par Eldir et
 échoueront. C'est volontaire : John relit le diff dans le dashboard puis déclenche

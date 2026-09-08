@@ -20,6 +20,7 @@ import { GenerateTemplateDialog } from '@/features/projects/generate-template-di
 import { SkillsEditor } from '@/features/projects/skills-editor';
 import { SubAgentsEditor } from '@/features/projects/sub-agents-editor';
 import { TemplateHistory } from '@/features/projects/template-history';
+import { ToolchainPanel } from '@/features/projects/toolchain-panel';
 import { CLAUDE_MODELS } from '@/lib/models';
 
 const MODEL_OPTIONS: { value: string; label: string }[] = [
@@ -50,6 +51,9 @@ export function ProjectTemplatePage(): JSX.Element {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState<string>('');
   const [allowedTools, setAllowedTools] = useState<Set<string>>(new Set());
+  // Une commande d'installation par ligne, c'est du shell : pas de champ
+  // structuré à inventer.
+  const [setupCommands, setSetupCommands] = useState('');
   const [feedback, setFeedback] = useState<
     { kind: 'success' | 'error'; text: string } | null
   >(null);
@@ -62,11 +66,13 @@ export function ProjectTemplatePage(): JSX.Element {
       setSystemPrompt('');
       setModel('');
       setAllowedTools(new Set());
+      setSetupCommands('');
       return;
     }
     setSystemPrompt(template.data.system_prompt ?? '');
     setModel(template.data.model ?? '');
     setAllowedTools(new Set(template.data.allowed_tools ?? []));
+    setSetupCommands((template.data.setup_commands ?? []).join('\n'));
   }, [template.data]);
 
   const toggleTool = (tool: string) => {
@@ -85,6 +91,7 @@ export function ProjectTemplatePage(): JSX.Element {
         system_prompt: systemPrompt.trim() || null,
         model: model || null,
         allowed_tools: allowedTools.size > 0 ? Array.from(allowedTools) : null,
+        setup_commands: commandLines.length > 0 ? commandLines : null,
       });
       setFeedback({ kind: 'success', text: 'Template enregistré.' });
     } catch (err) {
@@ -94,6 +101,15 @@ export function ProjectTemplatePage(): JSX.Element {
       });
     }
   };
+
+  const commandLines = useMemo(
+    () =>
+      setupCommands
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith('#')),
+    [setupCommands],
+  );
 
   const toolsHelper = useMemo(
     () =>
@@ -200,6 +216,29 @@ export function ProjectTemplatePage(): JSX.Element {
             </div>
             <p className="mt-2 font-mono text-2xs text-eldir-gray">{toolsHelper}</p>
           </div>
+
+          <label className="block">
+            <span className="eldir-caps mb-1 block">
+              Commandes d&apos;installation du toolchain
+            </span>
+            <textarea
+              value={setupCommands}
+              onChange={(e) => setSetupCommands(e.target.value)}
+              rows={4}
+              spellCheck={false}
+              placeholder={
+                '# une commande par ligne, lancées dans $ELDIR_TOOLCHAIN\n' +
+                'git clone --depth 1 -b stable https://github.com/flutter/flutter.git\n' +
+                'ln -sf $ELDIR_TOOLCHAIN/flutter/bin/flutter $ELDIR_TOOLCHAIN/bin/flutter'
+              }
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            />
+            <p className="mt-1 font-mono text-2xs text-eldir-gray">
+              Ce que le repo a besoin d&apos;avoir sur le serveur pour que
+              l&apos;agent puisse vérifier son travail (SDK, compilateur,
+              linter). Installé à la demande, jamais tout seul.
+            </p>
+          </label>
         </div>
 
         {feedback && (
@@ -226,6 +265,8 @@ export function ProjectTemplatePage(): JSX.Element {
           </button>
         </div>
       </section>
+
+      <ToolchainPanel projectId={projectId} draftCommands={commandLines} />
 
       <SkillsEditor projectId={projectId} />
       <SubAgentsEditor projectId={projectId} toolOptions={TOOL_OPTIONS} />

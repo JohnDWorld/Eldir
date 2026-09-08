@@ -50,6 +50,10 @@ services:
       - "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - eldir_workspaces:/var/eldir/workspaces
+      # Outils installés par projet (SDK Flutter, JDK…). Volume à part des
+      # workspaces : on peut le purger pour rendre du disque sans toucher aux
+      # clones ni aux worktrees.
+      - eldir_toolchains:/var/eldir/toolchains
       # Transcripts du CLI Claude. Sans ce volume, chaque reconstruction de
       # l'image efface l'historique côté SDK et tout `resume` échoue.
       - eldir_claude_home:/home/eldir/.claude
@@ -100,6 +104,7 @@ volumes:
   eldir_pg_data:
   eldir_redis_data:
   eldir_workspaces:
+  eldir_toolchains:
   eldir_claude_home:
   eldir_caddy_data:
   eldir_caddy_config:

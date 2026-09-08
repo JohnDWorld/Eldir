@@ -21,12 +21,50 @@ project ──1↔1──► mission_template
                     ├── system_prompt (text)
                     ├── model (string|null)
                     ├── allowed_tools (json|null)
+                    ├── setup_commands (json|null)  ← toolchain du repo
                     ├── skills (1↔N) → name, description, content (md)
                     ├── sub_agents (1↔N) → name, description, system_prompt, allowed_tools
                     └── versions (1↔N) → snapshot JSON pour rollback
 ```
 
-Tables Postgres : `mission_templates`, `template_skills`, `template_sub_agents`, `template_versions`. Migration `0002_mission_templates.py`.
+Tables Postgres : `mission_templates`, `template_skills`, `template_sub_agents`, `template_versions`. Migrations `0002_mission_templates.py` et `0008_template_setup_commands.py`.
+
+## Toolchain du repo (`setup_commands`)
+
+Le conteneur backend n'embarque que **git, node 20, npm, python 3.12, uv et le CLI Claude**. Un agent sur un repo Flutter ne peut donc pas lancer `flutter analyze` : il le signale dans son `RESTE:` et son travail reste non vérifié.
+
+Tout mettre dans l'image donnerait une image de 15 Go reconstruite à chaque déploiement, avec Flutter installé pour les projets Python. À la place, chaque projet **déclare** ses commandes d'installation, et Eldir les exécute **à la demande** :
+
+```
+/var/eldir/toolchains/<project_id>/        ← $ELDIR_TOOLCHAIN (volume eldir_toolchains)
+/var/eldir/toolchains/<project_id>/bin/    ← en tête du PATH des sessions du projet
+```
+
+Exemple, un repo Flutter (analyse seule, sans SDK Android) :
+
+```json
+"setup_commands": [
+  "git clone --depth 1 -b stable https://github.com/flutter/flutter.git",
+  "ln -sf $ELDIR_TOOLCHAIN/flutter/bin/flutter $ELDIR_TOOLCHAIN/bin/flutter",
+  "ln -sf $ELDIR_TOOLCHAIN/flutter/bin/dart $ELDIR_TOOLCHAIN/bin/dart",
+  "flutter --version"
+]
+```
+
+Ce que ça coûte, en ordre de grandeur : SDK Flutter + Dart ~3 Go de disque et 0,7 à 1,5 Go de RAM au pic pour le serveur d'analyse Dart ; SDK Android **+8 à 12 Go**, inutile pour `analyze` ; JDK + caches Gradle 1 à 2 Go ; `node_modules` d'un repo JS 0,2 à 1 Go.
+
+Garde-fous côté serveur :
+
+- **rien ne s'installe tout seul** : il faut cliquer dans l'éditeur de template, et l'UI affiche le poids obtenu ;
+- **une seule installation à la fois** sur tout le serveur (4 cœurs, 4 Go de RAM : deux clones de SDK en parallèle mettent la machine à genoux) ;
+- **refus si le disque libre passe sous `TOOLCHAIN_MIN_FREE_GB`** (5 Go par défaut) ;
+- timeout à `TOOLCHAIN_INSTALL_TIMEOUT_S` (30 min par défaut), log conservé et consultable.
+
+Les commandes tournent avec les droits du backend (utilisateur `eldir`, pas de sudo) : c'est du shell arbitraire, écrit ou relu par toi. `apt-get install` ne marchera pas, il faut des installations en espace utilisateur.
+
+L'état vit dans le dossier du toolchain (`.eldir-state.json`, `install.log`), pas en base : purger le volume purge l'état, il n'y a rien à resynchroniser. Le dossier est un volume distinct des workspaces, donc on peut le supprimer pour rendre du disque sans toucher aux clones.
+
+API : `GET /api/v1/projects/{id}/toolchain`, `POST …/toolchain/install` (202, suivi par polling), `DELETE …/toolchain`.
 
 ## Matérialisation côté worktree
 

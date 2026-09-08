@@ -77,6 +77,7 @@ class MissionTemplateWrite(EldirModel):
     system_prompt: str | None = Field(default=None, max_length=32_000)
     model: str | None = Field(default=None, max_length=64)
     allowed_tools: list[str] | None = Field(default=None)
+    setup_commands: list[str] | None = Field(default=None, max_length=20)
 
 
 class MissionTemplateRead(TimestampedModel):
@@ -85,6 +86,7 @@ class MissionTemplateRead(TimestampedModel):
     system_prompt: str | None
     model: str | None
     allowed_tools: list[str] | None
+    setup_commands: list[str] | None
     source_preset: str | None
     skills: list[TemplateSkillRead] = []
     sub_agents: list[TemplateSubAgentRead] = []
@@ -139,6 +141,9 @@ class TemplatePresetDetail(EldirModel):
     system_prompt: str
     model: str | None = None
     allowed_tools: list[str] | None = None
+    # Commandes qui installent le toolchain du repo (cf. ToolchainService).
+    # Proposées par le générateur, jamais exécutées sans un clic de l'humain.
+    setup_commands: list[str] | None = None
     skills: list[TemplatePresetSkill] = []
     sub_agents: list[TemplatePresetSubAgent] = []
 

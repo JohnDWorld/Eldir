@@ -476,6 +476,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/toolchain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Toolchain
+         * @description État du toolchain : absent, en cours d'installation, installé ou en échec.
+         */
+        get: operations["get_toolchain_api_v1_projects__project_id__toolchain_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Toolchain
+         * @description Supprime le toolchain du projet et rend le disque.
+         */
+        delete: operations["delete_toolchain_api_v1_projects__project_id__toolchain_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/toolchain/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Install Toolchain
+         * @description Lance l'installation en tâche de fond et rend la main tout de suite.
+         *
+         *     Un SDK complet peut prendre 10 minutes : le client suit l'avancement via
+         *     `GET /toolchain` (statut + fin du log).
+         */
+        post: operations["install_toolchain_api_v1_projects__project_id__toolchain_install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/providers/{provider}/repos": {
         parameters: {
             query?: never;
@@ -1229,6 +1276,8 @@ export interface components {
             model: string | null;
             /** Project Id */
             project_id: string;
+            /** Setup Commands */
+            setup_commands: string[] | null;
             /**
              * Skills
              * @default []
@@ -1261,6 +1310,8 @@ export interface components {
             allowed_tools?: string[] | null;
             /** Model */
             model?: string | null;
+            /** Setup Commands */
+            setup_commands?: string[] | null;
             /** System Prompt */
             system_prompt?: string | null;
         };
@@ -1660,6 +1711,8 @@ export interface components {
             description: string;
             /** Model */
             model?: string | null;
+            /** Setup Commands */
+            setup_commands?: string[] | null;
             /**
              * Skills
              * @default []
@@ -1829,6 +1882,29 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /** ToolchainStatusResponse */
+        ToolchainStatusResponse: {
+            /** Commands */
+            commands?: string[];
+            /** Detail */
+            detail?: string | null;
+            /** Installed At */
+            installed_at?: string | null;
+            /** Log */
+            log?: string | null;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: ToolchainStatusResponseStatus;
+        };
         /** UserRead */
         UserRead: {
             /**
@@ -1936,6 +2012,7 @@ export type SchemaTemplateSubAgentRead = components['schemas']['TemplateSubAgent
 export type SchemaTemplateSubAgentWrite = components['schemas']['TemplateSubAgentWrite'];
 export type SchemaTemplateVersionRead = components['schemas']['TemplateVersionRead'];
 export type SchemaTemplateVersionRestore = components['schemas']['TemplateVersionRestore'];
+export type SchemaToolchainStatusResponse = components['schemas']['ToolchainStatusResponse'];
 export type SchemaUserRead = components['schemas']['UserRead'];
 export type SchemaValidationError = components['schemas']['ValidationError'];
 export type $defs = Record<string, never>;
@@ -3095,6 +3172,105 @@ export interface operations {
             };
         };
     };
+    get_toolchain_api_v1_projects__project_id__toolchain_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolchainStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_toolchain_api_v1_projects__project_id__toolchain_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    install_toolchain_api_v1_projects__project_id__toolchain_install_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_remote_repos_api_v1_providers__provider__repos_get: {
         parameters: {
             query?: never;
@@ -4156,5 +4332,11 @@ export enum SessionReadState {
 export enum TemplateGenerateStatusResponseStatus {
     running = "running",
     done = "done",
+    error = "error"
+}
+export enum ToolchainStatusResponseStatus {
+    absent = "absent",
+    installing = "installing",
+    installed = "installed",
     error = "error"
 }

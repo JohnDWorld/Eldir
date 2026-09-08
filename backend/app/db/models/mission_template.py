@@ -33,6 +33,10 @@ class MissionTemplate(UUIDPrimaryKey, TimestampMixin, Base):
     allowed_tools: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     # Référence informative quand on a appliqué un preset (slug du preset).
     source_preset: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Commandes shell qui installent le toolchain du repo (SDK Flutter, JDK,
+    # Go…) dans `$ELDIR_TOOLCHAIN`. Lancées à la demande depuis l'UI, jamais
+    # automatiquement : elles coûtent du disque et du temps, et ça se voit.
+    setup_commands: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     skills: Mapped[list[TemplateSkill]] = relationship(
         "TemplateSkill",

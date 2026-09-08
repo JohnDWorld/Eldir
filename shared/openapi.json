@@ -709,6 +709,20 @@
             "title": "Project Id",
             "type": "string"
           },
+          "setup_commands": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Commands"
+          },
           "skills": {
             "default": [],
             "items": {
@@ -761,6 +775,7 @@
           "system_prompt",
           "model",
           "allowed_tools",
+          "setup_commands",
           "source_preset"
         ],
         "title": "MissionTemplateRead",
@@ -794,6 +809,21 @@
               }
             ],
             "title": "Model"
+          },
+          "setup_commands": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Commands"
           },
           "system_prompt": {
             "anyOf": [
@@ -1857,6 +1887,20 @@
             ],
             "title": "Model"
           },
+          "setup_commands": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Commands"
+          },
           "skills": {
             "default": [],
             "items": {
@@ -2298,6 +2342,82 @@
           }
         },
         "title": "TemplateVersionRestore",
+        "type": "object"
+      },
+      "ToolchainStatusResponse": {
+        "properties": {
+          "commands": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Commands",
+            "type": "array"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "installed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed At"
+          },
+          "log": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "absent",
+              "installing",
+              "installed",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ToolchainStatusResponse",
         "type": "object"
       },
       "UserRead": {
@@ -4429,6 +4549,178 @@
         "summary": "Restore Template Version",
         "tags": [
           "templates"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/toolchain": {
+      "delete": {
+        "description": "Supprime le toolchain du projet et rend le disque.",
+        "operationId": "delete_toolchain_api_v1_projects__project_id__toolchain_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Toolchain",
+        "tags": [
+          "toolchain"
+        ]
+      },
+      "get": {
+        "description": "État du toolchain : absent, en cours d'installation, installé ou en échec.",
+        "operationId": "get_toolchain_api_v1_projects__project_id__toolchain_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolchainStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Toolchain",
+        "tags": [
+          "toolchain"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/toolchain/install": {
+      "post": {
+        "description": "Lance l'installation en tâche de fond et rend la main tout de suite.\n\nUn SDK complet peut prendre 10 minutes : le client suit l'avancement via\n`GET /toolchain` (statut + fin du log).",
+        "operationId": "install_toolchain_api_v1_projects__project_id__toolchain_install_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Install Toolchain Api V1 Projects  Project Id  Toolchain Install Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Install Toolchain",
+        "tags": [
+          "toolchain"
         ]
       }
     },

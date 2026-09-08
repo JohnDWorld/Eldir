@@ -129,6 +129,8 @@ class TemplatePresetService:
             template.model = preset.model
         if overwrite or not template.allowed_tools:
             template.allowed_tools = preset.allowed_tools
+        if overwrite or not template.setup_commands:
+            template.setup_commands = preset.setup_commands
         template.source_preset = preset.slug
 
         await db.flush()
