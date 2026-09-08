@@ -150,6 +150,7 @@ class MissionTemplateService:
         template.system_prompt = payload.system_prompt
         template.model = payload.model
         template.allowed_tools = payload.allowed_tools
+        template.setup_commands = payload.setup_commands or None
         # source_preset reste tel quel (modifié par apply_preset uniquement)
         await db.flush()
         return template
@@ -372,6 +373,7 @@ class MissionTemplateService:
             "system_prompt": template.system_prompt,
             "model": template.model,
             "allowed_tools": template.allowed_tools,
+            "setup_commands": template.setup_commands,
             "source_preset": template.source_preset,
             "skills": [
                 {
@@ -472,6 +474,7 @@ class MissionTemplateService:
         template.system_prompt = snap.get("system_prompt")
         template.model = snap.get("model")
         template.allowed_tools = snap.get("allowed_tools")
+        template.setup_commands = snap.get("setup_commands")
         template.source_preset = snap.get("source_preset")
 
         # Skills et sub-agents : on remplace tout

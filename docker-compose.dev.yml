@@ -59,6 +59,10 @@ services:
     volumes:
       - ./backend:/app
       - eldir_workspaces:/var/eldir/workspaces
+      # Outils installés par projet (SDK Flutter, JDK…). Volume à part des
+      # workspaces : on peut le purger pour rendre du disque sans toucher aux
+      # clones ni aux worktrees.
+      - eldir_toolchains:/var/eldir/toolchains
       # Cf. docker-compose.yml : les transcripts du CLI doivent survivre
       # aux reconstructions d'image, sinon `resume` échoue.
       - eldir_claude_home:/home/eldir/.claude
@@ -89,4 +93,5 @@ volumes:
   eldir_pg_data:
   eldir_redis_data:
   eldir_workspaces:
+  eldir_toolchains:
   eldir_claude_home:

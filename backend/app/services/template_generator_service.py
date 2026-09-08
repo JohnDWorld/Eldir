@@ -312,6 +312,10 @@ def _parse_preset(raw: str) -> TemplatePresetDetail:
             tags=list(data.get("tags") or []),
             model=data.get("model"),
             allowed_tools=data.get("allowed_tools"),
+            setup_commands=[str(c) for c in (data.get("setup_commands") or []) if str(c).strip()][
+                :20
+            ]
+            or None,
             system_prompt=str(data.get("system_prompt", "")),
             skills=[
                 TemplatePresetSkill(

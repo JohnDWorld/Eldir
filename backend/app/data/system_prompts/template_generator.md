@@ -13,6 +13,7 @@ Un Mission Template est composé de :
 - **`system_prompt`** : texte envoyé à toute session Claude lancée sur ce projet. Doit briefer l'agent sur la stack, les conventions, les sources de vérité du repo.
 - **`model`** : `claude-opus-5` / `claude-sonnet-5` / `claude-haiku-4-5` / `null` (défaut). Choisir selon la complexité typique des tâches du projet.
 - **`allowed_tools`** : optionnel. Laisser `null` pour autoriser tous les outils built-in (recommandé).
+- **`setup_commands`** : optionnel. Commandes shell qui installent sur le serveur les outils que le repo exige pour que l'agent puisse **vérifier son travail** (SDK, compilateur, linter). Cf. section dédiée plus bas.
 - **`skills`** : liste de commandes nommées (`backend-tests`, `frontend-typecheck`, `gen-types`...). Atomiques, une par "action récurrente" du projet.
 - **`sub_agents`** : liste d'agents spécialisés invocables par l'agent principal (`test-runner`, `doc-keeper`, etc.).
 
@@ -44,6 +45,28 @@ Un Mission Template est composé de :
 | Stack standard (Django, FastAPI, Next.js…) | `claude-sonnet-5` |
 | Scripts, projet simple, doc-heavy | `claude-haiku-4-5` |
 | Inconnu / mixte | `null` (laisser le défaut Eldir) |
+
+## Toolchain (`setup_commands`)
+
+Les sessions Eldir tournent dans un conteneur qui n'a que **git, node 20, npm, python 3.12, uv et le CLI Claude**. Si le repo exige autre chose (SDK Flutter/Dart, JDK, Go, Rust, PHP…), l'agent ne peut pas lancer les vérifications du projet, et il devra le signaler à chaque tour.
+
+Déclare donc dans `setup_commands` les commandes qui installent le strict nécessaire, avec ces règles :
+
+- Elles tournent **dans `$ELDIR_TOOLCHAIN`** (dossier propre au projet, persistant), avec `$ELDIR_TOOLCHAIN/bin` en tête du PATH des sessions. Termine par un `ln -sf` des binaires vers `$ELDIR_TOOLCHAIN/bin/`.
+- **Le minimum utile.** Pour `flutter analyze`, le SDK Flutter suffit (~3 Go) : ne demande pas le SDK Android (12 Go de plus) qui ne sert qu'à builder un APK.
+- **Non interactives et idempotentes** : `-y`, `--depth 1`, pas de `sudo` (le conteneur n'en a pas), pas d'`apt-get install` (l'utilisateur n'est pas root).
+- `null` ou liste vide si node/python/git suffisent, ce qui est le cas le plus fréquent.
+
+Exemple pour un repo Flutter :
+
+```json
+"setup_commands": [
+  "git clone --depth 1 -b stable https://github.com/flutter/flutter.git",
+  "ln -sf $ELDIR_TOOLCHAIN/flutter/bin/flutter $ELDIR_TOOLCHAIN/bin/flutter",
+  "ln -sf $ELDIR_TOOLCHAIN/flutter/bin/dart $ELDIR_TOOLCHAIN/bin/dart",
+  "flutter --version"
+]
+```
 
 ## Structure du system_prompt à générer
 
@@ -86,6 +109,7 @@ Réponds avec **un seul bloc** enveloppé dans des balises `<preset>...</preset>
   "tags": ["python", "fastapi"],
   "model": "claude-sonnet-5",
   "allowed_tools": null,
+  "setup_commands": null,
   "system_prompt": "Tu es l'agent maintainer de...\n\n## Sources de vérité\n- ...",
   "skills": [
     {

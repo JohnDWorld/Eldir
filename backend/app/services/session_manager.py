@@ -45,6 +45,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from app.services.event_bus import EventBus
+from app.services.toolchain_service import toolchain_service
 
 if TYPE_CHECKING:
     from claude_agent_sdk import ClaudeSDKClient
@@ -261,6 +262,13 @@ class SessionManager:
             # charger en plus les serveurs MCP éventuels de la machine hôte.
             options_kwargs["mcp_servers"] = mcp_servers
             options_kwargs["strict_mcp_config"] = True
+        # Toolchain du projet (SDK Flutter, JDK, Go…) : `$ELDIR_TOOLCHAIN/bin`
+        # en tête du PATH pour que l'agent trouve ses outils. Vide tant que
+        # rien n'est installé, c'est fait ici plutôt qu'à chaque appelant pour
+        # que création, resume et sessions système en héritent pareil.
+        toolchain_env = toolchain_service.env_for(project_id)
+        if toolchain_env:
+            options_kwargs["env"] = toolchain_env
 
         options = ClaudeAgentOptions(**options_kwargs)
         client = ClaudeSDKClient(options=options)

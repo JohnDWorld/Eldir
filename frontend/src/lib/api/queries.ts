@@ -63,6 +63,8 @@ export const queryKeys = {
     ['projects', projectId, 'template', 'skills'] as const,
   projectTemplateSubAgents: (projectId: string) =>
     ['projects', projectId, 'template', 'sub-agents'] as const,
+  projectToolchain: (projectId: string) =>
+    ['projects', projectId, 'toolchain'] as const,
   templateGeneration: (projectId: string, sessionId: string) =>
     ['projects', projectId, 'template', 'generate', sessionId] as const,
   templatePresets: ['templates', 'presets'] as const,
@@ -502,6 +504,7 @@ export type MissionTemplate = {
   system_prompt: string | null;
   model: string | null;
   allowed_tools: string[] | null;
+  setup_commands: string[] | null;
   source_preset: string | null;
   skills: TemplateSkill[];
   sub_agents: TemplateSubAgent[];
@@ -513,6 +516,18 @@ export type MissionTemplateWrite = {
   system_prompt: string | null;
   model: string | null;
   allowed_tools: string[] | null;
+  setup_commands: string[] | null;
+};
+
+/** Outils du repo installés sur le serveur (cf. ToolchainService). */
+export type ToolchainStatus = {
+  status: 'absent' | 'installing' | 'installed' | 'error';
+  size_bytes: number | null;
+  installed_at: string | null;
+  stale: boolean;
+  commands: string[];
+  log: string | null;
+  detail: string | null;
 };
 
 export type TemplateSkillWrite = {
@@ -551,6 +566,42 @@ export function useUpsertProjectTemplate(projectId: string) {
     onSuccess: (data) => {
       qc.setQueryData(queryKeys.projectTemplate(projectId), data);
     },
+  });
+}
+
+/**
+ * État du toolchain du projet. On interroge pendant l'installation (qui peut
+ * durer 10 min pour un SDK complet), pas au repos.
+ */
+export function useToolchain(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.projectToolchain(projectId),
+    queryFn: () =>
+      apiClient.get<ToolchainStatus>(`/projects/${projectId}/toolchain`),
+    refetchInterval: (query) =>
+      query.state.data?.status === 'installing' ? 3_000 : false,
+  });
+}
+
+export function useInstallToolchain(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<{ status: string }, Record<string, never>>(
+        `/projects/${projectId}/toolchain/install`,
+        {},
+      ),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.projectToolchain(projectId) }),
+  });
+}
+
+export function useDeleteToolchain(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.delete<void>(`/projects/${projectId}/toolchain`),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.projectToolchain(projectId) }),
   });
 }
 
