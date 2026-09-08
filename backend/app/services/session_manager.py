@@ -117,6 +117,51 @@ def _matches(pattern: re.Pattern[str], tool_name: str | None, tool_input: Any) -
     return isinstance(command, str) and bool(pattern.search(command))
 
 
+def _optional_options(
+    *,
+    project_id: str | None,
+    system_prompt: str | None,
+    model: str | None,
+    resume_sdk_id: str | None,
+    allowed_tools: list[str] | None,
+    disallowed_tools: list[str] | None,
+    mcp_servers: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Options SDK qu'on ne pose que si elles ont une valeur."""
+    kwargs: dict[str, Any] = {}
+    # Prompt caching (Phase 5) : on attache le system_prompt UNE seule fois
+    # au boot. Le CLI Claude Code injecte automatiquement les marqueurs
+    # `cache_control` sur ce bloc + sur la liste d'outils, ce qui rend les
+    # tours suivants jusqu'à 90% moins coûteux côté tokens d'entrée (visible
+    # dans la métrique `cache_read_tokens` du dashboard /costs).
+    if system_prompt:
+        kwargs["system_prompt"] = system_prompt
+    if model:
+        kwargs["model"] = model
+    if resume_sdk_id:
+        kwargs["resume"] = resume_sdk_id
+    if allowed_tools:
+        kwargs["allowed_tools"] = allowed_tools
+    if disallowed_tools:
+        # `allowed_tools` ne restreint rien en bypassPermissions (c'est une
+        # liste de pré-approbation) : pour retirer vraiment un outil il faut
+        # l'interdire explicitement.
+        kwargs["disallowed_tools"] = disallowed_tools
+    if mcp_servers:
+        # Outils in-process (superviseur). `strict_mcp_config` évite de
+        # charger en plus les serveurs MCP éventuels de la machine hôte.
+        kwargs["mcp_servers"] = mcp_servers
+        kwargs["strict_mcp_config"] = True
+    # Toolchain du projet (SDK Flutter, JDK, Go…) : `$ELDIR_TOOLCHAIN/bin` en
+    # tête du PATH pour que l'agent trouve ses outils. Vide tant que rien n'est
+    # installé, et fait ici plutôt qu'à chaque appelant pour que création,
+    # resume et sessions système en héritent pareil.
+    toolchain_env = toolchain_service.env_for(project_id)
+    if toolchain_env:
+        kwargs["env"] = toolchain_env
+    return kwargs
+
+
 @dataclass(slots=True)
 class ActiveSession:
     session_id: str
@@ -290,36 +335,17 @@ class SessionManager:
                 "PostToolUse": [HookMatcher(hooks=[_post_tool_hook])],
             },
         }
-        # Prompt caching (Phase 5) : on attache le system_prompt UNE seule fois
-        # au boot. Le CLI Claude Code injecte automatiquement les marqueurs
-        # `cache_control` sur ce bloc + sur la liste d'outils, ce qui rend les
-        # tours suivants jusqu'à 90% moins coûteux côté tokens d'entrée (visible
-        # dans la métrique `cache_read_tokens` du dashboard /costs).
-        if system_prompt:
-            options_kwargs["system_prompt"] = system_prompt
-        if model:
-            options_kwargs["model"] = model
-        if resume_sdk_id:
-            options_kwargs["resume"] = resume_sdk_id
-        if allowed_tools:
-            options_kwargs["allowed_tools"] = allowed_tools
-        if disallowed_tools:
-            # `allowed_tools` ne restreint rien en bypassPermissions (c'est une
-            # liste de pré-approbation) : pour retirer vraiment un outil il faut
-            # l'interdire explicitement.
-            options_kwargs["disallowed_tools"] = disallowed_tools
-        if mcp_servers:
-            # Outils in-process (superviseur). `strict_mcp_config` évite de
-            # charger en plus les serveurs MCP éventuels de la machine hôte.
-            options_kwargs["mcp_servers"] = mcp_servers
-            options_kwargs["strict_mcp_config"] = True
-        # Toolchain du projet (SDK Flutter, JDK, Go…) : `$ELDIR_TOOLCHAIN/bin`
-        # en tête du PATH pour que l'agent trouve ses outils. Vide tant que
-        # rien n'est installé, c'est fait ici plutôt qu'à chaque appelant pour
-        # que création, resume et sessions système en héritent pareil.
-        toolchain_env = toolchain_service.env_for(project_id)
-        if toolchain_env:
-            options_kwargs["env"] = toolchain_env
+        options_kwargs.update(
+            _optional_options(
+                project_id=project_id,
+                system_prompt=system_prompt,
+                model=model,
+                resume_sdk_id=resume_sdk_id,
+                allowed_tools=allowed_tools,
+                disallowed_tools=disallowed_tools,
+                mcp_servers=mcp_servers,
+            )
+        )
 
         options = ClaudeAgentOptions(**options_kwargs)
         client = ClaudeSDKClient(options=options)
