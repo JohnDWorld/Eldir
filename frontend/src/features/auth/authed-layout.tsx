@@ -26,7 +26,11 @@ function AuthedInner(): JSX.Element {
   return (
     <div className="flex h-full flex-col bg-eldir-paper">
       <AppTopbar />
-      <div className="min-h-0 flex-1 overflow-auto">
+      {/* `overflow-x-hidden` est un garde-fou : un identifiant ou un chemin
+          trop long ne doit jamais rendre toute l'app scrollable de côté. Les
+          blocs qui doivent défiler horizontalement (tableau de coûts, logs,
+          commandes shell) portent leur propre `overflow-x-auto`. */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <Outlet />
       </div>
     </div>

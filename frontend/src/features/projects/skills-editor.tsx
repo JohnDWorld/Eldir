@@ -55,7 +55,7 @@ export function SkillsEditor({ projectId }: SkillsEditorProps): JSX.Element {
       {skills.data && skills.data.length > 0 && (
         <ul className="divide-y divide-eldir-gray-3">
           {skills.data.map((s) => (
-            <li key={s.id} className="flex items-center justify-between py-2">
+            <li key={s.id} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
                 <div className="font-mono text-sm font-semibold text-eldir-ink">
                   {s.name}

@@ -42,11 +42,13 @@ export function SessionCard({ data, selected, onClick }: SessionCardProps): JSX.
         selected && 'ring-1 ring-eldir-orange',
       )}
     >
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-xs font-semibold text-eldir-ink">
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate font-mono text-xs font-semibold text-eldir-ink">
           {data.projectSlug} <span className="text-eldir-gray">/ {data.id}</span>
         </span>
-        <StatePill state={data.state} />
+        <span className="shrink-0">
+          <StatePill state={data.state} />
+        </span>
       </div>
       {data.summary && (
         <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-eldir-ink-2">

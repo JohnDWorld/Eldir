@@ -126,13 +126,13 @@ export function CostsPage(): JSX.Element {
 
       <section>
         <div className="eldir-caps mb-2">Répartition par projet (30j)</div>
-        <div className="overflow-hidden rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
+        <div className="overflow-x-auto rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
           {data.by_project.length === 0 ? (
             <p className="p-4 font-mono text-sm text-eldir-gray">
               Aucun coût rattaché à un projet sur cette période.
             </p>
           ) : (
-            <table className="w-full font-mono text-xs">
+            <table className="w-full min-w-[420px] font-mono text-xs">
               <thead className="border-b border-eldir-gray-3 bg-eldir-paper">
                 <tr className="text-left text-eldir-gray">
                   <th className="px-3 py-2">Projet</th>
