@@ -186,7 +186,7 @@ export function SessionPage(): JSX.Element {
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr_320px]">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr_320px]">
         {/* Sidebar sessions */}
         <aside className="hidden flex-col overflow-y-auto border-r border-eldir-gray-3 py-2.5 md:flex">
           <div className="eldir-caps px-3 pb-2">Sessions</div>
@@ -256,7 +256,7 @@ export function SessionPage(): JSX.Element {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Reply, /command, ou @file…"
                 disabled={sendMessage.isPending}
-                className="flex-1 bg-transparent font-sans text-sm text-eldir-ink focus:outline-none disabled:opacity-50"
+                className="min-w-0 flex-1 bg-transparent font-sans text-sm text-eldir-ink focus:outline-none disabled:opacity-50"
               />
               <span className="font-mono text-2xs text-eldir-gray">⌘↵</span>
             </div>
@@ -352,7 +352,7 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
   );
 
   return (
-    <div ref={scroll} className="flex-1 space-y-3 overflow-y-auto bg-eldir-paper p-4">
+    <div ref={scroll} className="min-w-0 flex-1 space-y-3 overflow-y-auto bg-eldir-paper p-4">
       {visible.length === 0 && (
         <p className="text-center font-mono text-xs text-eldir-gray">
           Pose ta première question à Claude…
@@ -409,7 +409,7 @@ function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
 function UserBubble({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[90%] whitespace-pre-wrap rounded-[10px_2px_10px_10px] border border-eldir-orange/30 bg-eldir-orange/10 px-3 py-2 font-sans text-sm text-eldir-ink">
+      <div className="max-w-[90%] whitespace-pre-wrap break-words rounded-[10px_2px_10px_10px] border border-eldir-orange/30 bg-eldir-orange/10 px-3 py-2 font-sans text-sm text-eldir-ink">
         {children}
       </div>
     </div>
@@ -427,11 +427,11 @@ function firstStringArg(input: unknown): string {
 
 function ClaudeBubble({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <div className="flex max-w-[90%] gap-2">
+    <div className="flex max-w-[90%] min-w-0 gap-2">
       <Avatar bg="hsl(var(--eldir-orange))" fg="#fff" size={20}>
         C
       </Avatar>
-      <div className="whitespace-pre-wrap rounded-[2px_10px_10px_10px] border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-sans text-sm text-eldir-ink">
+      <div className="min-w-0 whitespace-pre-wrap break-words rounded-[2px_10px_10px_10px] border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-sans text-sm text-eldir-ink">
         {children}
       </div>
     </div>
@@ -471,12 +471,12 @@ function LogLine({ event }: { event: NormalizedEvent }): JSX.Element {
             ? String(event.data.message ?? '')
             : '';
   return (
-    <div className="flex gap-2">
-      <span className="text-eldir-gray">{time}</span>
+    <div className="flex min-w-0 gap-2">
+      <span className="shrink-0 text-eldir-gray">{time}</span>
       <span className={cn('w-20 shrink-0', tone[event.type] ?? 'text-eldir-cream')}>
         {event.type}
       </span>
-      <span className="flex-1 truncate text-eldir-cream">{summary}</span>
+      <span className="min-w-0 flex-1 truncate text-eldir-cream">{summary}</span>
     </div>
   );
 }
@@ -541,8 +541,10 @@ function formatTokens(n: number): string {
 function Kv({ k, v }: { k: string; v: string }): JSX.Element {
   return (
     <div className="flex justify-between gap-2 border-b border-dotted border-eldir-gray-3 pb-1 font-mono text-xs">
-      <span className="text-eldir-gray">{k}</span>
-      <span className="truncate text-eldir-ink">{v}</span>
+      <span className="shrink-0 text-eldir-gray">{k}</span>
+      <span className="min-w-0 truncate text-eldir-ink" title={v}>
+        {v}
+      </span>
     </div>
   );
 }

@@ -64,7 +64,7 @@ export function SubAgentsEditor({
       {agents.data && agents.data.length > 0 && (
         <ul className="divide-y divide-eldir-gray-3">
           {agents.data.map((a) => (
-            <li key={a.id} className="flex items-center justify-between py-2">
+            <li key={a.id} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
                 <div className="font-mono text-sm font-semibold text-eldir-ink">
                   {a.name}
@@ -175,7 +175,7 @@ function SubAgentDialog({
         onSubmit={handleSubmit}
         className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper"
       >
-        <header className="flex items-center justify-between border-b border-eldir-gray-3 px-4 py-3">
+        <header className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">
             {initial ? 'Éditer sub-agent' : 'Nouveau sub-agent'}
           </div>
@@ -255,7 +255,7 @@ function SubAgentDialog({
           )}
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-eldir-gray-3 px-4 py-3">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-eldir-gray-3 px-4 py-3">
           {initial ? (
             <button
               type="button"

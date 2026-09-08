@@ -329,7 +329,7 @@ function AddProjectDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
       <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
-        <header className="flex items-center justify-between border-b border-eldir-gray-3 px-4 py-3">
+        <header className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Ajouter des repos</div>
           <button
             type="button"
@@ -367,7 +367,7 @@ function AddProjectDialog({
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="filtrer par nom (owner/repo)…"
-            className="flex-1 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="min-w-0 flex-1 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
           />
           {filtered.length > 0 && (
             <button
@@ -443,7 +443,7 @@ function AddProjectDialog({
           </ul>
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-eldir-gray-3 px-4 py-3">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-eldir-gray-3 px-4 py-3">
           <div className="font-mono text-xs text-eldir-gray">
             {submitting && progress
               ? `clonage ${progress.done}/${progress.total}…`

@@ -46,7 +46,7 @@ export function NewRepoDialog({ onClose }: { onClose: () => void }): JSX.Element
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
       <div className="w-full max-w-lg rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
-        <header className="flex items-center justify-between border-b border-eldir-gray-3 px-4 py-3">
+        <header className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Nouveau repo distant</div>
           <button
             type="button"

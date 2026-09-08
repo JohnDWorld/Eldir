@@ -75,7 +75,7 @@ export function SettingsClaudePage(): JSX.Element {
         helper={
           <>
             Génère un nouveau token longue durée sur n'importe quelle machine avec :
-            <pre className="my-2 rounded-eldir bg-eldir-ink p-3 font-mono text-xs text-eldir-cream">
+            <pre className="my-2 overflow-x-auto rounded-eldir bg-eldir-ink p-3 font-mono text-xs text-eldir-cream">
               npx -y @anthropic-ai/claude-code setup-token
             </pre>
             Connecte-toi à ton compte Pro/Max, puis colle le token <span className="font-mono">sk-ant-oat…</span> ci-dessous.

@@ -150,9 +150,9 @@ export function OpsHomePage(): JSX.Element {
 
   return (
     <OpsShell telemetry={telemetry}>
-      <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[260px_1fr_320px]">
+      <div className="grid h-full min-h-0 min-w-0 grid-cols-1 md:grid-cols-[260px_1fr_320px]">
         {/* ── Projects rail ───────────────────────────────────── */}
-        <aside className="flex flex-col overflow-y-auto border-eldir-gray-3 py-2.5 md:border-r">
+        <aside className="flex min-w-0 flex-col overflow-y-auto border-eldir-gray-3 py-2.5 md:border-r">
           <div className="flex items-center justify-between px-3.5 py-1 pb-2">
             <span className="eldir-caps">
               Projects · {(projects.data ?? []).length}
@@ -180,15 +180,15 @@ export function OpsHomePage(): JSX.Element {
         </aside>
 
         {/* ── Sessions grid ──────────────────────────────────── */}
-        <section className="flex min-h-0 flex-col overflow-y-auto p-3.5">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-y-auto p-3.5">
           {activeSystemSessions.length > 0 && (
-            <div className="mb-2.5 flex items-center justify-between rounded-eldir border border-eldir-orange/40 bg-eldir-orange/5 px-3 py-1.5">
-              <span className="font-mono text-2xs uppercase tracking-caps text-eldir-orange">
+            <div className="mb-2.5 flex items-center justify-between gap-2 rounded-eldir border border-eldir-orange/40 bg-eldir-orange/5 px-3 py-1.5">
+              <span className="min-w-0 truncate font-mono text-2xs uppercase tracking-caps text-eldir-orange">
                 ⚙ {activeSystemSessions.length} tâche système en cours
               </span>
               <a
                 href={`/sessions/${activeSystemSessions[0]!.id}`}
-                className="font-mono text-2xs text-eldir-orange hover:underline"
+                className="shrink-0 font-mono text-2xs text-eldir-orange hover:underline"
               >
                 voir →
               </a>

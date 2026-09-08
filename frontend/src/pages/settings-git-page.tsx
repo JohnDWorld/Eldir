@@ -216,13 +216,13 @@ function CredentialRow({
   deleting: boolean;
 }): JSX.Element {
   return (
-    <li className="flex items-center justify-between gap-3 px-4 py-3">
-      <div>
+    <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div className="min-w-0">
         <div className="font-mono text-xs font-semibold text-eldir-ink">
           {PROVIDER_LABEL[cred.provider]}
           {cred.label && <span className="ml-2 text-eldir-gray">· {cred.label}</span>}
         </div>
-        <div className="mt-1 font-mono text-xs text-eldir-gray">
+        <div className="mt-1 break-all font-mono text-xs text-eldir-gray">
           {cred.masked_token}
           {cred.base_url && <span className="ml-2">{cred.base_url}</span>}
         </div>
@@ -231,7 +231,7 @@ function CredentialRow({
         type="button"
         onClick={onDelete}
         disabled={deleting}
-        className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+        className="min-h-11 shrink-0 self-start rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50 sm:self-auto"
       >
         supprimer
       </button>
