@@ -70,18 +70,96 @@ _PUBLISH_DENY_REASON = (
     "Refusé par Eldir : la publication est validée par un humain. "
     "Laisse tes modifications non commitées dans le worktree, John relit le "
     "diff dans le dashboard puis déclenche lui-même le commit et le push. "
-    "Termine ton tour avec ton bloc <cr>."
+    "S'il te demande explicitement de publier, il autorise d'abord cette "
+    "session (bouton « publication » du dashboard, ou en le demandant au "
+    "superviseur). Termine ton tour avec ton bloc <cr>."
+)
+
+# Même autorisée, la réécriture d'historique reste refusée : c'est la seule
+# opération git qui détruit du travail déjà publié, et aucune demande de John
+# ne passe par un agent pour ça.
+_FORCE_PUSH_RE: re.Pattern[str] = re.compile(
+    r"\bgit\b[^;&|]*\bpush\b[^;&|]*(?:--force|--mirror|(?<!-)\s-f\b)",
+    re.IGNORECASE,
+)
+_FORCE_PUSH_REASON = (
+    "Refusé par Eldir : un push forcé réécrit l'historique distant. "
+    "Pousse normalement (nouvelle branche), et si l'historique doit vraiment "
+    "être réécrit, dis-le à John dans ton <cr> pour qu'il le fasse lui-même."
 )
 
 
 def _denies_publish(tool_name: str | None, tool_input: Any) -> bool:
     """True si l'appel outil tente de commiter ou publier."""
+    return _matches(_PUBLISH_DENY_RE, tool_name, tool_input)
+
+
+def _denies_force_push(tool_name: str | None, tool_input: Any) -> bool:
+    """True si l'appel outil tente de réécrire l'historique distant."""
+    return _matches(_FORCE_PUSH_RE, tool_name, tool_input)
+
+
+def _publish_denial(tool_name: str | None, tool_input: Any, *, publish_allowed: bool) -> str | None:
+    """Raison du refus, ou None si l'appel outil peut passer."""
+    if _denies_force_push(tool_name, tool_input):
+        return _FORCE_PUSH_REASON
+    if not publish_allowed and _denies_publish(tool_name, tool_input):
+        return _PUBLISH_DENY_REASON
+    return None
+
+
+def _matches(pattern: re.Pattern[str], tool_name: str | None, tool_input: Any) -> bool:
     if tool_name not in ("Bash", "BashOutput"):
         return False
     if not isinstance(tool_input, dict):
         return False
     command = tool_input.get("command")
-    return isinstance(command, str) and bool(_PUBLISH_DENY_RE.search(command))
+    return isinstance(command, str) and bool(pattern.search(command))
+
+
+def _optional_options(
+    *,
+    project_id: str | None,
+    system_prompt: str | None,
+    model: str | None,
+    resume_sdk_id: str | None,
+    allowed_tools: list[str] | None,
+    disallowed_tools: list[str] | None,
+    mcp_servers: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Options SDK qu'on ne pose que si elles ont une valeur."""
+    kwargs: dict[str, Any] = {}
+    # Prompt caching (Phase 5) : on attache le system_prompt UNE seule fois
+    # au boot. Le CLI Claude Code injecte automatiquement les marqueurs
+    # `cache_control` sur ce bloc + sur la liste d'outils, ce qui rend les
+    # tours suivants jusqu'à 90% moins coûteux côté tokens d'entrée (visible
+    # dans la métrique `cache_read_tokens` du dashboard /costs).
+    if system_prompt:
+        kwargs["system_prompt"] = system_prompt
+    if model:
+        kwargs["model"] = model
+    if resume_sdk_id:
+        kwargs["resume"] = resume_sdk_id
+    if allowed_tools:
+        kwargs["allowed_tools"] = allowed_tools
+    if disallowed_tools:
+        # `allowed_tools` ne restreint rien en bypassPermissions (c'est une
+        # liste de pré-approbation) : pour retirer vraiment un outil il faut
+        # l'interdire explicitement.
+        kwargs["disallowed_tools"] = disallowed_tools
+    if mcp_servers:
+        # Outils in-process (superviseur). `strict_mcp_config` évite de
+        # charger en plus les serveurs MCP éventuels de la machine hôte.
+        kwargs["mcp_servers"] = mcp_servers
+        kwargs["strict_mcp_config"] = True
+    # Toolchain du projet (SDK Flutter, JDK, Go…) : `$ELDIR_TOOLCHAIN/bin` en
+    # tête du PATH pour que l'agent trouve ses outils. Vide tant que rien n'est
+    # installé, et fait ici plutôt qu'à chaque appelant pour que création,
+    # resume et sessions système en héritent pareil.
+    toolchain_env = toolchain_service.env_for(project_id)
+    if toolchain_env:
+        kwargs["env"] = toolchain_env
+    return kwargs
 
 
 @dataclass(slots=True)
@@ -97,6 +175,8 @@ class ActiveSession:
     client: ClaudeSDKClient | None = None
     reader_task: asyncio.Task[None] | None = None
     message_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # Publication (commit/push/PR) autorisée par John pour cette session.
+    publish_allowed: bool = False
 
 
 class SessionManager:
@@ -141,6 +221,7 @@ class SessionManager:
         allowed_tools: list[str] | None = None,
         disallowed_tools: list[str] | None = None,
         mcp_servers: dict[str, Any] | None = None,
+        publish_allowed: bool = False,
     ) -> ActiveSession:
         limit = get_settings().max_concurrent_sessions
         if self.active_count >= limit:
@@ -162,6 +243,7 @@ class SessionManager:
             user_id=user_id,
             cwd=cwd,
             sdk_session_id=resume_sdk_id,
+            publish_allowed=publish_allowed,
         )
 
         async def _pre_tool_hook(
@@ -180,7 +262,10 @@ class SessionManager:
                     "tool_use_id": tool_use_id,
                 },
             )
-            if _denies_publish(tool_name, tool_input):
+            # `active.publish_allowed` est relu à chaque appel (pas capturé) :
+            # John peut autoriser en cours de tour, ça prend effet tout de suite.
+            denial = _publish_denial(tool_name, tool_input, publish_allowed=active.publish_allowed)
+            if denial is not None:
                 logger.info(
                     "session.publish.denied",
                     session_id=session_id,
@@ -190,9 +275,19 @@ class SessionManager:
                     "hookSpecificOutput": {
                         "hookEventName": "PreToolUse",
                         "permissionDecision": "deny",
-                        "permissionDecisionReason": _PUBLISH_DENY_REASON,
+                        "permissionDecisionReason": denial,
                     }
                 }
+            if _denies_publish(tool_name, tool_input):
+                # Publication autorisée : on trace ce qui sort, c'est la seule
+                # action irréversible d'une session.
+                logger.info(
+                    "session.publish.allowed",
+                    session_id=session_id,
+                    command=str(tool_input.get("command"))[:200]
+                    if isinstance(tool_input, dict)
+                    else None,
+                )
             return {}
 
         async def _post_tool_hook(
@@ -240,36 +335,17 @@ class SessionManager:
                 "PostToolUse": [HookMatcher(hooks=[_post_tool_hook])],
             },
         }
-        # Prompt caching (Phase 5) : on attache le system_prompt UNE seule fois
-        # au boot. Le CLI Claude Code injecte automatiquement les marqueurs
-        # `cache_control` sur ce bloc + sur la liste d'outils, ce qui rend les
-        # tours suivants jusqu'à 90% moins coûteux côté tokens d'entrée (visible
-        # dans la métrique `cache_read_tokens` du dashboard /costs).
-        if system_prompt:
-            options_kwargs["system_prompt"] = system_prompt
-        if model:
-            options_kwargs["model"] = model
-        if resume_sdk_id:
-            options_kwargs["resume"] = resume_sdk_id
-        if allowed_tools:
-            options_kwargs["allowed_tools"] = allowed_tools
-        if disallowed_tools:
-            # `allowed_tools` ne restreint rien en bypassPermissions (c'est une
-            # liste de pré-approbation) : pour retirer vraiment un outil il faut
-            # l'interdire explicitement.
-            options_kwargs["disallowed_tools"] = disallowed_tools
-        if mcp_servers:
-            # Outils in-process (superviseur). `strict_mcp_config` évite de
-            # charger en plus les serveurs MCP éventuels de la machine hôte.
-            options_kwargs["mcp_servers"] = mcp_servers
-            options_kwargs["strict_mcp_config"] = True
-        # Toolchain du projet (SDK Flutter, JDK, Go…) : `$ELDIR_TOOLCHAIN/bin`
-        # en tête du PATH pour que l'agent trouve ses outils. Vide tant que
-        # rien n'est installé, c'est fait ici plutôt qu'à chaque appelant pour
-        # que création, resume et sessions système en héritent pareil.
-        toolchain_env = toolchain_service.env_for(project_id)
-        if toolchain_env:
-            options_kwargs["env"] = toolchain_env
+        options_kwargs.update(
+            _optional_options(
+                project_id=project_id,
+                system_prompt=system_prompt,
+                model=model,
+                resume_sdk_id=resume_sdk_id,
+                allowed_tools=allowed_tools,
+                disallowed_tools=disallowed_tools,
+                mcp_servers=mcp_servers,
+            )
+        )
 
         options = ClaudeAgentOptions(**options_kwargs)
         client = ClaudeSDKClient(options=options)
@@ -336,6 +412,16 @@ class SessionManager:
             await active.client.query(content)
             await self._consume_response(active)
             await self._publish_state(session_id, SESSION_STATE_IDLE)
+
+    def set_publish_allowed(self, session_id: str, allowed: bool) -> None:
+        """Autorise (ou retire) la publication pour une session active.
+
+        Sans effet si la session dort : le drapeau est relu depuis la DB à son
+        prochain démarrage.
+        """
+        active = self._sessions.get(session_id)
+        if active is not None:
+            active.publish_allowed = allowed
 
     async def stop(self, session_id: str) -> None:
         active = self._sessions.pop(session_id, None)
