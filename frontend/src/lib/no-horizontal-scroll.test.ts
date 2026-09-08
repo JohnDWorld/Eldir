@@ -21,6 +21,9 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+// Vitest fournit `__dirname` même en ESM. `import.meta.url` ne convient pas
+// ici : l'environnement de test est jsdom, l'URL n'est donc pas en `file:`.
+// eslint-disable-next-line no-undef
 const SRC = join(__dirname, '..');
 
 function sourceFiles(dir: string): string[] {

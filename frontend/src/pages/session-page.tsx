@@ -63,6 +63,14 @@ export function SessionPage(): JSX.Element {
   };
 
   const [input, setInput] = useState('');
+  const composer = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = composer.current;
+    if (!el) return;
+    // `auto` d'abord, sinon la hauteur ne redescend jamais quand on efface.
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
   const [error, setError] = useState<string | null>(null);
 
   // Fusionne historique (DB) + live (WS). Le même event arrive d'abord
@@ -248,17 +256,35 @@ export function SessionPage(): JSX.Element {
             </div>
           )}
           <form onSubmit={handleSend} className="border-t border-eldir-gray-3 bg-eldir-paper p-3">
-            <div className="flex items-center gap-2 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2">
-              <span className="font-mono text-xs text-eldir-orange">›</span>
-              <input
-                type="text"
+            <div className="flex items-end gap-2 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2">
+              <span className="pb-1 font-mono text-xs text-eldir-orange">›</span>
+              <textarea
+                ref={composer}
+                rows={1}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  // Entrée seule insère une ligne (indispensable au clavier
+                  // tactile), ⌘/Ctrl + Entrée envoie, comme l'annonce le
+                  // raccourci affiché.
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void handleSend(e);
+                  }
+                }}
                 placeholder="Reply, /command, ou @file…"
                 disabled={sendMessage.isPending}
-                className="min-w-0 flex-1 bg-transparent font-sans text-sm text-eldir-ink focus:outline-none disabled:opacity-50"
+                className="max-h-40 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1 font-sans text-sm leading-relaxed text-eldir-ink focus:outline-none disabled:opacity-50"
               />
-              <span className="font-mono text-2xs text-eldir-gray">⌘↵</span>
+              <button
+                type="submit"
+                disabled={sendMessage.isPending || input.trim().length === 0}
+                aria-label="Envoyer le message"
+                title="Envoyer (⌘↵)"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-eldir bg-eldir-orange font-mono text-sm text-white transition-colors hover:bg-eldir-orange/90 disabled:opacity-40"
+              >
+                ↵
+              </button>
             </div>
           </form>
         </section>
