@@ -363,6 +363,25 @@ export function useStopSession() {
   });
 }
 
+/**
+ * Ouvre (ou referme) la porte de publication pour une session. C'est ce geste,
+ * et lui seul, qui autorise un agent à commiter, pousser et ouvrir une PR.
+ */
+export function useSetPublishPermission(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (allowed: boolean) =>
+      apiClient.post<SessionRead, { allowed: boolean }>(
+        `/sessions/${sessionId}/publish-permission`,
+        { allowed },
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.session(sessionId), data);
+      qc.invalidateQueries({ queryKey: queryKeys.sessions });
+    },
+  });
+}
+
 export function useDeleteSession() {
   const qc = useQueryClient();
   return useMutation({

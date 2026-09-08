@@ -11,6 +11,7 @@ from app.schemas.session import (
     GitStatusResponse,
     OpenPullRequestRequest,
     OpenPullRequestResponse,
+    PublishPermission,
     SessionCreate,
     SessionDiffFilePatch,
     SessionDiffSummary,
@@ -87,6 +88,25 @@ async def resume_session(session_id: str, user_id: CurrentUserId, db: DbDep) -> 
 async def stop_session(session_id: str, user_id: CurrentUserId, db: DbDep) -> None:
     await get_session_service().stop(db, user_id=user_id, session_id=session_id)
     await db.commit()
+
+
+@router.post("/{session_id}/publish-permission", response_model=SessionRead)
+async def set_publish_permission(
+    session_id: str,
+    payload: PublishPermission,
+    user_id: CurrentUserId,
+    db: DbDep,
+) -> SessionRead:
+    """Autorise (ou retire) la publication pour une session.
+
+    La porte de validation humaine reste fermée par défaut : c'est ce geste,
+    et lui seul, qui l'ouvre pour une session donnée.
+    """
+    session = await get_session_service().set_publish_allowed(
+        db, user_id=user_id, session_id=session_id, allowed=payload.allowed
+    )
+    await db.commit()
+    return SessionRead.model_validate(session)
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

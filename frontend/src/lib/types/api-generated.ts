@@ -682,6 +682,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/publish-permission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Publish Permission
+         * @description Autorise (ou retire) la publication pour une session.
+         *
+         *     La porte de validation humaine reste fermée par défaut : c'est ce geste,
+         *     et lui seul, qui l'ouvre pour une session donnée.
+         */
+        post: operations["set_publish_permission_api_v1_sessions__session_id__publish_permission_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/pull-request": {
         parameters: {
             query?: never;
@@ -1471,6 +1494,14 @@ export interface components {
             message?: string | null;
         };
         /**
+         * PublishPermission
+         * @description Autorisation de publier accordée (ou retirée) à une session.
+         */
+        PublishPermission: {
+            /** Allowed */
+            allowed: boolean;
+        };
+        /**
          * RemoteRepoCreate
          * @description Payload pour créer un nouveau repo distant (et le projet associé).
          */
@@ -1603,6 +1634,11 @@ export interface components {
             model: string | null;
             /** Project Id */
             project_id: string | null;
+            /**
+             * Publish Allowed
+             * @default false
+             */
+            publish_allowed: boolean;
             /** Sdk Session Id */
             sdk_session_id: string | null;
             /**
@@ -1985,6 +2021,7 @@ export type SchemaProjectCostRead = components['schemas']['ProjectCostRead'];
 export type SchemaProjectCreateFromRepo = components['schemas']['ProjectCreateFromRepo'];
 export type SchemaProjectRead = components['schemas']['ProjectRead'];
 export type SchemaProjectSyncRead = components['schemas']['ProjectSyncRead'];
+export type SchemaPublishPermission = components['schemas']['PublishPermission'];
 export type SchemaRemoteRepoCreate = components['schemas']['RemoteRepoCreate'];
 export type SchemaRemoteRepoRead = components['schemas']['RemoteRepoRead'];
 export type SchemaSessionCreate = components['schemas']['SessionCreate'];
@@ -3668,6 +3705,43 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_publish_permission_api_v1_sessions__session_id__publish_permission_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishPermission"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRead"];
                 };
             };
             /** @description Validation Error */

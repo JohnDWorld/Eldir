@@ -48,6 +48,13 @@ class SessionRead(TimestampedModel):
     model: str | None
     is_system: bool = False
     system_kind: str | None = None
+    publish_allowed: bool = False
+
+
+class PublishPermission(EldirModel):
+    """Autorisation de publier accordée (ou retirée) à une session."""
+
+    allowed: bool
 
 
 class SessionSummary(EldirModel):

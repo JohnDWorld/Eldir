@@ -1273,6 +1273,20 @@
         "title": "ProjectSyncRead",
         "type": "object"
       },
+      "PublishPermission": {
+        "description": "Autorisation de publier accordée (ou retirée) à une session.",
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allowed"
+        ],
+        "title": "PublishPermission",
+        "type": "object"
+      },
       "RemoteRepoCreate": {
         "description": "Payload pour créer un nouveau repo distant (et le projet associé).",
         "properties": {
@@ -1581,6 +1595,11 @@
               }
             ],
             "title": "Project Id"
+          },
+          "publish_allowed": {
+            "default": false,
+            "title": "Publish Allowed",
+            "type": "boolean"
           },
           "sdk_session_id": {
             "anyOf": [
@@ -5458,6 +5477,75 @@
           }
         },
         "summary": "Send Message",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/publish-permission": {
+      "post": {
+        "description": "Autorise (ou retire) la publication pour une session.\n\nLa porte de validation humaine reste fermée par défaut : c'est ce geste,\net lui seul, qui l'ouvre pour une session donnée.",
+        "operationId": "set_publish_permission_api_v1_sessions__session_id__publish_permission_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishPermission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Publish Permission",
         "tags": [
           "sessions"
         ]
