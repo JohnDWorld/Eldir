@@ -213,11 +213,17 @@ class ToolchainService:
                 fh.write(f"$ {command}\n")
                 fh.flush()
                 proc = await asyncio.create_subprocess_shell(
-                    command,
+                    # `set -o pipefail` : sans ça, `curl … | bash` renvoie le
+                    # code de bash, donc 0 même quand curl s'est pris un 404,
+                    # et l'installation continue sur du vide. Vu en vrai sur
+                    # une install Flutter. D'où bash explicite : `sh` (dash)
+                    # ne connaît pas pipefail.
+                    f"set -o pipefail\n{command}",
                     cwd=str(root),
                     env=env,
                     stdout=fh,
                     stderr=asyncio.subprocess.STDOUT,
+                    executable="/bin/bash",
                 )
                 remaining = deadline - asyncio.get_running_loop().time()
                 if remaining <= 0:

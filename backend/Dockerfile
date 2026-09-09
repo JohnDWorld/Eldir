@@ -20,11 +20,15 @@ ARG DEBIAN_FRONTEND=noninteractive
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
 # Node 20 (LTS) + outils système requis par git et le SDK Claude.
+# `unzip` et `xz-utils` servent aux toolchains par projet : un SDK se
+# distribue en archive (Flutter en .tar.xz, le SDK Dart en .zip), sans eux
+# l'installation échoue à l'extraction.
 # Le Claude Agent SDK Python lance `claude` en subprocess (Node binary)
 # pour communiquer avec l'API Anthropic - il DOIT être dans le PATH.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       git curl ca-certificates gnupg \
+      unzip xz-utils \
  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/* \

@@ -55,18 +55,25 @@ Déclare donc dans `setup_commands` les commandes qui installent le strict néce
 - Elles tournent **dans `$ELDIR_TOOLCHAIN`** (dossier propre au projet, persistant), avec `$ELDIR_TOOLCHAIN/bin` en tête du PATH des sessions. Termine par un `ln -sf` des binaires vers `$ELDIR_TOOLCHAIN/bin/`.
 - **Le minimum utile.** Pour `flutter analyze`, le SDK Flutter suffit (~3 Go) : ne demande pas le SDK Android (12 Go de plus) qui ne sert qu'à builder un APK.
 - **Non interactives et idempotentes** : `-y`, `--depth 1`, pas de `sudo` (le conteneur n'en a pas), pas d'`apt-get install` (l'utilisateur n'est pas root).
+- **Sources officielles uniquement.** L'archive publiée par l'éditeur ou son dépôt git officiel. **Pas de gestionnaire de version tiers** (fvm, sdkman, nvm, asdf) : leurs URL d'installation bougent, et une URL morte se traduit par une installation vide.
+- **`curl -f`, jamais `curl | bash`.** Sans `-f`, curl écrit une page d'erreur 404 dans le fichier et sort en succès. Télécharge d'abord, extrais ensuite, en deux commandes.
+- **Termine toujours par une commande qui prouve que l'outil marche** (`flutter --version`, `go version`, `java -version`). C'est elle qui distingue une installation réelle d'une arborescence vide.
+- Outils disponibles pour extraire : `tar`, `unzip`, `xz`. Pas de compilateur C, pas de paquets système.
 - `null` ou liste vide si node/python/git suffisent, ce qui est le cas le plus fréquent.
 
 Exemple pour un repo Flutter :
 
 ```json
 "setup_commands": [
-  "git clone --depth 1 -b stable https://github.com/flutter/flutter.git",
+  "curl -fsSL -o flutter.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.2-stable.tar.xz",
+  "tar -xJf flutter.tar.xz && rm flutter.tar.xz",
   "ln -sf $ELDIR_TOOLCHAIN/flutter/bin/flutter $ELDIR_TOOLCHAIN/bin/flutter",
   "ln -sf $ELDIR_TOOLCHAIN/flutter/bin/dart $ELDIR_TOOLCHAIN/bin/dart",
   "flutter --version"
 ]
 ```
+
+L'archive officielle embarque le SDK Dart, donc rien à télécharger ensuite. Un `git clone` du dépôt Flutter marche aussi, mais un clone superficiel prive `flutter` des tags dont il se sert pour connaître sa version.
 
 ## Structure du system_prompt à générer
 
