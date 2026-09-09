@@ -89,3 +89,17 @@ async def test_remove_rend_le_disque(toolchains_root: Path) -> None:
     await service.remove(PROJECT)
     assert not (toolchains_root / PROJECT).exists()
     assert service.status(PROJECT, ["true"]).status == "absent"
+
+
+async def test_pipeline_casse_fait_echouer_l_installation(toolchains_root: Path) -> None:
+    """`curl … | bash` sur une URL morte ne doit pas passer pour un succès.
+
+    Sans `pipefail`, le code de sortie d'un pipeline est celui du dernier
+    maillon : l'installation continuait sur un dossier vide et n'échouait
+    qu'à la commande de vérification, quand il y en avait une.
+    """
+    service = ToolchainService()
+    service.start_install(PROJECT, ["false | cat"])
+    await _wait_done(service, PROJECT)
+
+    assert service.status(PROJECT, ["false | cat"]).status == "error"
