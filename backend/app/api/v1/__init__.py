@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.auth_github_oauth import router as auth_github_oauth_router
+from app.api.v1.batch import router as batch_router
 from app.api.v1.costs import router as costs_router
 from app.api.v1.health import router as health_router
 from app.api.v1.mission_templates import (
@@ -27,6 +28,7 @@ api_router = APIRouter()
 api_router.include_router(health_router)
 api_router.include_router(setup_router)
 api_router.include_router(auth_router)
+api_router.include_router(batch_router)
 api_router.include_router(auth_github_oauth_router)
 api_router.include_router(providers_router)
 api_router.include_router(projects_router)

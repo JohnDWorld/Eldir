@@ -1,6 +1,77 @@
 {
   "components": {
     "schemas": {
+      "BatchItemRead": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "state"
+        ],
+        "title": "BatchItemRead",
+        "type": "object"
+      },
+      "BatchStateRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchItemRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "running"
+        ],
+        "title": "BatchStateRead",
+        "type": "object"
+      },
       "BootstrapClaudeCredentialIn": {
         "description": "Credential injecté au bootstrap (token Pro/Max ou API key).",
         "properties": {
@@ -1373,6 +1444,63 @@
           "is_private"
         ],
         "title": "RemoteRepoRead",
+        "type": "object"
+      },
+      "RepoSyncItem": {
+        "properties": {
+          "ahead": {
+            "default": 0,
+            "title": "Ahead",
+            "type": "integer"
+          },
+          "behind": {
+            "default": 0,
+            "title": "Behind",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fast_forwarded": {
+            "default": false,
+            "title": "Fast Forwarded",
+            "type": "boolean"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name"
+        ],
+        "title": "RepoSyncItem",
+        "type": "object"
+      },
+      "RepoSyncResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RepoSyncItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "title": "RepoSyncResponse",
         "type": "object"
       },
       "SessionCreate": {
@@ -2792,6 +2920,154 @@
         "summary": "Me",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/batch/generate-templates": {
+      "get": {
+        "description": "Avancement du lot en cours, ou du dernier terminé.\n\n`user_id` n'est pas utilisé mais reste exigé : l'état d'un lot ne se lit\npas sans être authentifié.",
+        "operationId": "generation_batch_state_api_v1_batch_generate_templates_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStateRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generation Batch State",
+        "tags": [
+          "batch"
+        ]
+      },
+      "post": {
+        "description": "Génère et applique le template des projets qui n'en ont pas encore.\n\nUn tour Claude par projet, enchaînés un par un, comptés dans les coûts\ncomme n'importe quelle session. Les projets déjà pourvus sont sautés.",
+        "operationId": "generate_missing_templates_api_v1_batch_generate_templates_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStateRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Missing Templates",
+        "tags": [
+          "batch"
+        ]
+      }
+    },
+    "/api/v1/batch/sync-repos": {
+      "post": {
+        "description": "Fetch + fast-forward de tous les repos clonés, un par un.\n\nUn repo cassé ou un token expiré n'arrête pas les autres : son erreur est\nrenvoyée dans sa ligne.",
+        "operationId": "sync_all_repos_api_v1_batch_sync_repos_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoSyncResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync All Repos",
+        "tags": [
+          "batch"
         ]
       }
     },

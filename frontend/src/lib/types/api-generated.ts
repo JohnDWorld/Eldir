@@ -89,6 +89,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batch/generate-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Generation Batch State
+         * @description Avancement du lot en cours, ou du dernier terminé.
+         *
+         *     `user_id` n'est pas utilisé mais reste exigé : l'état d'un lot ne se lit
+         *     pas sans être authentifié.
+         */
+        get: operations["generation_batch_state_api_v1_batch_generate_templates_get"];
+        put?: never;
+        /**
+         * Generate Missing Templates
+         * @description Génère et applique le template des projets qui n'en ont pas encore.
+         *
+         *     Un tour Claude par projet, enchaînés un par un, comptés dans les coûts
+         *     comme n'importe quelle session. Les projets déjà pourvus sont sautés.
+         */
+        post: operations["generate_missing_templates_api_v1_batch_generate_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batch/sync-repos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync All Repos
+         * @description Fetch + fast-forward de tous les repos clonés, un par un.
+         *
+         *     Un repo cassé ou un token expiré n'arrête pas les autres : son erreur est
+         *     renvoyée dans sa ligne.
+         */
+        post: operations["sync_all_repos_api_v1_batch_sync_repos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/costs/dashboard": {
         parameters: {
             query?: never;
@@ -1003,6 +1056,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** BatchItemRead */
+        BatchItemRead: {
+            /** Detail */
+            detail?: string | null;
+            /** Project Id */
+            project_id: string;
+            /** Project Name */
+            project_name: string;
+            /** Session Id */
+            session_id?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: BatchItemReadState;
+        };
+        /** BatchStateRead */
+        BatchStateRead: {
+            /** Items */
+            items?: components["schemas"]["BatchItemRead"][];
+            /** Running */
+            running: boolean;
+        };
         /**
          * BootstrapClaudeCredentialIn
          * @description Credential injecté au bootstrap (token Pro/Max ou API key).
@@ -1542,6 +1618,35 @@ export interface components {
             /** Is Private */
             is_private: boolean;
         };
+        /** RepoSyncItem */
+        RepoSyncItem: {
+            /**
+             * Ahead
+             * @default 0
+             */
+            ahead: number;
+            /**
+             * Behind
+             * @default 0
+             */
+            behind: number;
+            /** Error */
+            error?: string | null;
+            /**
+             * Fast Forwarded
+             * @default false
+             */
+            fast_forwarded: boolean;
+            /** Project Id */
+            project_id: string;
+            /** Project Name */
+            project_name: string;
+        };
+        /** RepoSyncResponse */
+        RepoSyncResponse: {
+            /** Items */
+            items?: components["schemas"]["RepoSyncItem"][];
+        };
         /** SessionCreate */
         SessionCreate: {
             /** Model */
@@ -1987,6 +2092,8 @@ export interface components {
     headers: never;
     pathItems: never;
 }
+export type SchemaBatchItemRead = components['schemas']['BatchItemRead'];
+export type SchemaBatchStateRead = components['schemas']['BatchStateRead'];
 export type SchemaBootstrapClaudeCredentialIn = components['schemas']['BootstrapClaudeCredentialIn'];
 export type SchemaBootstrapRequest = components['schemas']['BootstrapRequest'];
 export type SchemaBootstrapResponse = components['schemas']['BootstrapResponse'];
@@ -2024,6 +2131,8 @@ export type SchemaProjectSyncRead = components['schemas']['ProjectSyncRead'];
 export type SchemaPublishPermission = components['schemas']['PublishPermission'];
 export type SchemaRemoteRepoCreate = components['schemas']['RemoteRepoCreate'];
 export type SchemaRemoteRepoRead = components['schemas']['RemoteRepoRead'];
+export type SchemaRepoSyncItem = components['schemas']['RepoSyncItem'];
+export type SchemaRepoSyncResponse = components['schemas']['RepoSyncResponse'];
 export type SchemaSessionCreate = components['schemas']['SessionCreate'];
 export type SchemaSessionDiffFile = components['schemas']['SessionDiffFile'];
 export type SchemaSessionDiffFilePatch = components['schemas']['SessionDiffFilePatch'];
@@ -2190,6 +2299,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generation_batch_state_api_v1_batch_generate_templates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchStateRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_missing_templates_api_v1_batch_generate_templates_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchStateRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_all_repos_api_v1_batch_sync_repos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepoSyncResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4352,6 +4554,12 @@ export interface operations {
             };
         };
     };
+}
+export enum BatchItemReadState {
+    pending = "pending",
+    running = "running",
+    done = "done",
+    error = "error"
 }
 export enum ClaudeCredentialCreateKind {
     oauth_token = "oauth_token",
