@@ -12,11 +12,18 @@ import { ApiError } from '@/lib/api/client';
 import {
   useCreateProject,
   useDeleteProject,
+  useGenerateMissingTemplates,
   useProjects,
   useRemoteRepos,
+  useSyncAllRepos,
   useSyncProject,
+  useTemplateBatchState,
 } from '@/lib/api/queries';
-import type { ProjectSyncResult } from '@/lib/api/queries';
+import type {
+  ProjectSyncResult,
+  RepoSyncItem,
+  TemplateBatchItem,
+} from '@/lib/api/queries';
 import type { Provider } from '@/lib/constants';
 import { PROVIDERS } from '@/lib/constants';
 import type { ProjectRead } from '@/lib/types/api';
@@ -24,6 +31,14 @@ import { cn } from '@/lib/utils';
 
 export function ProjectsPage(): JSX.Element {
   const projects = useProjects();
+  const syncAll = useSyncAllRepos();
+  const generateMissing = useGenerateMissingTemplates();
+  // On n'interroge l'avancement que si un lot a été lancé depuis cet onglet,
+  // ou s'il en reste un en cours côté serveur.
+  const [batchAsked, setBatchAsked] = useState(false);
+  const batch = useTemplateBatchState(batchAsked);
+  const [syncReport, setSyncReport] = useState<RepoSyncItem[] | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [newRepoOpen, setNewRepoOpen] = useState(false);
   // Quand UN seul projet vient d'être cloné via le dialog, on propose
@@ -38,6 +53,45 @@ export function ProjectsPage(): JSX.Element {
     name: string;
   } | null>(null);
 
+  const nbProjets = (projects.data ?? []).length;
+
+  const handleSyncAll = async () => {
+    setSyncReport(null);
+    setBatchError(null);
+    try {
+      const { items } = await syncAll.mutateAsync();
+      setSyncReport(items);
+    } catch (err) {
+      setBatchError(
+        err instanceof ApiError ? err.message : 'Erreur pendant la synchro.',
+      );
+    }
+  };
+
+  const handleGenerateMissing = async () => {
+    if (
+      !confirm(
+        `Générer le Mission Template des repos qui n'en ont pas ?\n\n` +
+          `Un tour Claude par repo, enchaînés un par un, facturés comme ` +
+          `n'importe quelle session. Les repos déjà configurés sont sautés, ` +
+          `et le template généré est appliqué directement (la version ` +
+          `précédente reste dans l'historique).`,
+      )
+    ) {
+      return;
+    }
+    setSyncReport(null);
+    setBatchError(null);
+    setBatchAsked(true);
+    try {
+      await generateMissing.mutateAsync();
+    } catch (err) {
+      setBatchError(
+        err instanceof ApiError ? err.message : 'Impossible de lancer le lot.',
+      );
+    }
+  };
+
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -48,6 +102,28 @@ export function ProjectsPage(): JSX.Element {
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
+          {nbProjets > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={handleSyncAll}
+                disabled={syncAll.isPending}
+                className="min-h-11 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+                title="Fetch et fast-forward de tous les repos clonés"
+              >
+                {syncAll.isPending ? 'synchro…' : '↻ sync all'}
+              </button>
+              <button
+                type="button"
+                onClick={handleGenerateMissing}
+                disabled={generateMissing.isPending || batch.data?.running === true}
+                className="min-h-11 rounded-eldir border border-eldir-gold bg-eldir-gold/10 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-gold/20 disabled:opacity-50"
+                title="Génère et applique le Mission Template des repos qui n'en ont pas"
+              >
+                {batch.data?.running ? 'génération…' : '✨ templates manquants'}
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setNewRepoOpen(true)}
@@ -64,6 +140,26 @@ export function ProjectsPage(): JSX.Element {
           </button>
         </div>
       </header>
+
+      {batchError && (
+        <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+          {batchError}
+        </div>
+      )}
+
+      {syncReport && <SyncReport items={syncReport} />}
+
+      {batch.data && batch.data.items.length > 0 && (
+        <TemplateBatchReport
+          running={batch.data.running}
+          items={batch.data.items}
+        />
+      )}
+      {batch.data && !batch.data.running && batch.data.items.length === 0 && (
+        <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-xs text-eldir-gray">
+          Tous les repos ont déjà un Mission Template : rien à générer.
+        </div>
+      )}
 
       <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
         {projects.isPending ? (
@@ -133,6 +229,89 @@ export function ProjectsPage(): JSX.Element {
       )}
       {newRepoOpen && <NewRepoDialog onClose={() => setNewRepoOpen(false)} />}
     </main>
+  );
+}
+
+/** Résumé d'un « sync all » : une ligne par repo, l'essentiel d'abord. */
+function SyncReport({ items }: { items: RepoSyncItem[] }): JSX.Element {
+  const bouges = items.filter((i) => i.fast_forwarded);
+  const rates = items.filter((i) => i.error);
+  return (
+    <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2">
+      <div className="font-mono text-xs text-eldir-ink">
+        {items.length} repo(s) synchronisé(s) · {bouges.length} mis à jour ·{' '}
+        {rates.length} en erreur
+      </div>
+      {(bouges.length > 0 || rates.length > 0) && (
+        <ul className="mt-2 flex flex-col gap-1">
+          {bouges.map((i) => (
+            <li key={i.project_id} className="font-mono text-2xs text-eldir-green">
+              ↓ {i.project_name} · {i.behind} commit(s) récupéré(s)
+            </li>
+          ))}
+          {rates.map((i) => (
+            <li key={i.project_id} className="font-mono text-2xs text-eldir-red">
+              ✕ {i.project_name} · {i.error}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Avancement du lot de génération, une ligne par repo. */
+function TemplateBatchReport({
+  running,
+  items,
+}: {
+  running: boolean;
+  items: TemplateBatchItem[];
+}): JSX.Element {
+  const finis = items.filter((i) => i.state === 'done' || i.state === 'error');
+  const tone: Record<TemplateBatchItem['state'], string> = {
+    pending: 'text-eldir-gray',
+    running: 'text-eldir-orange',
+    done: 'text-eldir-green',
+    error: 'text-eldir-red',
+  };
+  const mark: Record<TemplateBatchItem['state'], string> = {
+    pending: '·',
+    running: '⋯',
+    done: '✓',
+    error: '✕',
+  };
+  return (
+    <div className="rounded-eldir border border-eldir-gold bg-eldir-gold/5 px-3 py-2">
+      <div className="font-mono text-xs text-eldir-ink">
+        {running ? (
+          <span className="animate-pulse">
+            Génération des templates · {finis.length}/{items.length}
+          </span>
+        ) : (
+          <>Génération terminée · {finis.length}/{items.length}</>
+        )}
+      </div>
+      <ul className="mt-2 flex flex-col gap-1">
+        {items.map((i) => (
+          <li
+            key={i.project_id}
+            className={cn('min-w-0 font-mono text-2xs', tone[i.state])}
+          >
+            {mark[i.state]} {i.project_name}
+            {i.detail && <span className="text-eldir-gray"> · {i.detail}</span>}
+            {i.session_id && i.state !== 'pending' && (
+              <Link
+                to={`/sessions/${i.session_id}`}
+                className="ml-2 text-eldir-orange hover:underline"
+              >
+                voir la session →
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

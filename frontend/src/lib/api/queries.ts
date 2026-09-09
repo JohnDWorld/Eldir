@@ -63,6 +63,7 @@ export const queryKeys = {
     ['projects', projectId, 'template', 'skills'] as const,
   projectTemplateSubAgents: (projectId: string) =>
     ['projects', projectId, 'template', 'sub-agents'] as const,
+  templateBatch: ['batch', 'generate-templates'] as const,
   projectToolchain: (projectId: string) =>
     ['projects', projectId, 'toolchain'] as const,
   templateGeneration: (projectId: string, sessionId: string) =>
@@ -247,6 +248,67 @@ export type ProjectSyncResult = {
   has_local_changes: boolean;
   message: string | null;
 };
+
+export type RepoSyncItem = {
+  project_id: string;
+  project_name: string;
+  fast_forwarded: boolean;
+  ahead: number;
+  behind: number;
+  error: string | null;
+};
+
+export type TemplateBatchItem = {
+  project_id: string;
+  project_name: string;
+  state: 'pending' | 'running' | 'done' | 'error';
+  session_id: string | null;
+  detail: string | null;
+};
+
+export type TemplateBatchState = {
+  running: boolean;
+  items: TemplateBatchItem[];
+};
+
+/** Fetch + fast-forward de tous les repos clonés, en un seul appel. */
+export function useSyncAllRepos() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<{ items: RepoSyncItem[] }, Record<string, never>>(
+        '/batch/sync-repos',
+        {},
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.projects }),
+  });
+}
+
+/**
+ * Lance la génération du template des projets qui n'en ont pas. Un tour Claude
+ * par projet, enchaînés côté serveur : on suit l'avancement au poll.
+ */
+export function useGenerateMissingTemplates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<TemplateBatchState, Record<string, never>>(
+        '/batch/generate-templates',
+        {},
+      ),
+    onSuccess: (data) => qc.setQueryData(queryKeys.templateBatch, data),
+  });
+}
+
+export function useTemplateBatchState(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.templateBatch,
+    queryFn: () =>
+      apiClient.get<TemplateBatchState>('/batch/generate-templates'),
+    enabled,
+    refetchInterval: (query) => (query.state.data?.running ? 3_000 : false),
+  });
+}
 
 export function useSyncProject() {
   return useMutation({

@@ -38,6 +38,8 @@ async def init_singletons() -> None:
     _session_service = SessionService(manager=_session_manager)
     _session_service.attach_session_factory(async_session_factory)
     _template_generator = TemplateGeneratorService(manager=_session_manager, event_bus=_event_bus)
+    # Le lot tourne hors requête : il lui faut son propre factory de sessions.
+    _template_generator.attach_session_factory(async_session_factory)
     _supervisor = SupervisorService(
         manager=_session_manager,
         sessions=_session_service,

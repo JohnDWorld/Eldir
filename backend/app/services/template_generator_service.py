@@ -31,12 +31,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.constants import EVENT_TYPE_STOP, EVENT_TYPE_TEXT
 from app.core.exceptions import EldirError, NotFoundError
 from app.core.logging import get_logger
-from app.db.models import Project, SessionEvent
+from app.db.models import MissionTemplate, Project, SessionEvent
 from app.db.models import Session as SessionRow
 from app.schemas.mission_template import (
     TemplatePresetDetail,
@@ -45,8 +45,10 @@ from app.schemas.mission_template import (
 )
 from app.services.claude_credential_service import claude_credential_service
 from app.services.event_bus import EventBus
+from app.services.mission_template_service import mission_template_service
 from app.services.session_manager import SessionManager
 from app.services.system_prompt_service import system_prompt_service
+from app.services.template_preset_service import template_preset_service
 
 logger = get_logger(__name__)
 
@@ -67,6 +69,40 @@ DEFAULT_MODEL = "claude-haiku-4-5"
 
 
 @dataclass(slots=True, frozen=True)
+class _PreparedRun:
+    """Tout ce qu'il faut pour faire tourner une génération, session créée."""
+
+    session_id: str
+    project_id: str
+    project_name: str
+    cwd: str
+    prompt: str
+    model: str
+
+
+@dataclass(slots=True)
+class BatchItem:
+    project_id: str
+    project_name: str
+    # pending | running | done | error
+    state: str = "pending"
+    session_id: str | None = None
+    detail: str | None = None
+
+
+@dataclass(slots=True)
+class BatchState:
+    """Avancement d'une génération en lot, en mémoire du process."""
+
+    running: bool
+    items: list[BatchItem]
+
+    @property
+    def done_count(self) -> int:
+        return sum(1 for i in self.items if i.state in ("done", "error"))
+
+
+@dataclass(slots=True, frozen=True)
 class GenerationStatus:
     """État d'une génération, reconstruit depuis la DB à chaque appel."""
 
@@ -79,20 +115,25 @@ class TemplateGeneratorService:
     def __init__(self, manager: SessionManager, event_bus: EventBus) -> None:
         self._manager = manager
         self._bus = event_bus
+        # Génération en lot : une seule à la fois sur le serveur, et son
+        # avancement vit en mémoire (perdu au redémarrage, comme le lot).
+        self._batch: BatchState | None = None
+        self._factory: async_sessionmaker[AsyncSession] | None = None
         # Générations en cours dans ce process. Perdu au redémarrage, et c'est
         # voulu : `result()` retombe alors sur la relecture des events.
         self._running: set[str] = set()
         self._errors: dict[str, str] = {}
         self._tasks: set[asyncio.Task[None]] = set()
 
-    async def start(
+    async def _prepare(
         self,
         db: AsyncSession,
         *,
         user_id: str,
         project_id: str,
         model: str | None = None,
-    ) -> str:
+    ) -> _PreparedRun:
+        """Valide, crée la row session et la commit (visible dans le dashboard)."""
         # Validation modèle
         chosen_model = model or DEFAULT_MODEL
         if chosen_model not in ALLOWED_MODELS:
@@ -135,49 +176,51 @@ class TemplateGeneratorService:
         # voir le live en ouvrant /sessions/{id}).
         await db.commit()
 
-        # 5. La génération part en tâche de fond : la requête HTTP appelante
-        #    n'attend pas (cf. docstring du module).
-        self._running.add(session.id)
-        self._errors.pop(session.id, None)
-        task = asyncio.create_task(
-            self._run_in_background(
-                session_id=session.id,
-                project_id=project_id,
-                user_id=user_id,
-                cwd=project.workspace_path,
-                prompt=meta_prompt,
-                model=chosen_model,
-                project_name=project.name,
-            )
+        return _PreparedRun(
+            session_id=session.id,
+            project_id=project_id,
+            project_name=project.name,
+            cwd=project.workspace_path,
+            prompt=meta_prompt,
+            model=chosen_model,
         )
+
+    def attach_session_factory(self, factory: async_sessionmaker[AsyncSession]) -> None:
+        """Nécessaire au lot : il vit hors requête et gère ses transactions."""
+        self._factory = factory
+
+    async def start(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: str,
+        project_id: str,
+        model: str | None = None,
+    ) -> str:
+        """Prépare la session et lance la génération en tâche de fond."""
+        run = await self._prepare(db, user_id=user_id, project_id=project_id, model=model)
+        self._running.add(run.session_id)
+        self._errors.pop(run.session_id, None)
+        task = asyncio.create_task(self._run_in_background(run, user_id=user_id))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
-        return session.id
+        return run.session_id
 
-    async def _run_in_background(
-        self,
-        *,
-        session_id: str,
-        project_id: str,
-        user_id: str,
-        cwd: str,
-        prompt: str,
-        model: str,
-        project_name: str,
-    ) -> None:
+    async def _run_in_background(self, run: _PreparedRun, *, user_id: str) -> None:
         """Fait tourner Claude jusqu'au bout, quoi qu'il advienne du client."""
+        session_id = run.session_id
         try:
             await self._manager.start(
                 session_id=session_id,
-                project_id=project_id,
+                project_id=run.project_id,
                 user_id=user_id,
-                cwd=cwd,
-                system_prompt=prompt,
-                model=model,
+                cwd=run.cwd,
+                system_prompt=run.prompt,
+                model=run.model,
                 allowed_tools=_READONLY_TOOLS,
             )
             await asyncio.wait_for(
-                self._run_generation(session_id, project_name),
+                self._run_generation(session_id, run.project_name),
                 timeout=_GENERATION_TIMEOUT_S,
             )
         except TimeoutError:
@@ -201,6 +244,104 @@ class TemplateGeneratorService:
                     session_id=session_id,
                 )
             self._running.discard(session_id)
+
+    # ── génération en lot ───────────────────────────────────────
+    def batch_state(self) -> BatchState | None:
+        """Avancement du lot en cours, ou du dernier terminé. None si jamais lancé."""
+        return self._batch
+
+    async def start_batch(self, db: AsyncSession, *, user_id: str) -> BatchState:
+        """Génère et applique le template des projets qui n'en ont pas.
+
+        Séquentiel : une génération = un process `claude` résident, les
+        enchaîner en parallèle ferait tomber le serveur. Les projets qui ont
+        déjà un Mission Template sont sautés, on ne remplace jamais un
+        template existant sans demande explicite.
+        """
+        if self._factory is None:
+            raise EldirError("Génération en lot indisponible (factory non attachée).")
+        if self._batch is not None and self._batch.running:
+            return self._batch
+
+        result = await db.execute(
+            select(Project.id, Project.name)
+            .outerjoin(MissionTemplate, MissionTemplate.project_id == Project.id)
+            .where(
+                Project.user_id == user_id,
+                Project.workspace_path.is_not(None),
+                MissionTemplate.id.is_(None),
+            )
+            .order_by(Project.name.asc())
+        )
+        targets = [BatchItem(project_id=pid, project_name=name) for pid, name in result.all()]
+        self._batch = BatchState(running=bool(targets), items=targets)
+        if not targets:
+            return self._batch
+
+        task = asyncio.create_task(self._run_batch(user_id))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return self._batch
+
+    async def _run_batch(self, user_id: str) -> None:
+        batch = self._batch
+        if batch is None:
+            return
+        try:
+            for item in batch.items:
+                item.state = "running"
+                try:
+                    await self._generate_and_apply(user_id, item)
+                except Exception as exc:  # un repo cassé n'arrête pas le lot
+                    item.state = "error"
+                    item.detail = str(exc) or type(exc).__name__
+                    logger.exception(
+                        "template_generator.batch.project.failed",
+                        project_id=item.project_id,
+                    )
+        finally:
+            batch.running = False
+            logger.info(
+                "template_generator.batch.done",
+                total=len(batch.items),
+                erreurs=sum(1 for i in batch.items if i.state == "error"),
+            )
+
+    async def _generate_and_apply(self, user_id: str, item: BatchItem) -> None:
+        if self._factory is None:
+            raise EldirError("Génération en lot indisponible (factory non attachée).")
+        async with self._factory() as db:
+            run = await self._prepare(db, user_id=user_id, project_id=item.project_id)
+        item.session_id = run.session_id
+
+        # Attendu ici, contrairement à `start()` : on veut le résultat avant
+        # de passer au projet suivant.
+        self._running.add(run.session_id)
+        self._errors.pop(run.session_id, None)
+        await self._run_in_background(run, user_id=user_id)
+
+        async with self._factory() as db:
+            status = await self.result(db, user_id=user_id, session_id=run.session_id)
+            if status.status != "done" or status.preset is None:
+                item.state = "error"
+                item.detail = status.detail or "génération sans preset exploitable"
+                return
+            await mission_template_service.snapshot(
+                db,
+                project_id=item.project_id,
+                user_id=user_id,
+                note=f"avant génération en lot ({status.preset.slug})",
+            )
+            await template_preset_service.apply_detail(
+                db,
+                project_id=item.project_id,
+                user_id=user_id,
+                preset=status.preset,
+                overwrite=True,
+            )
+            await db.commit()
+        item.state = "done"
+        item.detail = status.preset.title
 
     async def result(self, db: AsyncSession, *, user_id: str, session_id: str) -> GenerationStatus:
         """État d'une génération : running, done (avec preset) ou error.
