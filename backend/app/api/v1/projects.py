@@ -18,13 +18,20 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 @router.get("", response_model=list[ProjectRead])
 async def list_projects(user_id: CurrentUserId, db: DbDep) -> list[ProjectRead]:
     items = await project_service.list_for_user(db, user_id)
-    return [ProjectRead.model_validate(p) for p in items]
+    pourvus = await project_service.project_ids_with_template(db, user_id)
+    return [
+        ProjectRead.model_validate(p).model_copy(update={"has_template": p.id in pourvus})
+        for p in items
+    ]
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
 async def get_project(project_id: str, user_id: CurrentUserId, db: DbDep) -> ProjectRead:
     project = await project_service.get(db, project_id, user_id)
-    return ProjectRead.model_validate(project)
+    pourvus = await project_service.project_ids_with_template(db, user_id)
+    return ProjectRead.model_validate(project).model_copy(
+        update={"has_template": project.id in pourvus}
+    )
 
 
 @router.post(

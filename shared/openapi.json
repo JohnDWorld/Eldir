@@ -1239,6 +1239,11 @@
             "title": "Default Branch",
             "type": "string"
           },
+          "has_template": {
+            "default": false,
+            "title": "Has Template",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"

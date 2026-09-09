@@ -17,7 +17,7 @@ from app.core.exceptions import (
     WorkspaceError,
 )
 from app.core.logging import get_logger
-from app.db.models import Project
+from app.db.models import MissionTemplate, Project
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers import make_provider
 from app.services.worktree_service import worktree_service
@@ -37,6 +37,15 @@ class SyncResult:
 
 
 class ProjectService:
+    async def project_ids_with_template(self, db: AsyncSession, user_id: str) -> set[str]:
+        """Projets de l'utilisateur qui ont déjà un Mission Template."""
+        result = await db.execute(
+            select(MissionTemplate.project_id)
+            .join(Project, Project.id == MissionTemplate.project_id)
+            .where(Project.user_id == user_id)
+        )
+        return set(result.scalars().all())
+
     async def list_for_user(self, db: AsyncSession, user_id: str) -> list[Project]:
         result = await db.execute(
             select(Project).where(Project.user_id == user_id).order_by(Project.created_at.desc())

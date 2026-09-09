@@ -1528,6 +1528,11 @@ export interface components {
             created_at: string;
             /** Default Branch */
             default_branch: string;
+            /**
+             * Has Template
+             * @default false
+             */
+            has_template: boolean;
             /** Id */
             id: string;
             /** Name */
