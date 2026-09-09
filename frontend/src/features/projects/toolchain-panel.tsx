@@ -21,6 +21,13 @@ interface ToolchainPanelProps {
   projectId: string;
   /** Commandes du formulaire, pour prévenir si elles ne sont pas enregistrées. */
   draftCommands: string[];
+  /**
+   * Commandes réellement enregistrées, lues depuis le template lui-même.
+   * Surtout pas depuis `GET /toolchain` : ce cache n'est pas rafraîchi par
+   * l'enregistrement du template, et le bouton « installer » restait grisé
+   * alors que les commandes étaient bien en base.
+   */
+  savedCommands: string[];
 }
 
 function formatSize(bytes: number | null): string {
@@ -33,6 +40,7 @@ function formatSize(bytes: number | null): string {
 export function ToolchainPanel({
   projectId,
   draftCommands,
+  savedCommands,
 }: ToolchainPanelProps): JSX.Element {
   const toolchain = useToolchain(projectId);
   const install = useInstallToolchain(projectId);
@@ -41,7 +49,7 @@ export function ToolchainPanel({
   const [logOpen, setLogOpen] = useState(false);
 
   const data = toolchain.data;
-  const saved = data?.commands ?? [];
+  const saved = savedCommands;
   const unsaved =
     JSON.stringify(draftCommands) !== JSON.stringify(saved) &&
     !(draftCommands.length === 0 && saved.length === 0);

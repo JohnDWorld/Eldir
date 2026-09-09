@@ -584,6 +584,9 @@ export function useUpsertProjectTemplate(projectId: string) {
       ),
     onSuccess: (data) => {
       qc.setQueryData(queryKeys.projectTemplate(projectId), data);
+      // Les `setup_commands` viennent peut-être de changer : l'état du
+      // toolchain (installé, périmé, poids disque) n'est plus à jour.
+      qc.invalidateQueries({ queryKey: queryKeys.projectToolchain(projectId) });
     },
   });
 }
@@ -888,6 +891,7 @@ export function useRestoreTemplateVersion(projectId: string) {
       qc.invalidateQueries({
         queryKey: queryKeys.projectTemplateSubAgents(projectId),
       });
+      qc.invalidateQueries({ queryKey: queryKeys.projectToolchain(projectId) });
     },
   });
 }
@@ -908,6 +912,7 @@ export function useApplyTemplatePreset(projectId: string) {
       qc.invalidateQueries({
         queryKey: queryKeys.projectTemplateSubAgents(projectId),
       });
+      qc.invalidateQueries({ queryKey: queryKeys.projectToolchain(projectId) });
     },
   });
 }
@@ -928,6 +933,7 @@ export function useApplyInlinePreset(projectId: string) {
       qc.invalidateQueries({
         queryKey: queryKeys.projectTemplateSubAgents(projectId),
       });
+      qc.invalidateQueries({ queryKey: queryKeys.projectToolchain(projectId) });
     },
   });
 }

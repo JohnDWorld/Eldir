@@ -266,7 +266,11 @@ export function ProjectTemplatePage(): JSX.Element {
         </div>
       </section>
 
-      <ToolchainPanel projectId={projectId} draftCommands={commandLines} />
+      <ToolchainPanel
+        projectId={projectId}
+        draftCommands={commandLines}
+        savedCommands={template.data?.setup_commands ?? []}
+      />
 
       <SkillsEditor projectId={projectId} />
       <SubAgentsEditor projectId={projectId} toolOptions={TOOL_OPTIONS} />
