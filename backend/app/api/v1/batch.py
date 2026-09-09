@@ -32,6 +32,7 @@ class RepoSyncItem(EldirModel):
     project_id: str
     project_name: str
     fast_forwarded: bool = False
+    pulled: int = 0
     ahead: int = 0
     behind: int = 0
     error: str | None = None
@@ -81,6 +82,7 @@ async def sync_all_repos(user_id: CurrentUserId, db: DbDep) -> RepoSyncResponse:
                 project_id=project.id,
                 project_name=project.name,
                 fast_forwarded=result.fast_forwarded,
+                pulled=result.pulled,
                 ahead=result.ahead,
                 behind=result.behind,
             )

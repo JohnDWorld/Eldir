@@ -242,6 +242,7 @@ export function useCreateProject() {
 export type ProjectSyncResult = {
   fetched: boolean;
   fast_forwarded: boolean;
+  pulled: number;
   ahead: number;
   behind: number;
   branch: string;
@@ -253,6 +254,8 @@ export type RepoSyncItem = {
   project_id: string;
   project_name: string;
   fast_forwarded: boolean;
+  /** Commits récupérés par le fast-forward. */
+  pulled: number;
   ahead: number;
   behind: number;
   error: string | null;

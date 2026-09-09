@@ -1336,6 +1336,11 @@
               }
             ],
             "title": "Message"
+          },
+          "pulled": {
+            "default": 0,
+            "title": "Pulled",
+            "type": "integer"
           }
         },
         "required": [
@@ -1486,6 +1491,11 @@
           "project_name": {
             "title": "Project Name",
             "type": "string"
+          },
+          "pulled": {
+            "default": 0,
+            "title": "Pulled",
+            "type": "integer"
           }
         },
         "required": [

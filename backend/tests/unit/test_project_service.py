@@ -129,3 +129,70 @@ async def test_create_from_repo_rejects_duplicate(
             provider="github",
             repo_full_name="owner/repo",
         )
+
+
+async def test_sync_compte_les_commits_recuperes(
+    db_session: AsyncSession,
+    admin: User,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """`pulled` doit valoir le retard d'avant le fast-forward, pas celui d'après.
+
+    `behind` est recalculé une fois le pull fait, donc il vaut 0 : l'UI
+    affichait « mis à jour · 0 commit récupéré », ce qui ne veut rien dire.
+    """
+    from app.db.models import Project
+
+    project = Project(
+        user_id=admin.id,
+        provider="github",
+        repo_full_name="JohnDWorld/demo",
+        name="demo",
+        slug="demo",
+        default_branch="main",
+        workspace_path=str(tmp_path),
+    )
+    db_session.add(project)
+    await db_session.commit()
+
+    await git_credential_service.upsert(
+        db_session,
+        admin.id,
+        GitCredentialCreate(provider="github", token="ghp_test"),
+    )
+    await db_session.commit()
+
+    worktree = project_service_module.worktree_service
+    appels: list[int] = []
+
+    async def _fetch(*_: Any, **__: Any) -> None:
+        return None
+
+    async def _branch(*_: Any, **__: Any) -> str:
+        return "main"
+
+    async def _changes(*_: Any, **__: Any) -> bool:
+        return False
+
+    async def _ahead_behind(*_: Any, **__: Any) -> tuple[int, int]:
+        # 3 commits de retard au premier appel, plus rien après le pull.
+        appels.append(1)
+        return (0, 3) if len(appels) == 1 else (0, 0)
+
+    async def _ff(*_: Any, **__: Any) -> None:
+        return None
+
+    monkeypatch.setattr(worktree, "fetch_remote", _fetch)
+    monkeypatch.setattr(worktree, "current_branch", _branch)
+    monkeypatch.setattr(worktree, "has_changes", _changes)
+    monkeypatch.setattr(worktree, "branch_ahead_behind", _ahead_behind)
+    monkeypatch.setattr(worktree, "fast_forward_merge", _ff)
+
+    result = await project_service.sync_with_remote(
+        db_session, project_id=project.id, user_id=admin.id
+    )
+
+    assert result.fast_forwarded is True
+    assert result.pulled == 3
+    assert result.behind == 0

@@ -277,7 +277,7 @@ function SyncReport({ items }: { items: RepoSyncItem[] }): JSX.Element {
         <ul className="mt-2 flex flex-col gap-1">
           {bouges.map((i) => (
             <li key={i.project_id} className="font-mono text-2xs text-eldir-green">
-              ↓ {i.project_name} · {i.behind} commit(s) récupéré(s)
+              ↓ {i.project_name} · {i.pulled} commit(s) récupéré(s)
             </li>
           ))}
           {rates.map((i) => (
@@ -433,7 +433,7 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
 function formatSyncResult(r: ProjectSyncResult): string {
   if (!r.fetched) return r.message ?? 'fetch impossible.';
   if (r.fast_forwarded) {
-    return `synchronisé · à jour avec origin/${r.branch}`;
+    return `${r.pulled} commit(s) récupéré(s) · à jour avec origin/${r.branch}`;
   }
   if (r.behind === 0 && r.ahead === 0) {
     return `déjà à jour avec origin/${r.branch}`;

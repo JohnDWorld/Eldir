@@ -34,6 +34,10 @@ class SyncResult:
     branch: str
     has_local_changes: bool
     message: str | None = None
+    # Commits effectivement récupérés par le fast-forward. `behind` est
+    # recalculé après coup, donc il vaut 0 quand le pull a réussi : sans ce
+    # champ, l'UI affichait « mis à jour · 0 commit récupéré ».
+    pulled: int = 0
 
 
 class ProjectService:
@@ -197,6 +201,7 @@ class ProjectService:
         )
 
         fast_forwarded = False
+        pulled = 0
         message: str | None = None
         if behind > 0:
             if has_changes:
@@ -213,6 +218,7 @@ class ProjectService:
                 try:
                     await worktree_service.fast_forward_merge(repo_path, upstream_ref=upstream_ref)
                     fast_forwarded = True
+                    pulled = behind
                     ahead, behind = await worktree_service.branch_ahead_behind(
                         repo_path, local=default_branch, remote=upstream_ref
                     )
@@ -223,12 +229,14 @@ class ProjectService:
             "project.sync.done",
             project_id=project_id,
             fast_forwarded=fast_forwarded,
+            pulled=pulled,
             ahead=ahead,
             behind=behind,
         )
         return SyncResult(
             fetched=True,
             fast_forwarded=fast_forwarded,
+            pulled=pulled,
             ahead=ahead,
             behind=behind,
             branch=current,
