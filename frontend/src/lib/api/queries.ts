@@ -300,13 +300,20 @@ export function useGenerateMissingTemplates() {
   });
 }
 
-export function useTemplateBatchState(enabled: boolean) {
+/**
+ * Avancement du lot de génération. Toujours interrogé, jamais conditionné à un
+ * état de composant : après un rechargement de page, c'est le serveur qui sait
+ * si un lot tourne, et l'encart doit revenir tout seul.
+ */
+export function useTemplateBatchState() {
   return useQuery({
     queryKey: queryKeys.templateBatch,
     queryFn: () =>
       apiClient.get<TemplateBatchState>('/batch/generate-templates'),
-    enabled,
     refetchInterval: (query) => (query.state.data?.running ? 3_000 : false),
+    // Un lot qui tourne fait bouger les templates : la liste des projets doit
+    // suivre, c'est elle qui porte l'indicateur par repo.
+    refetchOnWindowFocus: true,
   });
 }
 

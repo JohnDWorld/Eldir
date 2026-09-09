@@ -2,7 +2,7 @@
  * ProjectsPage - liste des projets Eldir + bouton "Ajouter depuis un repo".
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { GitMark } from '@/components/eldir/git-mark';
@@ -33,10 +33,7 @@ export function ProjectsPage(): JSX.Element {
   const projects = useProjects();
   const syncAll = useSyncAllRepos();
   const generateMissing = useGenerateMissingTemplates();
-  // On n'interroge l'avancement que si un lot a été lancé depuis cet onglet,
-  // ou s'il en reste un en cours côté serveur.
-  const [batchAsked, setBatchAsked] = useState(false);
-  const batch = useTemplateBatchState(batchAsked);
+  const batch = useTemplateBatchState();
   const [syncReport, setSyncReport] = useState<RepoSyncItem[] | null>(null);
   const [batchError, setBatchError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -54,6 +51,16 @@ export function ProjectsPage(): JSX.Element {
   } | null>(null);
 
   const nbProjets = (projects.data ?? []).length;
+  // Chaque template appliqué par le lot change l'indicateur d'un projet :
+  // on rafraîchit la liste à chaque avancement plutôt qu'en boucle.
+  const lotAvancement = (batch.data?.items ?? []).filter(
+    (i) => i.state === 'done' || i.state === 'error',
+  ).length;
+  useEffect(() => {
+    if (lotAvancement > 0) void projects.refetch();
+    // `projects` est stable côté TanStack Query, seul l'avancement compte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lotAvancement]);
 
   const handleSyncAll = async () => {
     setSyncReport(null);
@@ -82,7 +89,6 @@ export function ProjectsPage(): JSX.Element {
     }
     setSyncReport(null);
     setBatchError(null);
-    setBatchAsked(true);
     try {
       await generateMissing.mutateAsync();
     } catch (err) {
@@ -232,6 +238,31 @@ export function ProjectsPage(): JSX.Element {
   );
 }
 
+/**
+ * Dit d'un coup d'œil si le repo a un Mission Template. Sans template, une
+ * session démarre avec le prompt par défaut : elle ne connaît ni la stack ni
+ * les conventions du projet.
+ */
+function TemplateBadge({ filled }: { filled: boolean }): JSX.Element {
+  return (
+    <span
+      title={
+        filled
+          ? 'Mission Template configuré'
+          : 'Aucun Mission Template : les sessions partiront avec le prompt par défaut'
+      }
+      className={cn(
+        'shrink-0 rounded-eldir border px-1.5 py-0.5 font-mono text-2xs uppercase tracking-caps',
+        filled
+          ? 'border-eldir-green text-eldir-green'
+          : 'border-eldir-gold bg-eldir-gold/10 text-eldir-ink-2',
+      )}
+    >
+      {filled ? '✓ template' : '○ sans template'}
+    </span>
+  );
+}
+
 /** Résumé d'un « sync all » : une ligne par repo, l'essentiel d'abord. */
 function SyncReport({ items }: { items: RepoSyncItem[] }): JSX.Element {
   const bouges = items.filter((i) => i.fast_forwarded);
@@ -345,8 +376,11 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
             className="mt-0.5 shrink-0 text-eldir-gray"
           />
           <div className="min-w-0">
-            <div className="break-all font-mono text-sm font-semibold text-eldir-ink">
-              {project.repo_full_name}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="break-all font-mono text-sm font-semibold text-eldir-ink">
+                {project.repo_full_name}
+              </span>
+              <TemplateBadge filled={project.has_template} />
             </div>
             <div className="mt-0.5 break-all font-mono text-xs text-eldir-gray">
               slug: {project.slug} · branch: {project.default_branch}

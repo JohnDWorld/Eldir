@@ -48,6 +48,8 @@ export interface ProjectRead {
   repo_full_name: string;
   default_branch: string;
   workspace_path: string | null;
+  /** Le projet a-t-il un Mission Template ? */
+  has_template: boolean;
   created_at: string;
   updated_at: string;
 }

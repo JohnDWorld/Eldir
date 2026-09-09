@@ -27,6 +27,9 @@ class ProjectRead(TimestampedModel):
     repo_full_name: str
     default_branch: str
     workspace_path: str | None
+    # Le projet a-t-il un Mission Template ? Affiché dans la liste des
+    # projets : sans template, une session part avec le prompt par défaut.
+    has_template: bool = False
 
 
 class ProjectSummary(EldirModel):
