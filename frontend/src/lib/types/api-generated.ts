@@ -1573,6 +1573,11 @@ export interface components {
             has_local_changes: boolean;
             /** Message */
             message?: string | null;
+            /**
+             * Pulled
+             * @default 0
+             */
+            pulled: number;
         };
         /**
          * PublishPermission
@@ -1646,6 +1651,11 @@ export interface components {
             project_id: string;
             /** Project Name */
             project_name: string;
+            /**
+             * Pulled
+             * @default 0
+             */
+            pulled: number;
         };
         /** RepoSyncResponse */
         RepoSyncResponse: {

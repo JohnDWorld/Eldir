@@ -69,6 +69,8 @@ class ProjectSyncRead(EldirModel):
 
     fetched: bool
     fast_forwarded: bool
+    # Commits récupérés par le fast-forward (0 si rien à récupérer).
+    pulled: int = 0
     ahead: int
     behind: int
     branch: str
