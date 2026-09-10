@@ -117,13 +117,20 @@ class SupervisorService:
                 summary="Superviseur Eldir",
             )
             db.add(row)
-            await db.flush()
         else:
             # Le prompt est reconstruit à chaque démarrage pour embarquer
             # les préférences apprises depuis la dernière fois.
             row.system_prompt = prompt
             row.worktree_path = str(cwd)
-            await db.flush()
+        # `commit` et pas `flush` : le démarrage du CLI publie l'état de la
+        # session via une AUTRE connexion DB. Tant que cette transaction-ci
+        # reste ouverte, elle garde le verrou de ligne pris par l'UPDATE et
+        # l'écriture d'état attend un verrou que seule la fin de la requête
+        # libérerait. Interblocage avec soi-même, indétectable par Postgres
+        # (personne n'attend en base côté requête) : vu en prod, 12h de
+        # réveils et de suppressions de session empilés derrière une seule
+        # transaction `idle in transaction`.
+        await db.commit()
 
         try:
             await self._start_sdk(row, user_id, prompt)
@@ -134,7 +141,7 @@ class SupervisorService:
                 raise
             logger.warning("supervisor.resume.failed", session_id=row.id, exc_info=True)
             row.sdk_session_id = None
-            await db.flush()
+            await db.commit()
             await self._start_sdk(row, user_id, prompt)
         logger.info("supervisor.started", session_id=row.id)
         return row

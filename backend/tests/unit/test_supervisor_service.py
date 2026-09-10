@@ -176,3 +176,36 @@ async def test_suppression_dune_session_sans_projet(
     await db_session.commit()
 
     assert await db_session.get(Session, row.id) is None
+
+
+async def test_le_reveil_ne_garde_pas_la_ligne_verrouillee(
+    db_session: AsyncSession, admin: User, supervisor: SupervisorService
+) -> None:
+    """Le CLI doit démarrer hors transaction.
+
+    Le démarrage publie l'état de la session via une AUTRE connexion DB. Si la
+    requête garde sa transaction ouverte après avoir écrit `system_prompt`,
+    cette écriture attend un verrou de ligne que seule la fin de la requête
+    libérerait : interblocage avec soi-même, et tous les réveils suivants
+    s'empilent derrière. Vu en prod, 12h de requêtes en attente.
+    """
+    row = await supervisor.ensure_session(db_session, admin.id)
+    await db_session.commit()
+
+    # Deuxième réveil : session tombée (redéploiement) et prompt modifié
+    # entre-temps. C'est exactement le cas qui bloquait.
+    supervisor._manager._sessions.clear()  # type: ignore[attr-defined]
+    row.system_prompt = "prompt obsolète"
+    await db_session.commit()
+
+    en_transaction: list[bool] = []
+    demarrage = supervisor._start_sdk  # type: ignore[attr-defined]
+
+    async def _espion(*args: Any, **kwargs: Any) -> None:
+        en_transaction.append(db_session.in_transaction())
+        await demarrage(*args, **kwargs)
+
+    supervisor._start_sdk = _espion  # type: ignore[attr-defined,method-assign]
+
+    await supervisor.ensure_session(db_session, admin.id)
+    assert en_transaction == [False]

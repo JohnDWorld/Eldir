@@ -285,7 +285,10 @@ class SessionService:
             # L'historique reste lisible, il vit dans `session_events`.
             logger.warning("session.resume.failed", session_id=session.id, exc_info=True)
             session.sdk_session_id = None
-            await db.flush()
+            # `commit`, pas `flush` : voir SupervisorService.ensure_session.
+            # Garder la transaction ouverte pendant le démarrage du CLI fait
+            # attendre l'écriture d'état, qui passe par une autre connexion.
+            await db.commit()
             await self._start(session, user_id, resume=False)
         return session
 
