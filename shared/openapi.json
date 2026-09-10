@@ -306,6 +306,30 @@
         "title": "ClaudeCredentialTestResult",
         "type": "object"
       },
+      "CollectEntry": {
+        "description": "Un fichier à ramener sur le serveur avant de démarrer la session.\n\n`fichier` est un nom relatif validé : le résultat atterrit dans\n`$ELDIR_COLLECTE`, et un `../` accepté ici écrirait n'importe où dans le\nconteneur.",
+        "properties": {
+          "commande": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Commande",
+            "type": "string"
+          },
+          "fichier": {
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "title": "Fichier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fichier",
+          "commande"
+        ],
+        "title": "CollectEntry",
+        "type": "object"
+      },
       "CommitPushRequest": {
         "properties": {
           "message": {
@@ -756,6 +780,20 @@
             ],
             "title": "Allowed Tools"
           },
+          "collect_commands": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CollectEntry"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collect Commands"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -847,6 +885,7 @@
           "model",
           "allowed_tools",
           "setup_commands",
+          "collect_commands",
           "source_preset"
         ],
         "title": "MissionTemplateRead",
@@ -868,6 +907,21 @@
               }
             ],
             "title": "Allowed Tools"
+          },
+          "collect_commands": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CollectEntry"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collect Commands"
           },
           "model": {
             "anyOf": [

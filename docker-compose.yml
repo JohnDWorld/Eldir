@@ -57,6 +57,13 @@ services:
       # Transcripts du CLI Claude. Sans ce volume, chaque reconstruction de
       # l'image efface l'historique côté SDK et tout `resume` échoue.
       - eldir_claude_home:/home/eldir/.claude
+      # Collecte distante (optionnel) : décommenter pour donner à Eldir une
+      # clé SSH vers les serveurs où tournent tes projets. À ne faire qu'avec
+      # une clé dédiée et restreinte côté machine distante (compte dédié,
+      # `command=` forcé dans authorized_keys) : le CLI Claude tourne dans ce
+      # conteneur et peut lire ce qui y est monté.
+      # Voir docs/collecte-distante.md.
+      # - ./secrets/ssh:/home/eldir/.ssh:ro
     depends_on:
       postgres:
         condition: service_healthy

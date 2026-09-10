@@ -589,6 +589,12 @@ export type TemplateSubAgent = {
   updated_at: string;
 };
 
+/** Un fichier à ramener d'un serveur distant avant de démarrer la session. */
+export type CollectEntry = {
+  fichier: string;
+  commande: string;
+};
+
 export type MissionTemplate = {
   id: string;
   project_id: string;
@@ -596,6 +602,7 @@ export type MissionTemplate = {
   model: string | null;
   allowed_tools: string[] | null;
   setup_commands: string[] | null;
+  collect_commands: CollectEntry[] | null;
   source_preset: string | null;
   skills: TemplateSkill[];
   sub_agents: TemplateSubAgent[];
@@ -608,6 +615,7 @@ export type MissionTemplateWrite = {
   model: string | null;
   allowed_tools: string[] | null;
   setup_commands: string[] | null;
+  collect_commands: CollectEntry[] | null;
 };
 
 /** Outils du repo installés sur le serveur (cf. ToolchainService). */

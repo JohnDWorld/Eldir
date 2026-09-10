@@ -66,6 +66,19 @@ class TemplateSubAgentRead(TimestampedModel):
     allowed_tools: list[str] | None
 
 
+# ── Collecte distante ─────────────────────────────────────────
+class CollectEntry(EldirModel):
+    """Un fichier à ramener sur le serveur avant de démarrer la session.
+
+    `fichier` est un nom relatif validé : le résultat atterrit dans
+    `$ELDIR_COLLECTE`, et un `../` accepté ici écrirait n'importe où dans le
+    conteneur.
+    """
+
+    fichier: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9._-]+$")
+    commande: str = Field(min_length=1, max_length=2_000)
+
+
 # ── Template ──────────────────────────────────────────────────
 class MissionTemplateWrite(EldirModel):
     """Payload pour `PUT /projects/{id}/template` - upsert.
@@ -78,6 +91,7 @@ class MissionTemplateWrite(EldirModel):
     model: str | None = Field(default=None, max_length=64)
     allowed_tools: list[str] | None = Field(default=None)
     setup_commands: list[str] | None = Field(default=None, max_length=20)
+    collect_commands: list[CollectEntry] | None = Field(default=None, max_length=20)
 
 
 class MissionTemplateRead(TimestampedModel):
@@ -87,6 +101,7 @@ class MissionTemplateRead(TimestampedModel):
     model: str | None
     allowed_tools: list[str] | None
     setup_commands: list[str] | None
+    collect_commands: list[CollectEntry] | None
     source_preset: str | None
     skills: list[TemplateSkillRead] = []
     sub_agents: list[TemplateSubAgentRead] = []

@@ -151,6 +151,9 @@ class MissionTemplateService:
         template.model = payload.model
         template.allowed_tools = payload.allowed_tools
         template.setup_commands = payload.setup_commands or None
+        template.collect_commands = (
+            [e.model_dump() for e in payload.collect_commands] if payload.collect_commands else None
+        )
         # source_preset reste tel quel (modifié par apply_preset uniquement)
         await db.flush()
         return template
@@ -374,6 +377,7 @@ class MissionTemplateService:
             "model": template.model,
             "allowed_tools": template.allowed_tools,
             "setup_commands": template.setup_commands,
+            "collect_commands": template.collect_commands,
             "source_preset": template.source_preset,
             "skills": [
                 {
@@ -475,6 +479,7 @@ class MissionTemplateService:
         template.model = snap.get("model")
         template.allowed_tools = snap.get("allowed_tools")
         template.setup_commands = snap.get("setup_commands")
+        template.collect_commands = snap.get("collect_commands")
         template.source_preset = snap.get("source_preset")
 
         # Skills et sub-agents : on remplace tout

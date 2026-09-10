@@ -36,6 +36,7 @@ from app.core.exceptions import (
 from app.core.logging import get_logger
 from app.db.models import Project, Session, SessionEvent, User
 from app.services.claude_credential_service import claude_credential_service
+from app.services.collect_service import collect_service
 from app.services.cost_service import cost_service
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers import make_provider
@@ -234,6 +235,15 @@ class SessionService:
                 "session.create.template.materialize.failed",
                 session_id=session.id,
             )
+
+        # 4ter. Collecte distante : ramène ce que le projet déclare et qui ne
+        # vit pas dans le repo (code d'une image Docker, config de prod, log).
+        # Avant le démarrage, pour que l'agent trouve les fichiers dès son
+        # premier tour, et hors du worktree pour qu'ils ne puissent pas partir
+        # dans un commit.
+        await collect_service.run(
+            project_id, template.collect_commands if template is not None else None
+        )
 
         # 5. Démarre le ClaudeSDKClient sur le worktree. Si ça échoue, on
         # nettoie le worktree pour ne pas laisser de squelette orphelin sur

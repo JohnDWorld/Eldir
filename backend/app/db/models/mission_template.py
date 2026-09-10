@@ -8,6 +8,8 @@ création d'une session.
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import JSON, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +39,10 @@ class MissionTemplate(UUIDPrimaryKey, TimestampMixin, Base):
     # Go…) dans `$ELDIR_TOOLCHAIN`. Lancées à la demande depuis l'UI, jamais
     # automatiquement : elles coûtent du disque et du temps, et ça se voit.
     setup_commands: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # Collecte distante : [{"fichier": "adapter.py", "commande": "ssh …"}].
+    # Ce que la session doit lire mais qui ne vit pas dans le repo. Lancée à
+    # la création de session, déposée hors du worktree (`$ELDIR_COLLECTE`).
+    collect_commands: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
 
     skills: Mapped[list[TemplateSkill]] = relationship(
         "TemplateSkill",

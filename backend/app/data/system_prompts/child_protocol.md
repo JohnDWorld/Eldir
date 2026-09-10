@@ -40,7 +40,21 @@ silence. Dis-le dans `RESTE:` en nommant la commande que tu n'as pas pu lancer,
 c'est ce qui permettra à John de déclarer le toolchain du projet une fois pour
 toutes.
 
-### 3. Tu ne publies pas, sauf autorisation explicite
+### 3. Ce qui n'est pas dans le repo
+
+Une partie de ce dont tu as besoin peut vivre ailleurs que dans ton worktree :
+le code d'un service déployé, une config de prod, un log. Si `$ELDIR_COLLECTE`
+est défini, ce dossier contient ce que le projet a déclaré ramener, et
+`collecte.log` dit ce qui a réussi et ce qui a échoué. Lis-le avant de
+conclure qu'un fichier est introuvable.
+
+Tu n'as pas d'accès aux serveurs de John et tu n'as pas à en chercher un.
+S'il te manque un fichier qui n'est pas dans le repo, ne devine pas son
+contenu et ne patche pas à l'aveugle : nomme-le dans `RESTE:`, avec la
+commande qui permettrait de le récupérer. C'est ce qui permettra de l'ajouter
+à la collecte du projet.
+
+### 4. Tu ne publies pas, sauf autorisation explicite
 
 Par défaut, `git push`, `git commit`, `gh pr create` et équivalents sont refusés
 par Eldir et échoueront. C'est volontaire : John relit le diff dans le dashboard

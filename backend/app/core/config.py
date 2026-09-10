@@ -69,6 +69,18 @@ class Settings(BaseSettings):
     # écrire.
     toolchain_min_free_gb: int = 5
 
+    # ── Collecte distante par projet ────────────────────────────
+    # Ce que la session doit lire mais qui ne vit pas dans le repo. Hors
+    # worktree, donc incommitable, et volontairement hors volume : la
+    # collecte se refait à chaque création de session, une donnée de prod
+    # rapatriée n'a pas à survivre à un redéploiement. Cf. `CollectService`.
+    collectes_root: Path = Path("/var/eldir/collectes")
+    # Une commande de collecte lit un fichier ou un log, pas plus.
+    collect_timeout_s: int = 60
+    # Taille max par fichier collecté (`ulimit -f`), en Mo : un `docker logs`
+    # sans borne remplirait le disque du serveur.
+    collect_max_file_mb: int = 2
+
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"
 

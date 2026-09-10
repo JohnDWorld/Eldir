@@ -1174,6 +1174,20 @@ export interface components {
             /** Ok */
             ok: boolean;
         };
+        /**
+         * CollectEntry
+         * @description Un fichier à ramener sur le serveur avant de démarrer la session.
+         *
+         *     `fichier` est un nom relatif validé : le résultat atterrit dans
+         *     `$ELDIR_COLLECTE`, et un `../` accepté ici écrirait n'importe où dans le
+         *     conteneur.
+         */
+        CollectEntry: {
+            /** Commande */
+            commande: string;
+            /** Fichier */
+            fichier: string;
+        };
         /** CommitPushRequest */
         CommitPushRequest: {
             /** Message */
@@ -1364,6 +1378,8 @@ export interface components {
         MissionTemplateRead: {
             /** Allowed Tools */
             allowed_tools: string[] | null;
+            /** Collect Commands */
+            collect_commands: components["schemas"]["CollectEntry"][] | null;
             /**
              * Created At
              * Format: date-time
@@ -1407,6 +1423,8 @@ export interface components {
         MissionTemplateWrite: {
             /** Allowed Tools */
             allowed_tools?: string[] | null;
+            /** Collect Commands */
+            collect_commands?: components["schemas"]["CollectEntry"][] | null;
             /** Model */
             model?: string | null;
             /** Setup Commands */
@@ -2115,6 +2133,7 @@ export type SchemaBootstrapResponse = components['schemas']['BootstrapResponse']
 export type SchemaClaudeCredentialCreate = components['schemas']['ClaudeCredentialCreate'];
 export type SchemaClaudeCredentialRead = components['schemas']['ClaudeCredentialRead'];
 export type SchemaClaudeCredentialTestResult = components['schemas']['ClaudeCredentialTestResult'];
+export type SchemaCollectEntry = components['schemas']['CollectEntry'];
 export type SchemaCommitPushRequest = components['schemas']['CommitPushRequest'];
 export type SchemaCommitPushResponse = components['schemas']['CommitPushResponse'];
 export type SchemaCostDashboard = components['schemas']['CostDashboard'];
