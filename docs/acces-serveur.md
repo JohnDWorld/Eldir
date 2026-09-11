@@ -75,33 +75,34 @@ rien n'est laissé sur disque.
 
 ## Donner l'accès SSH à Eldir
 
-Deux étapes, l'une côté Eldir, l'autre côté machine distante. **La seconde
-n'est pas optionnelle.**
+### 1. Côté Eldir : le bouton
 
-### 1. Côté Eldir : monter une clé
+**Projects → un projet → Template → « Machine du projet »**. Tu donnes
+l'adresse, l'utilisateur, le port. Eldir :
 
-Génère une clé **dédiée à Eldir**, jamais une de tes clés personnelles :
+1. génère une paire de clés **dédiée à ce projet**, s'il n'en a pas déjà ;
+2. tente la connexion par clé ; si elle passe déjà, il n'y a rien d'autre à
+   faire et aucun mot de passe n'a été demandé ;
+3. sinon il te demande le mot de passe du compte, s'en sert **une seule fois**
+   pour déposer la clé publique, et l'oublie. Il n'est ni stocké en base, ni
+   écrit sur disque, ni journalisé, et il ne passe même pas par la ligne de
+   commande (`sshpass -e`, donc invisible dans un `ps`) ;
+4. écrit son bloc dans sa propre `~/.ssh/config` et pose l'alias sur le
+   Mission Template ;
+5. revérifie en clé seule et affiche l'état.
 
-```
-ssh-keygen -t ed25519 -f ./secrets/ssh/id_ed25519 -C eldir -N ""
-```
+Eldir est propriétaire de `/home/eldir/.ssh` (volume `eldir_ssh`). **Ne monte
+pas ton `~/.ssh` personnel dans ce conteneur** : des agents y tournent, et tes
+clés personnelles n'ont rien à y faire.
 
-Crée `./secrets/ssh/config` avec un alias par machine :
+Une clé par projet, avec l'id du projet en commentaire. Conséquence directe :
+supprimer le projet dans Eldir retire cette ligne du `authorized_keys`
+distant. Une clé qu'on sait déposer et pas retirer est une clé oubliée sur une
+machine.
 
-```
-Host mon-serveur
-    HostName <hote>
-    User eldir-collecte
-    IdentityFile /home/eldir/.ssh/id_ed25519
-    IdentitiesOnly yes
-    StrictHostKeyChecking accept-new
-```
-
-Puis décommente le montage dans `docker-compose.yml` :
-
-```yaml
-      - ./secrets/ssh:/home/eldir/.ssh:ro
-```
+À la première connexion, l'empreinte de la machine est acceptée puis figée
+(`accept-new`). Si elle change plus tard, la connexion échoue au lieu de
+passer en silence.
 
 ### 2. Côté machine distante : choisir le régime
 
@@ -154,9 +155,9 @@ Déclarer les fichiers un par un ne passe pas à l'échelle : sur un projet
 déployé, l'agent a besoin de parcourir la machine, pas de recevoir trois
 fichiers choisis d'avance. D'où le régime ouvert.
 
-Dans **Projects → un projet → Template**, champ « Machine du projet », mets
-l'alias SSH. Les sessions de ce projet verront `$ELDIR_REMOTE_HOST` et
-pourront s'y connecter. Vide = aucun accès, c'est le défaut.
+Une fois le bouton passé au vert, les sessions de ce projet voient
+`$ELDIR_REMOTE_HOST` et peuvent s'y connecter. Pas de machine connectée =
+aucun accès, c'est le défaut.
 
 ### Ce que ça change
 
@@ -190,10 +191,22 @@ avec exactement le même périmètre.
 
 C'est un garde-fou contre l'écart, pas un bac à sable. Un agent décidé
 contournerait un filtre sur une ligne de commande (script intermédiaire,
-`base64 -d | bash`). Le refus de publication a exactement la même propriété
+`base64 -d | bash`), et la clé privée est de toute façon lisible dans le
+conteneur où il tourne. Le refus de publication a exactement la même propriété
 depuis le début : il empêche la dérive ordinaire, il n'arrête pas une
 intention hostile. Ce qui tient vraiment, c'est le compte dédié et la
 sauvegarde.
+
+### Retirer l'accès
+
+Le bouton « déconnecter » retire la clé du `authorized_keys` distant, efface
+la paire de clés et le bloc de configuration, et vide l'alias du template.
+
+Supprimer le projet dans Eldir fait la même chose, plus le reste : le clone,
+les worktrees, le toolchain installé (un SDK, c'est plusieurs Go) et les
+fichiers collectés. Si la machine est injoignable à ce moment-là, la
+suppression aboutit quand même et la clé restée en place est journalisée
+(`project.delete.cle_non_revoquee`) : à retirer à la main.
 
 ## Ce que voit l'agent
 

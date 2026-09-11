@@ -66,6 +66,8 @@ export const queryKeys = {
   templateBatch: ['batch', 'generate-templates'] as const,
   projectToolchain: (projectId: string) =>
     ['projects', projectId, 'toolchain'] as const,
+  projectRemote: (projectId: string) =>
+    ['projects', projectId, 'remote'] as const,
   templateGeneration: (projectId: string, sessionId: string) =>
     ['projects', projectId, 'template', 'generate', sessionId] as const,
   templatePresets: ['templates', 'presets'] as const,
@@ -706,6 +708,60 @@ export function useDeleteToolchain(projectId: string) {
     mutationFn: () => apiClient.delete<void>(`/projects/${projectId}/toolchain`),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: queryKeys.projectToolchain(projectId) }),
+  });
+}
+
+/** Machine où tourne le projet (cf. RemoteAccessService). */
+export type RemoteStatus = {
+  configured: boolean;
+  alias: string | null;
+  host: string | null;
+  user: string | null;
+  port: number;
+  connected: boolean | null;
+  detail: string | null;
+};
+
+export type RemoteConnectInput = {
+  host: string;
+  user: string;
+  port: number;
+  /** Utilisé une seule fois pour déposer la clé, jamais stocké. */
+  password?: string | null;
+};
+
+export function useRemoteAccess(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.projectRemote(projectId),
+    queryFn: () =>
+      apiClient.get<RemoteStatus>(`/projects/${projectId}/remote`),
+  });
+}
+
+export function useConnectRemote(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RemoteConnectInput) =>
+      apiClient.post<RemoteStatus, RemoteConnectInput>(
+        `/projects/${projectId}/remote`,
+        body,
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.projectRemote(projectId), data);
+      // L'alias vient d'être posé sur le template : son cache est périmé.
+      qc.invalidateQueries({ queryKey: queryKeys.projectTemplate(projectId) });
+    },
+  });
+}
+
+export function useDisconnectRemote(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.delete<void>(`/projects/${projectId}/remote`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projectRemote(projectId) });
+      qc.invalidateQueries({ queryKey: queryKeys.projectTemplate(projectId) });
+    },
   });
 }
 

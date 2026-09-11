@@ -122,6 +122,18 @@ class MissionTemplateService:
         )
         return result.scalar_one_or_none()
 
+    async def set_remote_host(
+        self, db: AsyncSession, *, project_id: str, user_id: str, remote_host: str | None
+    ) -> None:
+        """Pose (ou retire) l'alias SSH du projet sans toucher au reste.
+
+        Le bouton « Connecter au serveur » ne doit pas écraser le prompt ni
+        les commandes du template au passage.
+        """
+        template = await self._get_or_create(db, project_id=project_id, user_id=user_id)
+        template.remote_host = remote_host
+        await db.flush()
+
     async def _get_or_create(
         self, db: AsyncSession, *, project_id: str, user_id: str
     ) -> MissionTemplate:

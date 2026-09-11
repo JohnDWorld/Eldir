@@ -301,6 +301,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/remote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Remote Status
+         * @description Ce que dit la configuration, sans ouvrir de connexion.
+         */
+        get: operations["remote_status_api_v1_projects__project_id__remote_get"];
+        put?: never;
+        /**
+         * Remote Connect
+         * @description Génère la clé si besoin, la dépose, et vérifie la connexion.
+         *
+         *     Sans mot de passe, on tente d'abord la clé : si elle passe déjà, rien
+         *     d'autre n'est nécessaire et on n'a jamais eu à demander de secret.
+         */
+        post: operations["remote_connect_api_v1_projects__project_id__remote_post"];
+        /**
+         * Remote Disconnect
+         * @description Retire la clé de la machine distante, puis la configuration locale.
+         */
+        delete: operations["remote_disconnect_api_v1_projects__project_id__remote_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/sync": {
         parameters: {
             query?: never;
@@ -1609,6 +1640,20 @@ export interface components {
             /** Allowed */
             allowed: boolean;
         };
+        /** RemoteConnectInput */
+        RemoteConnectInput: {
+            /** Host */
+            host: string;
+            /** Password */
+            password?: string | null;
+            /**
+             * Port
+             * @default 22
+             */
+            port: number;
+            /** User */
+            user: string;
+        };
         /**
          * RemoteRepoCreate
          * @description Payload pour créer un nouveau repo distant (et le projet associé).
@@ -1649,6 +1694,26 @@ export interface components {
             full_name: string;
             /** Is Private */
             is_private: boolean;
+        };
+        /** RemoteStatusRead */
+        RemoteStatusRead: {
+            /** Alias */
+            alias?: string | null;
+            /** Configured */
+            configured: boolean;
+            /** Connected */
+            connected?: boolean | null;
+            /** Detail */
+            detail?: string | null;
+            /** Host */
+            host?: string | null;
+            /**
+             * Port
+             * @default 22
+             */
+            port: number;
+            /** User */
+            user?: string | null;
         };
         /** RepoSyncItem */
         RepoSyncItem: {
@@ -2167,8 +2232,10 @@ export type SchemaProjectCreateFromRepo = components['schemas']['ProjectCreateFr
 export type SchemaProjectRead = components['schemas']['ProjectRead'];
 export type SchemaProjectSyncRead = components['schemas']['ProjectSyncRead'];
 export type SchemaPublishPermission = components['schemas']['PublishPermission'];
+export type SchemaRemoteConnectInput = components['schemas']['RemoteConnectInput'];
 export type SchemaRemoteRepoCreate = components['schemas']['RemoteRepoCreate'];
 export type SchemaRemoteRepoRead = components['schemas']['RemoteRepoRead'];
+export type SchemaRemoteStatusRead = components['schemas']['RemoteStatusRead'];
 export type SchemaRepoSyncItem = components['schemas']['RepoSyncItem'];
 export type SchemaRepoSyncResponse = components['schemas']['RepoSyncResponse'];
 export type SchemaSessionCreate = components['schemas']['SessionCreate'];
@@ -2790,6 +2857,107 @@ export interface operations {
         };
     };
     delete_project_api_v1_projects__project_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remote_status_api_v1_projects__project_id__remote_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteStatusRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remote_connect_api_v1_projects__project_id__remote_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoteConnectInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteStatusRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remote_disconnect_api_v1_projects__project_id__remote_delete: {
         parameters: {
             query?: never;
             header?: {

@@ -81,6 +81,15 @@ class Settings(BaseSettings):
     # sans borne remplirait le disque du serveur.
     collect_max_file_mb: int = 2
 
+    # ── Accès SSH aux machines des projets ──────────────────────
+    # Eldir est propriétaire de ce dossier : il y écrit une clé par projet et
+    # les blocs de `config` correspondants. Ne monte pas ton `~/.ssh`
+    # personnel dedans. Cf. `RemoteAccessService` et `docs/acces-serveur.md`.
+    ssh_home: Path = Path("/home/eldir/.ssh")
+    # Au-delà, la machine est considérée injoignable : on préfère un échec
+    # net à une requête HTTP qui pend.
+    ssh_connect_timeout_s: int = 15
+
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"
 

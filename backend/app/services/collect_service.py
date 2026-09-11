@@ -89,6 +89,14 @@ class CollectService:
             return {}
         return {"ELDIR_COLLECTE": str(root)}
 
+    async def remove(self, project_id: str) -> None:
+        """Efface ce qui a été rapatrié pour ce projet.
+
+        Appelé à la suppression du projet : ces fichiers viennent d'une
+        machine de prod, ils n'ont rien à faire dans un volume après coup.
+        """
+        await asyncio.to_thread(shutil.rmtree, self.root(project_id), True)
+
     async def run(self, project_id: str, entries: list[dict[str, Any]] | None) -> None:
         """Lance les commandes déclarées, une par une, et écrit les fichiers.
 
