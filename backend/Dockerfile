@@ -23,12 +23,16 @@ COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 # `unzip` et `xz-utils` servent aux toolchains par projet : un SDK se
 # distribue en archive (Flutter en .tar.xz, le SDK Dart en .zip), sans eux
 # l'installation échoue à l'extraction.
+# `openssh-client` sert à la collecte distante : rapatrier un fichier qui vit
+# sur un autre serveur et pas dans le repo. Inutile tant qu'aucune clé n'est
+# montée dans le conteneur, cf. docs/collecte-distante.md.
 # Le Claude Agent SDK Python lance `claude` en subprocess (Node binary)
 # pour communiquer avec l'API Anthropic - il DOIT être dans le PATH.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       git curl ca-certificates gnupg \
       unzip xz-utils \
+      openssh-client \
  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/* \
@@ -55,7 +59,7 @@ ARG GID=1000
 # "Permission denied", et une session ne démarre plus).
 RUN groupadd -g $GID eldir \
  && useradd -u $UID -g eldir -m -s /bin/bash eldir \
- && mkdir -p /var/eldir/workspaces /var/eldir/toolchains /home/eldir/.claude \
+ && mkdir -p /var/eldir/workspaces /var/eldir/toolchains /var/eldir/collectes /home/eldir/.claude \
  && chown -R eldir:eldir /var/eldir /home/eldir
 
 WORKDIR /app

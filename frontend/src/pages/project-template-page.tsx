@@ -54,6 +54,10 @@ export function ProjectTemplatePage(): JSX.Element {
   // Une commande d'installation par ligne, c'est du shell : pas de champ
   // structuré à inventer.
   const [setupCommands, setSetupCommands] = useState('');
+  // Collecte distante, une ligne par fichier : `fichier = commande`. Le
+  // nom de fichier ne peut pas contenir '=' (validé côté backend), donc
+  // couper au premier '=' est sans ambiguïté.
+  const [collectCommands, setCollectCommands] = useState('');
   const [feedback, setFeedback] = useState<
     { kind: 'success' | 'error'; text: string } | null
   >(null);
@@ -67,12 +71,18 @@ export function ProjectTemplatePage(): JSX.Element {
       setModel('');
       setAllowedTools(new Set());
       setSetupCommands('');
+      setCollectCommands('');
       return;
     }
     setSystemPrompt(template.data.system_prompt ?? '');
     setModel(template.data.model ?? '');
     setAllowedTools(new Set(template.data.allowed_tools ?? []));
     setSetupCommands((template.data.setup_commands ?? []).join('\n'));
+    setCollectCommands(
+      (template.data.collect_commands ?? [])
+        .map((e) => `${e.fichier} = ${e.commande}`)
+        .join('\n'),
+    );
   }, [template.data]);
 
   const toggleTool = (tool: string) => {
@@ -92,6 +102,7 @@ export function ProjectTemplatePage(): JSX.Element {
         model: model || null,
         allowed_tools: allowedTools.size > 0 ? Array.from(allowedTools) : null,
         setup_commands: commandLines.length > 0 ? commandLines : null,
+        collect_commands: collectEntries.length > 0 ? collectEntries : null,
       });
       setFeedback({ kind: 'success', text: 'Template enregistré.' });
     } catch (err) {
@@ -109,6 +120,27 @@ export function ProjectTemplatePage(): JSX.Element {
         .map((line) => line.trim())
         .filter((line) => line.length > 0 && !line.startsWith('#')),
     [setupCommands],
+  );
+
+  const collectEntries = useMemo(
+    () =>
+      collectCommands
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith('#'))
+        .map((line) => {
+          const sep = line.indexOf('=');
+          if (sep < 0) return null;
+          return {
+            fichier: line.slice(0, sep).trim(),
+            commande: line.slice(sep + 1).trim(),
+          };
+        })
+        .filter(
+          (e): e is { fichier: string; commande: string } =>
+            e !== null && e.fichier.length > 0 && e.commande.length > 0,
+        ),
+    [collectCommands],
   );
 
   const toolsHelper = useMemo(
@@ -237,6 +269,36 @@ export function ProjectTemplatePage(): JSX.Element {
               Ce que le repo a besoin d&apos;avoir sur le serveur pour que
               l&apos;agent puisse vérifier son travail (SDK, compilateur,
               linter). Installé à la demande, jamais tout seul.
+            </p>
+          </label>
+
+          <label className="block">
+            <span className="eldir-caps mb-1 block">Collecte distante</span>
+            <textarea
+              value={collectCommands}
+              onChange={(e) => setCollectCommands(e.target.value)}
+              rows={4}
+              spellCheck={false}
+              placeholder={
+                '# une ligne par fichier : fichier = commande\n' +
+                'adapter-matrix.py = ssh mon-serveur docker exec passerelle cat /opt/app/adapter.py'
+              }
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            />
+            <p className="mt-1 font-mono text-2xs text-eldir-gray">
+              Ce que la session doit lire mais qui ne vit pas dans le repo
+              (code d&apos;un service déployé, config, log). Rapatrié à chaque
+              création de session dans <code>$ELDIR_COLLECTE</code>, hors du
+              worktree : l&apos;agent le lit, ne peut pas le commiter, et
+              n&apos;a jamais de shell sur le serveur distant.
+              {collectEntries.length > 0 && (
+                <>
+                  {' '}
+                  {collectEntries.length} fichier
+                  {collectEntries.length > 1 ? 's' : ''} déclaré
+                  {collectEntries.length > 1 ? 's' : ''}.
+                </>
+              )}
             </p>
           </label>
         </div>

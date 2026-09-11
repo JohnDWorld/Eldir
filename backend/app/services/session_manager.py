@@ -45,6 +45,7 @@ from app.core.exceptions import (
     SessionStartTimeoutError,
 )
 from app.core.logging import get_logger
+from app.services.collect_service import collect_service
 from app.services.event_bus import EventBus
 from app.services.toolchain_service import toolchain_service
 
@@ -152,13 +153,17 @@ def _optional_options(
         # charger en plus les serveurs MCP éventuels de la machine hôte.
         kwargs["mcp_servers"] = mcp_servers
         kwargs["strict_mcp_config"] = True
-    # Toolchain du projet (SDK Flutter, JDK, Go…) : `$ELDIR_TOOLCHAIN/bin` en
-    # tête du PATH pour que l'agent trouve ses outils. Vide tant que rien n'est
-    # installé, et fait ici plutôt qu'à chaque appelant pour que création,
-    # resume et sessions système en héritent pareil.
-    toolchain_env = toolchain_service.env_for(project_id)
-    if toolchain_env:
-        kwargs["env"] = toolchain_env
+    # Deux apports du projet à l'environnement de l'agent, groupés ici plutôt
+    # que chez chaque appelant pour que création, resume et sessions système
+    # en héritent pareil :
+    # - `$ELDIR_TOOLCHAIN/bin` en tête du PATH, pour que l'agent trouve les
+    #   outils installés (SDK Flutter, JDK, Go…) ;
+    # - `$ELDIR_COLLECTE`, où atterrit ce qui a été ramené d'un serveur avant
+    #   le démarrage (cf. CollectService).
+    # Les deux sont vides tant que le projet ne déclare rien.
+    env = {**toolchain_service.env_for(project_id), **collect_service.env_for(project_id)}
+    if env:
+        kwargs["env"] = env
     return kwargs
 
 
