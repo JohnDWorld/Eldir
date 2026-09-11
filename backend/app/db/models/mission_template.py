@@ -43,6 +43,10 @@ class MissionTemplate(UUIDPrimaryKey, TimestampMixin, Base):
     # Ce que la session doit lire mais qui ne vit pas dans le repo. Lancée à
     # la création de session, déposée hors du worktree (`$ELDIR_COLLECTE`).
     collect_commands: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    # Alias SSH (tel qu'écrit dans le `~/.ssh/config` monté dans le conteneur)
+    # de la machine où tourne ce projet. NULL = aucun accès serveur, ce qui
+    # est le défaut. Cf. `docs/acces-serveur.md`.
+    remote_host: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     skills: Mapped[list[TemplateSkill]] = relationship(
         "TemplateSkill",

@@ -196,3 +196,98 @@ async def test_sync_compte_les_commits_recuperes(
     assert result.fast_forwarded is True
     assert result.pulled == 3
     assert result.behind == 0
+
+
+async def test_supprimer_un_projet_nettoie_tout_le_serveur(
+    db_session: AsyncSession,
+    admin: User,
+    patch_provider_and_clone: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le disque et la machine distante ne se nettoient pas tout seuls.
+
+    Ce qui traîne sinon : un SDK de plusieurs Go dans le volume des
+    toolchains, des fichiers de prod dans la collecte, et surtout une clé
+    Eldir encore autorisée sur une machine dont le projet n'existe plus.
+    """
+    await git_credential_service.upsert(
+        db_session,
+        admin.id,
+        GitCredentialCreate(provider="github", token="ghp_clone_token_aaa"),
+    )
+    await db_session.commit()
+    project = await project_service.create_from_repo(
+        db_session,
+        user_id=admin.id,
+        provider="github",
+        repo_full_name="owner/my-repo",
+    )
+    await db_session.commit()
+
+    nettoyes: list[str] = []
+
+    async def _revoke(project_id: str) -> bool:
+        nettoyes.append(f"cle:{project_id}")
+        return True
+
+    async def _remove_repo(user_id: str, slug: str) -> None:
+        nettoyes.append(f"repo:{slug}")
+
+    async def _remove_toolchain(project_id: str) -> None:
+        nettoyes.append(f"toolchain:{project_id}")
+
+    async def _remove_collecte(project_id: str) -> None:
+        nettoyes.append(f"collecte:{project_id}")
+
+    monkeypatch.setattr(project_service_module.remote_access_service, "revoke", _revoke)
+    monkeypatch.setattr(project_service_module.worktree_service, "remove_repo", _remove_repo)
+    monkeypatch.setattr(project_service_module.toolchain_service, "remove", _remove_toolchain)
+    monkeypatch.setattr(project_service_module.collect_service, "remove", _remove_collecte)
+
+    await project_service.delete(db_session, project.id, admin.id)
+    await db_session.commit()
+
+    assert nettoyes == [
+        f"cle:{project.id}",
+        "repo:my-repo",
+        f"toolchain:{project.id}",
+        f"collecte:{project.id}",
+    ]
+
+
+async def test_une_machine_eteinte_n_empeche_pas_la_suppression(
+    db_session: AsyncSession,
+    admin: User,
+    patch_provider_and_clone: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La révocation peut échouer (machine éteinte) : le projet part quand même."""
+    await git_credential_service.upsert(
+        db_session,
+        admin.id,
+        GitCredentialCreate(provider="github", token="ghp_clone_token_aaa"),
+    )
+    await db_session.commit()
+    project = await project_service.create_from_repo(
+        db_session,
+        user_id=admin.id,
+        provider="github",
+        repo_full_name="owner/my-repo",
+    )
+    await db_session.commit()
+
+    async def _revoke_casse(project_id: str) -> bool:
+        raise RuntimeError("machine injoignable")
+
+    async def _rien(*_: Any, **__: Any) -> None:
+        return None
+
+    monkeypatch.setattr(project_service_module.remote_access_service, "revoke", _revoke_casse)
+    monkeypatch.setattr(project_service_module.worktree_service, "remove_repo", _rien)
+    monkeypatch.setattr(project_service_module.toolchain_service, "remove", _rien)
+    monkeypatch.setattr(project_service_module.collect_service, "remove", _rien)
+
+    await project_service.delete(db_session, project.id, admin.id)
+    await db_session.commit()
+
+    assert await project_service.list_for_user(db_session, admin.id) == []

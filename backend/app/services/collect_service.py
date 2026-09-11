@@ -29,7 +29,7 @@ Trois propriétés qui comptent :
 
 La clé SSH, elle, reste lisible par l'agent (le CLI Claude tourne dans ce
 conteneur). C'est côté machine distante que ça se verrouille : compte dédié,
-`command=` forcé dans `authorized_keys`. Cf. `docs/collecte-distante.md`.
+`command=` forcé dans `authorized_keys`. Cf. `docs/acces-serveur.md`.
 """
 
 from __future__ import annotations
@@ -88,6 +88,14 @@ class CollectService:
         if not (root / _LOG_FILE).exists():
             return {}
         return {"ELDIR_COLLECTE": str(root)}
+
+    async def remove(self, project_id: str) -> None:
+        """Efface ce qui a été rapatrié pour ce projet.
+
+        Appelé à la suppression du projet : ces fichiers viennent d'une
+        machine de prod, ils n'ont rien à faire dans un volume après coup.
+        """
+        await asyncio.to_thread(shutil.rmtree, self.root(project_id), True)
 
     async def run(self, project_id: str, entries: list[dict[str, Any]] | None) -> None:
         """Lance les commandes déclarées, une par une, et écrit les fichiers.

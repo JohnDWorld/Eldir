@@ -818,6 +818,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "remote_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Host"
+          },
           "setup_commands": {
             "anyOf": [
               {
@@ -886,6 +897,7 @@
           "allowed_tools",
           "setup_commands",
           "collect_commands",
+          "remote_host",
           "source_preset"
         ],
         "title": "MissionTemplateRead",
@@ -934,6 +946,19 @@
               }
             ],
             "title": "Model"
+          },
+          "remote_host": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "pattern": "^[A-Za-z0-9._-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Host"
           },
           "setup_commands": {
             "anyOf": [
@@ -1422,6 +1447,50 @@
         "title": "PublishPermission",
         "type": "object"
       },
+      "RemoteConnectInput": {
+        "properties": {
+          "host": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Host",
+            "type": "string"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 256,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "port": {
+            "default": 22,
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "type": "integer"
+          },
+          "user": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "user"
+        ],
+        "title": "RemoteConnectInput",
+        "type": "object"
+      },
       "RemoteRepoCreate": {
         "description": "Payload pour créer un nouveau repo distant (et le projet associé).",
         "properties": {
@@ -1508,6 +1577,79 @@
           "is_private"
         ],
         "title": "RemoteRepoRead",
+        "type": "object"
+      },
+      "RemoteStatusRead": {
+        "properties": {
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "connected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "port": {
+            "default": 22,
+            "title": "Port",
+            "type": "integer"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "RemoteStatusRead",
         "type": "object"
       },
       "RepoSyncItem": {
@@ -3744,6 +3886,182 @@
         "summary": "Get Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/remote": {
+      "delete": {
+        "description": "Retire la clé de la machine distante, puis la configuration locale.",
+        "operationId": "remote_disconnect_api_v1_projects__project_id__remote_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remote Disconnect",
+        "tags": [
+          "remote"
+        ]
+      },
+      "get": {
+        "description": "Ce que dit la configuration, sans ouvrir de connexion.",
+        "operationId": "remote_status_api_v1_projects__project_id__remote_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteStatusRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remote Status",
+        "tags": [
+          "remote"
+        ]
+      },
+      "post": {
+        "description": "Génère la clé si besoin, la dépose, et vérifie la connexion.\n\nSans mot de passe, on tente d'abord la clé : si elle passe déjà, rien\nd'autre n'est nécessaire et on n'a jamais eu à demander de secret.",
+        "operationId": "remote_connect_api_v1_projects__project_id__remote_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteConnectInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteStatusRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remote Connect",
+        "tags": [
+          "remote"
         ]
       }
     },

@@ -20,6 +20,7 @@ import { GenerateTemplateDialog } from '@/features/projects/generate-template-di
 import { SkillsEditor } from '@/features/projects/skills-editor';
 import { SubAgentsEditor } from '@/features/projects/sub-agents-editor';
 import { TemplateHistory } from '@/features/projects/template-history';
+import { RemotePanel } from '@/features/projects/remote-panel';
 import { ToolchainPanel } from '@/features/projects/toolchain-panel';
 import { CLAUDE_MODELS } from '@/lib/models';
 
@@ -103,6 +104,9 @@ export function ProjectTemplatePage(): JSX.Element {
         allowed_tools: allowedTools.size > 0 ? Array.from(allowedTools) : null,
         setup_commands: commandLines.length > 0 ? commandLines : null,
         collect_commands: collectEntries.length > 0 ? collectEntries : null,
+        // Posé par le panneau « Machine du projet », pas par ce formulaire :
+        // on le renvoie tel quel pour ne pas l'effacer en enregistrant.
+        remote_host: template.data?.remote_host ?? null,
       });
       setFeedback({ kind: 'success', text: 'Template enregistré.' });
     } catch (err) {
@@ -333,6 +337,8 @@ export function ProjectTemplatePage(): JSX.Element {
         draftCommands={commandLines}
         savedCommands={template.data?.setup_commands ?? []}
       />
+
+      <RemotePanel projectId={projectId} />
 
       <SkillsEditor projectId={projectId} />
       <SubAgentsEditor projectId={projectId} toolOptions={TOOL_OPTIONS} />

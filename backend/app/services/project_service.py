@@ -18,8 +18,11 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from app.db.models import MissionTemplate, Project
+from app.services.collect_service import collect_service
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers import make_provider
+from app.services.remote_access_service import remote_access_service
+from app.services.toolchain_service import toolchain_service
 from app.services.worktree_service import worktree_service
 
 logger = get_logger(__name__)
@@ -141,9 +144,44 @@ class ProjectService:
         return project
 
     async def delete(self, db: AsyncSession, project_id: str, user_id: str) -> None:
+        """Retire le projet et tout ce qu'il a laissé sur le serveur.
+
+        La row part en cascade (sessions, events, coûts, template), mais le
+        disque et la machine distante ne se nettoient pas tout seuls. Ce qui
+        traîne sinon : un SDK Flutter de 2,4 Go dans le volume des toolchains,
+        des fichiers de prod dans la collecte, et surtout une clé Eldir encore
+        autorisée sur une machine dont le projet n'existe plus.
+
+        Chaque étape est isolée : une machine éteinte au moment de la
+        suppression ne doit pas empêcher de supprimer le projet. Ce qui n'a pas
+        pu être nettoyé est journalisé plutôt que perdu en silence.
+        """
         project = await self.get(db, project_id, user_id)
+
+        # La clé d'abord, tant que la config SSH du projet existe encore.
+        try:
+            retiree = await remote_access_service.revoke(project_id)
+            if not retiree and remote_access_service.status(project_id).configured:
+                logger.warning("project.delete.cle_non_revoquee", project_id=project_id)
+        except Exception:
+            logger.exception("project.delete.remote.failed", project_id=project_id)
+
         if project.workspace_path:
-            await worktree_service.remove_repo(user_id, project.slug)
+            try:
+                await worktree_service.remove_repo(user_id, project.slug)
+            except Exception:
+                logger.exception("project.delete.repo.failed", project_id=project_id)
+
+        try:
+            await toolchain_service.remove(project_id)
+        except Exception:
+            logger.exception("project.delete.toolchain.failed", project_id=project_id)
+
+        try:
+            await collect_service.remove(project_id)
+        except Exception:
+            logger.exception("project.delete.collecte.failed", project_id=project_id)
+
         await db.delete(project)
 
     async def sync_with_remote(
