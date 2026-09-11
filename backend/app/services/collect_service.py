@@ -29,7 +29,7 @@ Trois propriétés qui comptent :
 
 La clé SSH, elle, reste lisible par l'agent (le CLI Claude tourne dans ce
 conteneur). C'est côté machine distante que ça se verrouille : compte dédié,
-`command=` forcé dans `authorized_keys`. Cf. `docs/collecte-distante.md`.
+`command=` forcé dans `authorized_keys`. Cf. `docs/acces-serveur.md`.
 """
 
 from __future__ import annotations

@@ -92,6 +92,10 @@ class MissionTemplateWrite(EldirModel):
     allowed_tools: list[str] | None = Field(default=None)
     setup_commands: list[str] | None = Field(default=None, max_length=20)
     collect_commands: list[CollectEntry] | None = Field(default=None, max_length=20)
+    # Alias SSH seul, pas un `user@host` ni une IP : la cible réelle est
+    # décrite dans le `~/.ssh/config` monté dans le conteneur, que l'agent ne
+    # peut pas écrire. Un alias inventé ne résout rien.
+    remote_host: str | None = Field(default=None, max_length=120, pattern=r"^[A-Za-z0-9._-]+$")
 
 
 class MissionTemplateRead(TimestampedModel):
@@ -102,6 +106,7 @@ class MissionTemplateRead(TimestampedModel):
     allowed_tools: list[str] | None
     setup_commands: list[str] | None
     collect_commands: list[CollectEntry] | None
+    remote_host: str | None
     source_preset: str | None
     skills: list[TemplateSkillRead] = []
     sub_agents: list[TemplateSubAgentRead] = []

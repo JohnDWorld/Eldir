@@ -90,6 +90,60 @@ _FORCE_PUSH_REASON = (
 )
 
 
+# ── Accès serveur ───────────────────────────────────────────────
+# Un projet déployé ne tient pas dans son repo : l'agent a besoin d'aller
+# voir la machine. Il peut, vers l'alias SSH que le projet déclare, et vers
+# lui seul. Le conteneur porte la config SSH de John, donc sans cette règle
+# une session ouverte sur un projet pourrait se connecter à n'importe laquelle
+# de ses machines.
+#
+# C'est un garde-fou contre l'écart, pas un bac à sable : un agent décidé
+# contournerait un filtre sur une ligne de commande (script intermédiaire,
+# `base64 -d | bash`). Même statut que le refus de publication, qui a la même
+# propriété. Ce qui tient vraiment est côté machine distante : compte dédié,
+# pas de sudo, sauvegarde.
+#
+# `_CMD` = la position d'un nom de commande : début de ligne ou après un
+# séparateur shell, d'éventuelles affectations d'environnement comprises. Sans
+# ça, `grep -r ssh .` passait pour une connexion sortante.
+_CMD = r"(?:^|[;&|\n]|\$\()\s*(?:\w+=\S+\s+)*"
+_SSH_RE: re.Pattern[str] = re.compile(rf"{_CMD}(?:ssh|sftp)(?![\w-])", re.IGNORECASE)
+# `scp`/`rsync` ne sortent de la machine que s'il y a une cible `hote:chemin`.
+# Un `rsync` local entre deux dossiers du worktree reste libre.
+_SSH_COPY_RE: re.Pattern[str] = re.compile(
+    rf"{_CMD}(?:scp|rsync)(?![\w-])[^;&|]*\s[A-Za-z0-9._-]+:", re.IGNORECASE
+)
+_NO_REMOTE_REASON = (
+    "Refusé par Eldir : ce projet ne déclare aucune machine. Une session ne "
+    "sort du serveur Eldir que vers l'alias SSH déclaré dans son Mission "
+    "Template. Si ce projet tourne quelque part et que tu as besoin d'y "
+    "accéder, dis-le dans ton <cr> (`RESTE:`) en nommant ce que tu voulais "
+    "faire : c'est à John de déclarer la machine, pas à toi de la trouver."
+)
+
+
+def _remote_denial(
+    tool_name: str | None, tool_input: Any, *, remote_host: str | None
+) -> str | None:
+    """Raison du refus d'une connexion sortante, ou None si elle est permise."""
+    if not _matches(_SSH_RE, tool_name, tool_input) and not _matches(
+        _SSH_COPY_RE, tool_name, tool_input
+    ):
+        return None
+    if not remote_host:
+        return _NO_REMOTE_REASON
+    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    vise_l_alias = rf"(?<![\w.-]){re.escape(remote_host)}(?![\w-])"
+    if isinstance(command, str) and re.search(vise_l_alias, command):
+        return None
+    return (
+        f"Refusé par Eldir : cette session ne peut se connecter qu'à "
+        f"`{remote_host}`, la machine déclarée par son projet. Le conteneur "
+        f"porte la configuration SSH de John, qui atteint d'autres serveurs "
+        f"n'ayant rien à voir avec ce projet."
+    )
+
+
 def _denies_publish(tool_name: str | None, tool_input: Any) -> bool:
     """True si l'appel outil tente de commiter ou publier."""
     return _matches(_PUBLISH_DENY_RE, tool_name, tool_input)
@@ -127,6 +181,7 @@ def _optional_options(
     allowed_tools: list[str] | None,
     disallowed_tools: list[str] | None,
     mcp_servers: dict[str, Any] | None,
+    remote_host: str | None,
 ) -> dict[str, Any]:
     """Options SDK qu'on ne pose que si elles ont une valeur."""
     kwargs: dict[str, Any] = {}
@@ -160,8 +215,12 @@ def _optional_options(
     #   outils installés (SDK Flutter, JDK, Go…) ;
     # - `$ELDIR_COLLECTE`, où atterrit ce qui a été ramené d'un serveur avant
     #   le démarrage (cf. CollectService).
-    # Les deux sont vides tant que le projet ne déclare rien.
+    # - `$ELDIR_REMOTE_HOST`, l'alias SSH de la machine où tourne le projet,
+    #   seule destination que le hook laisse atteindre.
+    # Les trois sont vides tant que le projet ne déclare rien.
     env = {**toolchain_service.env_for(project_id), **collect_service.env_for(project_id)}
+    if remote_host:
+        env["ELDIR_REMOTE_HOST"] = remote_host
     if env:
         kwargs["env"] = env
     return kwargs
@@ -182,6 +241,8 @@ class ActiveSession:
     message_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     # Publication (commit/push/PR) autorisée par John pour cette session.
     publish_allowed: bool = False
+    # Alias SSH que cette session peut atteindre, ou None.
+    remote_host: str | None = None
 
 
 class SessionManager:
@@ -227,6 +288,7 @@ class SessionManager:
         disallowed_tools: list[str] | None = None,
         mcp_servers: dict[str, Any] | None = None,
         publish_allowed: bool = False,
+        remote_host: str | None = None,
     ) -> ActiveSession:
         limit = get_settings().max_concurrent_sessions
         if self.active_count >= limit:
@@ -249,6 +311,7 @@ class SessionManager:
             cwd=cwd,
             sdk_session_id=resume_sdk_id,
             publish_allowed=publish_allowed,
+            remote_host=remote_host,
         )
 
         async def _pre_tool_hook(
@@ -269,7 +332,9 @@ class SessionManager:
             )
             # `active.publish_allowed` est relu à chaque appel (pas capturé) :
             # John peut autoriser en cours de tour, ça prend effet tout de suite.
-            denial = _publish_denial(tool_name, tool_input, publish_allowed=active.publish_allowed)
+            denial = _remote_denial(
+                tool_name, tool_input, remote_host=active.remote_host
+            ) or _publish_denial(tool_name, tool_input, publish_allowed=active.publish_allowed)
             if denial is not None:
                 logger.info(
                     "session.publish.denied",
@@ -349,6 +414,7 @@ class SessionManager:
                 allowed_tools=allowed_tools,
                 disallowed_tools=disallowed_tools,
                 mcp_servers=mcp_servers,
+                remote_host=remote_host,
             )
         )
 

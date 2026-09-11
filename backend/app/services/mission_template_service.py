@@ -154,6 +154,7 @@ class MissionTemplateService:
         template.collect_commands = (
             [e.model_dump() for e in payload.collect_commands] if payload.collect_commands else None
         )
+        template.remote_host = payload.remote_host or None
         # source_preset reste tel quel (modifié par apply_preset uniquement)
         await db.flush()
         return template
@@ -378,6 +379,7 @@ class MissionTemplateService:
             "allowed_tools": template.allowed_tools,
             "setup_commands": template.setup_commands,
             "collect_commands": template.collect_commands,
+            "remote_host": template.remote_host,
             "source_preset": template.source_preset,
             "skills": [
                 {
@@ -480,6 +482,7 @@ class MissionTemplateService:
         template.allowed_tools = snap.get("allowed_tools")
         template.setup_commands = snap.get("setup_commands")
         template.collect_commands = snap.get("collect_commands")
+        template.remote_host = snap.get("remote_host")
         template.source_preset = snap.get("source_preset")
 
         # Skills et sub-agents : on remplace tout

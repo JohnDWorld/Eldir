@@ -187,6 +187,9 @@ class SessionService:
             worktree_path=project.workspace_path,
             model=effective_model,
             system_prompt=effective_system_prompt,
+            # Figé à la création : changer l'alias du projet ensuite ne doit
+            # pas élargir le périmètre d'une session déjà lancée.
+            remote_host=template.remote_host if template else None,
         )
         db.add(session)
         await db.flush()  # capture session.id pour nommer le worktree
@@ -258,6 +261,7 @@ class SessionService:
                 model=session.model,
                 allowed_tools=effective_allowed_tools,
                 publish_allowed=session.publish_allowed,
+                remote_host=session.remote_host,
             )
         except Exception:
             try:
@@ -312,6 +316,7 @@ class SessionService:
             model=session.model,
             resume_sdk_id=session.sdk_session_id if resume else None,
             publish_allowed=session.publish_allowed,
+            remote_host=session.remote_host,
         )
 
     async def send_message(

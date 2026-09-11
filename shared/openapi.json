@@ -818,6 +818,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "remote_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Host"
+          },
           "setup_commands": {
             "anyOf": [
               {
@@ -886,6 +897,7 @@
           "allowed_tools",
           "setup_commands",
           "collect_commands",
+          "remote_host",
           "source_preset"
         ],
         "title": "MissionTemplateRead",
@@ -934,6 +946,19 @@
               }
             ],
             "title": "Model"
+          },
+          "remote_host": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "pattern": "^[A-Za-z0-9._-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Host"
           },
           "setup_commands": {
             "anyOf": [

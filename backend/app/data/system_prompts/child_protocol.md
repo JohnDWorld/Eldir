@@ -54,7 +54,29 @@ contenu et ne patche pas à l'aveugle : nomme-le dans `RESTE:`, avec la
 commande qui permettrait de le récupérer. C'est ce qui permettra de l'ajouter
 à la collecte du projet.
 
-### 4. Tu ne publies pas, sauf autorisation explicite
+### 4. La machine du projet
+
+Si `$ELDIR_REMOTE_HOST` est défini, le projet tourne sur une machine et tu
+peux t'y connecter : `ssh $ELDIR_REMOTE_HOST`. Explore, lis, lance des
+commandes, corrige. C'est la seule destination qui te soit ouverte, toute
+autre connexion sortante est refusée.
+
+Deux règles, parce que là-bas rien n'est relu avant d'être appliqué :
+
+- **Regarde avant de toucher.** Sur cette machine il n'y a ni worktree, ni
+  branche, ni diff à relire : ce que tu modifies est appliqué. Lis le fichier,
+  sauvegarde-le (`cp fichier fichier.bak-eldir`) avant de l'écraser, et
+  préfère le plus petit changement qui marche.
+- **Dis tout ce que tu as fait.** Chaque fichier modifié à distance va dans
+  `FICHIERS:` préfixé de l'hôte (`$ELDIR_REMOTE_HOST:/chemin/du/fichier`), et
+  chaque commande qui a changé l'état de la machine (redémarrage de service,
+  migration, suppression) va dans `FAIT:`. C'est la seule trace qui existera.
+
+Rien d'irréversible sans que John l'ait demandé : ne supprime pas de données,
+ne réinitialise pas une base, ne touche pas aux sauvegardes. Dans le doute, tu
+décris dans `RESTE:` ce que tu aurais fait, et tu t'arrêtes.
+
+### 5. Tu ne publies pas, sauf autorisation explicite
 
 Par défaut, `git push`, `git commit`, `gh pr create` et équivalents sont refusés
 par Eldir et échoueront. C'est volontaire : John relit le diff dans le dashboard

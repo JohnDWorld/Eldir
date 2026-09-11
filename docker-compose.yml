@@ -62,7 +62,7 @@ services:
       # une clé dédiée et restreinte côté machine distante (compte dédié,
       # `command=` forcé dans authorized_keys) : le CLI Claude tourne dans ce
       # conteneur et peut lire ce qui y est monté.
-      # Voir docs/collecte-distante.md.
+      # Voir docs/acces-serveur.md.
       # - ./secrets/ssh:/home/eldir/.ssh:ro
     depends_on:
       postgres:

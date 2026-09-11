@@ -58,6 +58,7 @@ export function ProjectTemplatePage(): JSX.Element {
   // nom de fichier ne peut pas contenir '=' (validé côté backend), donc
   // couper au premier '=' est sans ambiguïté.
   const [collectCommands, setCollectCommands] = useState('');
+  const [remoteHost, setRemoteHost] = useState('');
   const [feedback, setFeedback] = useState<
     { kind: 'success' | 'error'; text: string } | null
   >(null);
@@ -72,12 +73,14 @@ export function ProjectTemplatePage(): JSX.Element {
       setAllowedTools(new Set());
       setSetupCommands('');
       setCollectCommands('');
+      setRemoteHost('');
       return;
     }
     setSystemPrompt(template.data.system_prompt ?? '');
     setModel(template.data.model ?? '');
     setAllowedTools(new Set(template.data.allowed_tools ?? []));
     setSetupCommands((template.data.setup_commands ?? []).join('\n'));
+    setRemoteHost(template.data.remote_host ?? '');
     setCollectCommands(
       (template.data.collect_commands ?? [])
         .map((e) => `${e.fichier} = ${e.commande}`)
@@ -103,6 +106,7 @@ export function ProjectTemplatePage(): JSX.Element {
         allowed_tools: allowedTools.size > 0 ? Array.from(allowedTools) : null,
         setup_commands: commandLines.length > 0 ? commandLines : null,
         collect_commands: collectEntries.length > 0 ? collectEntries : null,
+        remote_host: remoteHost.trim() || null,
       });
       setFeedback({ kind: 'success', text: 'Template enregistré.' });
     } catch (err) {
@@ -269,6 +273,26 @@ export function ProjectTemplatePage(): JSX.Element {
               Ce que le repo a besoin d&apos;avoir sur le serveur pour que
               l&apos;agent puisse vérifier son travail (SDK, compilateur,
               linter). Installé à la demande, jamais tout seul.
+            </p>
+          </label>
+
+          <label className="block">
+            <span className="eldir-caps mb-1 block">Machine du projet</span>
+            <input
+              value={remoteHost}
+              onChange={(e) => setRemoteHost(e.target.value)}
+              spellCheck={false}
+              autoCapitalize="none"
+              autoCorrect="off"
+              placeholder="alias ssh, ex. mon-serveur"
+              className="h-11 w-full min-w-0 rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            />
+            <p className="mt-1 font-mono text-2xs text-eldir-gray">
+              Alias du <code>~/.ssh/config</code> monté dans le conteneur. Les
+              sessions de ce projet pourront s&apos;y connecter et y travailler,
+              et seulement là. Vide = aucun accès serveur. Ce qu&apos;elles y
+              modifient n&apos;a ni diff ni branche : à réserver aux machines
+              dont tu as une sauvegarde.
             </p>
           </label>
 

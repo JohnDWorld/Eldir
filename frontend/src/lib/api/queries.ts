@@ -603,6 +603,7 @@ export type MissionTemplate = {
   allowed_tools: string[] | null;
   setup_commands: string[] | null;
   collect_commands: CollectEntry[] | null;
+  remote_host: string | null;
   source_preset: string | null;
   skills: TemplateSkill[];
   sub_agents: TemplateSubAgent[];
@@ -616,6 +617,7 @@ export type MissionTemplateWrite = {
   allowed_tools: string[] | null;
   setup_commands: string[] | null;
   collect_commands: CollectEntry[] | null;
+  remote_host: string | null;
 };
 
 /** Outils du repo installés sur le serveur (cf. ToolchainService). */

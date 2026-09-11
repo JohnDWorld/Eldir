@@ -47,6 +47,11 @@ class Session(UUIDPrimaryKey, TimestampMixin, Base):
     publish_allowed: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, server_default="false"
     )
+    # Alias SSH que cette session a le droit d'atteindre, copié depuis le
+    # Mission Template à sa création. Figé ici plutôt que relu dans le
+    # template : changer l'alias du projet ne doit pas élargir le périmètre
+    # d'une session déjà lancée, et un `resume` repart à l'identique.
+    remote_host: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
 
 class SessionEvent(UUIDPrimaryKey, TimestampMixin, Base):

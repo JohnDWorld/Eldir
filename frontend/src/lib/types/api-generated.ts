@@ -1391,6 +1391,8 @@ export interface components {
             model: string | null;
             /** Project Id */
             project_id: string;
+            /** Remote Host */
+            remote_host: string | null;
             /** Setup Commands */
             setup_commands: string[] | null;
             /**
@@ -1427,6 +1429,8 @@ export interface components {
             collect_commands?: components["schemas"]["CollectEntry"][] | null;
             /** Model */
             model?: string | null;
+            /** Remote Host */
+            remote_host?: string | null;
             /** Setup Commands */
             setup_commands?: string[] | null;
             /** System Prompt */

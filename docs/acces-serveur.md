@@ -1,14 +1,21 @@
-# Collecte distante
+# Accès serveur
 
 Une session Eldir ne voit que le worktree git de son projet. Or une partie de
-ce qu'il faut lire n'est pas dans le repo : le code d'un service qui vit dans
-une image Docker, une config générée sur l'hôte, un log de production.
+ce qu'il faut lire, et parfois corriger, n'est pas dans le repo : le code d'un
+service qui vit dans une image Docker, une config générée sur l'hôte, un log
+de production.
 
-Sans ça, l'agent a deux mauvaises options : deviner, ou s'arrêter. La bonne
-réponse est qu'il lise le fichier. La question est comment le lui donner sans
-lui donner la machine.
+Deux mécanismes, à utiliser dans cet ordre :
 
-## Le principe
+1. **La collecte** ramène des fichiers précis avant que la session démarre.
+   Automatique, hors du worktree, aucune connexion ouverte par l'agent. Ça
+   suffit quand tu sais d'avance ce qu'il faut lire.
+2. **L'accès SSH** laisse la session se connecter à la machine du projet et y
+   travailler. Ça s'adapte à n'importe quel projet, et ça sort du modèle
+   « je relis le diff avant que ça parte ». Lis la section dédiée avant de
+   l'activer.
+
+## La collecte : le principe
 
 Le projet **déclare** ce qu'il faut ramener, une commande par fichier, dans
 son Mission Template. Eldir les lance à la création de chaque session et
@@ -96,18 +103,23 @@ Puis décommente le montage dans `docker-compose.yml` :
       - ./secrets/ssh:/home/eldir/.ssh:ro
 ```
 
-### 2. Côté machine distante : verrouiller la clé
+### 2. Côté machine distante : choisir le régime
 
 Le CLI Claude tourne **dans le conteneur backend**. Tout ce qui y est monté
-est donc lisible par une session, qui tourne en `bypassPermissions`. Une clé
-SSH sans restriction dans ce conteneur revient à donner un shell de
-production à un agent. Ce serait annuler le reste : Eldir refuse déjà tout
-`git push` sans ton accord explicite, ça n'a aucun sens si l'agent peut se
-connecter ailleurs et faire ce qu'il veut.
+est donc lisible par une session, qui tourne en `bypassPermissions`. Ce que la
+clé permet là-bas, l'agent peut le faire. La restriction se pose donc côté
+machine distante, pas côté Eldir.
 
-La restriction se pose côté machine distante, pas côté Eldir. Compte dédié,
-sans mot de passe, et une commande forcée qui n'accepte qu'une liste fermée
-d'actions :
+Deux régimes, selon ce que tu veux :
+
+| Régime | Ce que la clé permet | Pour quoi |
+|---|---|---|
+| **Verrouillé** | une liste fermée de commandes | collecte de fichiers |
+| **Ouvert** | un shell sur un compte dédié | laisser la session travailler sur la machine |
+
+Le verrouillé se pose avec une commande forcée dans `authorized_keys` : compte
+dédié, sans mot de passe, et un script qui n'accepte qu'une liste fermée
+d'actions.
 
 ```
 # /home/eldir-collecte/.ssh/authorized_keys
@@ -136,6 +148,53 @@ Ajuste la liste à ce que tu déclares dans les templates. Si une collecte
 échoue avec « refusé par eldir-collecte », c'est que la commande n'est pas
 dans la liste : c'est le comportement attendu.
 
+## Laisser la session travailler sur la machine
+
+Déclarer les fichiers un par un ne passe pas à l'échelle : sur un projet
+déployé, l'agent a besoin de parcourir la machine, pas de recevoir trois
+fichiers choisis d'avance. D'où le régime ouvert.
+
+Dans **Projects → un projet → Template**, champ « Machine du projet », mets
+l'alias SSH. Les sessions de ce projet verront `$ELDIR_REMOTE_HOST` et
+pourront s'y connecter. Vide = aucun accès, c'est le défaut.
+
+### Ce que ça change
+
+Le modèle d'Eldir est : l'agent travaille dans un worktree, tu relis le diff,
+tu déclenches la publication. Sur la machine distante, **rien de tout ça
+n'existe**. Pas de branche, pas de diff, pas d'annulation. Ce que la session
+modifie est appliqué.
+
+Ce n'est pas un défaut d'implémentation, c'est la nature de ce que tu
+autorises. Trois conséquences à accepter avant d'activer :
+
+- n'active l'accès que sur une machine dont tu as une **sauvegarde ou un
+  snapshot** récent ;
+- utilise un **compte dédié sans sudo**, dont les droits d'écriture se
+  limitent à l'application (`/opt/monapp`, pas `/etc` ni `/var/lib/postgresql`) ;
+- traite le compte rendu comme ton seul journal : le protocole enfant impose
+  à l'agent de lister dans `FICHIERS:` chaque fichier modifié à distance
+  (préfixé de l'hôte) et dans `FAIT:` chaque commande qui a changé l'état de
+  la machine.
+
+### Ce qu'Eldir garantit quand même
+
+Le hook `PreToolUse` refuse toute connexion sortante qui ne vise pas l'alias
+déclaré par le projet : le conteneur porte ta configuration SSH complète, donc
+sans ça une session ouverte sur un projet pourrait atteindre tes autres
+machines. Une session sans alias déclaré ne sort pas du tout.
+
+L'alias est **figé à la création de la session** : le modifier dans le
+template ne change rien pour les sessions déjà lancées, et un `resume` repart
+avec exactement le même périmètre.
+
+C'est un garde-fou contre l'écart, pas un bac à sable. Un agent décidé
+contournerait un filtre sur une ligne de commande (script intermédiaire,
+`base64 -d | bash`). Le refus de publication a exactement la même propriété
+depuis le début : il empêche la dérive ordinaire, il n'arrête pas une
+intention hostile. Ce qui tient vraiment, c'est le compte dédié et la
+sauvegarde.
+
 ## Ce que voit l'agent
 
 `$ELDIR_COLLECTE` est dans son environnement, et le protocole enfant lui dit
@@ -145,3 +204,8 @@ commande qui le récupérerait, plutôt que de patcher à l'aveugle.
 
 C'est le signal qui dit quoi ajouter à la collecte du projet, exactement comme
 un outil manquant dit quoi ajouter au toolchain.
+
+Si le projet déclare une machine, `$ELDIR_REMOTE_HOST` est lui aussi dans son
+environnement, et le protocole enfant lui dit d'y aller voir plutôt que de
+deviner, de sauvegarder un fichier avant de l'écraser, et de tout reporter
+dans son compte rendu.
