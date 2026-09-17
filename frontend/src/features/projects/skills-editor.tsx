@@ -5,6 +5,7 @@
  * dans le worktree de chaque nouvelle session.
  */
 
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { ApiError } from '@/lib/api/client';
@@ -37,9 +38,10 @@ export function SkillsEditor({ projectId }: SkillsEditorProps): JSX.Element {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
-          + ajouter
+          <Plus size={14} aria-hidden="true" />
+          ajouter
         </button>
       </header>
 
@@ -69,7 +71,7 @@ export function SkillsEditor({ projectId }: SkillsEditorProps): JSX.Element {
               <button
                 type="button"
                 onClick={() => setEditing(s)}
-                className="rounded-eldir border border-eldir-gray-3 px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+                className="eldir-btn eldir-btn--secondary eldir-btn--sm"
               >
                 éditer
               </button>
@@ -140,7 +142,7 @@ function SkillDialog({
   const submitting = create.isPending || update.isPending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <form
         onSubmit={handleSubmit}
         className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper"
@@ -165,7 +167,7 @@ function SkillDialog({
               onChange={(e) => setName(e.target.value)}
               maxLength={120}
               placeholder="ex: run-tests"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
               required
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
@@ -180,7 +182,7 @@ function SkillDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={255}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             />
           </label>
 
@@ -191,7 +193,7 @@ function SkillDialog({
               onChange={(e) => setContent(e.target.value)}
               rows={14}
               required
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
             />
           </label>
 
@@ -208,7 +210,7 @@ function SkillDialog({
               type="button"
               onClick={handleDelete}
               disabled={del.isPending}
-              className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+              className="eldir-btn eldir-btn--danger eldir-btn--sm"
             >
               {del.isPending ? 'suppr…' : 'supprimer'}
             </button>
@@ -219,14 +221,14 @@ function SkillDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+              className="eldir-btn eldir-btn--secondary eldir-btn--sm"
             >
               annuler
             </button>
             <button
               type="submit"
               disabled={submitting || !name.trim() || !content.trim()}
-              className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+              className="eldir-btn eldir-btn--primary"
             >
               {submitting ? 'enregistrement…' : 'enregistrer'}
             </button>

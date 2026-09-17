@@ -44,7 +44,7 @@ export function NewRepoDialog({ onClose }: { onClose: () => void }): JSX.Element
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <div className="w-full max-w-lg rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Nouveau repo distant</div>
@@ -86,7 +86,7 @@ export function NewRepoDialog({ onClose }: { onClose: () => void }): JSX.Element
               placeholder="mon-nouveau-repo"
               required
               maxLength={100}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             />
           </label>
 
@@ -97,7 +97,7 @@ export function NewRepoDialog({ onClose }: { onClose: () => void }): JSX.Element
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={512}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             />
           </label>
 
@@ -129,14 +129,14 @@ export function NewRepoDialog({ onClose }: { onClose: () => void }): JSX.Element
             <button
               type="button"
               onClick={onClose}
-              className="rounded-eldir border border-eldir-gray-3 px-4 py-2 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream"
+              className="eldir-btn eldir-btn--secondary"
             >
               annuler
             </button>
             <button
               type="submit"
               disabled={create.isPending}
-              className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+              className="eldir-btn eldir-btn--primary"
             >
               {create.isPending ? 'création…' : 'créer'}
             </button>

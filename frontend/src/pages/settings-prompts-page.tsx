@@ -7,13 +7,13 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import {
   useResetSystemPrompt,
   useSystemPrompts,
   useUpsertSystemPrompt,
 } from '@/lib/api/queries';
+import { BackLink } from '@/components/eldir/back-link';
 import type { SystemPromptRead } from '@/lib/types/api';
 import { cn } from '@/lib/utils';
 
@@ -32,20 +32,14 @@ export function SettingsPromptsPage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4 md:p-8">
       <header>
-        <Link
-          to="/settings"
-          className="font-mono text-2xs uppercase tracking-caps text-eldir-gray hover:text-eldir-orange"
-        >
-          ← settings
-        </Link>
-        <div className="eldir-caps mt-2">Prompts système</div>
-        <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
+        <BackLink to="/settings" label="réglages" />
+        <h1 className="eldir-title mt-1">
           Prompts Eldir
         </h1>
-        <p className="mt-2 max-w-3xl text-sm text-eldir-ink-2">
+        <p className="eldir-lede">
           Eldir utilise Claude pour certaines opérations internes (génération
           d'un Mission Template depuis un repo cloné, par exemple). Tu peux
-          modifier ces prompts ici. Reset au défaut possible à tout moment.
+          modifier ces prompts ici, et revenir au défaut à tout moment.
         </p>
       </header>
 
@@ -190,29 +184,29 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         spellCheck={false}
-        className="min-h-[400px] w-full resize-y rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none focus:ring-1 focus:ring-eldir-orange"
+        className="min-h-[400px] w-full resize-y rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:ring-1 focus:ring-eldir-orange"
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="font-mono text-2xs text-eldir-gray">
           {content.length} caractères
           {dirty && ' · modifications non sauvegardées'}
-          {!dirty && matchesDefault && prompt.is_overridden && ' · ⚠ identique au défaut'}
+          {!dirty && matchesDefault && prompt.is_overridden && ' · identique au défaut'}
         </div>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={onReset}
             disabled={reset.isPending || !prompt.is_overridden}
-            className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-40"
+            className="eldir-btn eldir-btn--secondary eldir-btn--sm"
           >
-            {reset.isPending ? 'reset…' : 'restaurer le défaut'}
+            {reset.isPending ? 'restauration…' : 'restaurer le défaut'}
           </button>
           <button
             type="button"
             onClick={onSave}
             disabled={upsert.isPending || !dirty}
-            className="rounded-eldir bg-eldir-orange px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+            className="eldir-btn eldir-btn--primary eldir-btn--sm"
           >
             {upsert.isPending ? 'sauvegarde…' : 'sauvegarder'}
           </button>

@@ -21,11 +21,11 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { to: '/', label: 'Ops', icon: Activity },
+  { to: '/', label: 'Pilotage', icon: Activity },
   { to: '/supervisor', label: 'Eldir', icon: Flame, matchPrefix: '/supervisor' },
-  { to: '/projects', label: 'Projects', icon: FolderGit2, matchPrefix: '/projects' },
-  { to: '/costs', label: 'Costs', icon: Wallet, matchPrefix: '/costs' },
-  { to: '/settings', label: 'Settings', icon: Settings, matchPrefix: '/settings' },
+  { to: '/projects', label: 'Projets', icon: FolderGit2, matchPrefix: '/projects' },
+  { to: '/costs', label: 'Coûts', icon: Wallet, matchPrefix: '/costs' },
+  { to: '/settings', label: 'Réglages', icon: Settings, matchPrefix: '/settings' },
 ];
 
 export function isNavItemActive(item: NavItem, pathname: string): boolean {

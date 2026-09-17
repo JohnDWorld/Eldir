@@ -80,7 +80,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
   };
 
   const champ =
-    'h-11 w-full min-w-0 rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none';
+    'h-11 w-full min-w-0 rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange';
 
   return (
     <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-4">
@@ -188,7 +188,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
           type="button"
           onClick={submit}
           disabled={!host.trim() || !user.trim() || connect.isPending}
-          className="min-h-11 rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-40"
+          className="eldir-btn eldir-btn--primary"
         >
           {connect.isPending
             ? 'connexion…'
@@ -201,7 +201,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
             type="button"
             onClick={remove}
             disabled={disconnect.isPending}
-            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-4 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink disabled:opacity-40"
+            className="eldir-btn eldir-btn--secondary"
           >
             {disconnect.isPending ? 'révocation…' : 'déconnecter'}
           </button>

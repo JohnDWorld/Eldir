@@ -1,19 +1,14 @@
 /**
  * SessionCard - carte session dans la grille Mission Control desktop.
- * Bordure gauche colorée selon l'état (cf. DA/d1.jsx · D1DeskHome).
+ * L'état se lit sur la pastille. Plus de bordure gauche colorée de 3px :
+ * elle doublait l'information et alourdissait la grille.
  */
+
+import { Clock } from 'lucide-react';
 
 import { StatePill } from '@/components/eldir/state-pill';
 import type { SessionState } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-
-const STATE_BORDER: Record<SessionState, string> = {
-  idle: 'border-l-eldir-gray-2',
-  thinking: 'border-l-eldir-orange',
-  tool_use: 'border-l-eldir-gold',
-  waiting_input: 'border-l-eldir-amber',
-  blocked: 'border-l-eldir-red',
-};
 
 export interface SessionCardData {
   id: string;
@@ -21,8 +16,6 @@ export interface SessionCardData {
   state: SessionState;
   summary: string | null;
   duration: string;
-  tokens: string;
-  cost: string;
 }
 
 interface SessionCardProps {
@@ -37,8 +30,7 @@ export function SessionCard({ data, selected, onClick }: SessionCardProps): JSX.
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full rounded-eldir border border-eldir-gray-3 border-l-[3px] bg-eldir-cream p-3 text-left transition-colors hover:bg-eldir-cream-2',
-        STATE_BORDER[data.state],
+        'w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-3 text-left transition-colors hover:border-eldir-gray-2 hover:bg-eldir-cream-2',
         selected && 'ring-1 ring-eldir-orange',
       )}
     >
@@ -55,10 +47,9 @@ export function SessionCard({ data, selected, onClick }: SessionCardProps): JSX.
           {data.summary}
         </p>
       )}
-      <div className="mt-2.5 flex gap-2.5 font-mono text-2xs text-eldir-gray">
-        <span>⏱ {data.duration}</span>
-        <span>◊ {data.tokens}</span>
-        <span>{data.cost}</span>
+      <div className="mt-2.5 flex items-center gap-1 font-mono text-2xs text-eldir-gray">
+        <Clock size={11} aria-hidden="true" />
+        <span>{data.duration}</span>
       </div>
     </button>
   );

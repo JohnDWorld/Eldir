@@ -91,7 +91,7 @@ export function TemplateHistory({ projectId }: TemplateHistoryProps): JSX.Elemen
                   type="button"
                   onClick={() => handleRestore(v)}
                   disabled={restore.isPending}
-                  className="rounded-eldir border border-eldir-gray-3 px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+                  className="eldir-btn eldir-btn--secondary eldir-btn--sm"
                 >
                   {restore.isPending ? 'restauration…' : 'restaurer'}
                 </button>

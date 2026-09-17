@@ -8,6 +8,7 @@
  * main depuis.
  */
 
+import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 
 import { useSessionDiff, useSessionDiffFile } from '@/lib/api/queries';
@@ -19,13 +20,13 @@ interface DiffPanelProps {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  A: 'add',
-  M: 'mod',
-  D: 'del',
-  R: 'ren',
-  C: 'cpy',
-  T: 'typ',
-  U: 'unm',
+  A: 'ajout',
+  M: 'modif',
+  D: 'suppr',
+  R: 'renom',
+  C: 'copie',
+  T: 'type',
+  U: 'conflit',
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -48,9 +49,15 @@ export function DiffPanel({ sessionId }: DiffPanelProps): JSX.Element {
           type="button"
           onClick={() => diff.refetch()}
           disabled={diff.isFetching}
-          className="font-mono text-2xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink disabled:opacity-50"
+          aria-label="Rafraîchir le diff"
+          title="Rafraîchir le diff"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-eldir text-eldir-gray hover:text-eldir-ink disabled:opacity-45 md:min-h-8 md:min-w-8"
         >
-          {diff.isFetching ? 'maj…' : '↻'}
+          <RefreshCw
+            size={14}
+            aria-hidden="true"
+            className={diff.isFetching ? 'animate-spin' : undefined}
+          />
         </button>
       </header>
 
@@ -144,9 +151,9 @@ function PatchView({
 }): JSX.Element {
   const patch = useSessionDiffFile(sessionId, path);
   return (
-    <div className="h-full min-w-0 overflow-y-auto bg-eldir-ink font-mono text-[11px] leading-relaxed text-eldir-cream">
+    <div className="h-full min-w-0 overflow-y-auto bg-eldir-console font-mono text-[11px] leading-relaxed text-eldir-console-fg">
       {patch.isPending && (
-        <p className="px-3 py-3 text-eldir-gray-2">chargement…</p>
+        <p className="px-3 py-3 text-eldir-console-fg/55">chargement…</p>
       )}
       {patch.isError && (
         <p className="px-3 py-3 text-eldir-red">{patch.error.message}</p>
@@ -170,7 +177,7 @@ function colorize(patch: string): JSX.Element[] {
   return patch.split('\n').map((line, idx) => {
     let cls = '';
     if (line.startsWith('+++') || line.startsWith('---')) {
-      cls = 'text-eldir-gray-2';
+      cls = 'text-eldir-console-fg/55';
     } else if (line.startsWith('+')) {
       cls = 'text-eldir-green';
     } else if (line.startsWith('-')) {

@@ -49,7 +49,7 @@ export function ApplyPresetDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <div className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Appliquer un preset</div>
@@ -74,7 +74,7 @@ export function ApplyPresetDialog({
             )}
             {presets.data && presets.data.length === 0 && (
               <p className="px-4 py-4 font-mono text-xs text-eldir-gray">
-                Aucun preset bundlé.
+                Aucun preset disponible.
               </p>
             )}
             <ul className="divide-y divide-eldir-gray-3">
@@ -123,7 +123,7 @@ export function ApplyPresetDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+              className="eldir-btn eldir-btn--secondary eldir-btn--sm"
             >
               annuler
             </button>
@@ -131,7 +131,7 @@ export function ApplyPresetDialog({
               type="button"
               onClick={handleApply}
               disabled={!selectedSlug || apply.isPending}
-              className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+              className="eldir-btn eldir-btn--primary"
             >
               {apply.isPending ? 'application…' : 'appliquer'}
             </button>

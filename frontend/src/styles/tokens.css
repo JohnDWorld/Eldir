@@ -2,9 +2,16 @@
  * Eldir - design tokens.
  * Source de vérité : DA/tokens.css (Direction 1 · Mission Control).
  * Format HSL pour compat Tailwind v3 alpha-value.
+ *
+ * Deux thèmes, mêmes noms de jetons. Les composants ne connaissent que les
+ * rôles (paper, ink, gray…) ; c'est ici, et seulement ici, qu'un rôle change
+ * de valeur selon le thème. Contrastes vérifiés au calcul (WCAG AA, 4,5:1
+ * pour le texte) sur paper, cream et cream-2.
  */
 @layer base {
   :root {
+    color-scheme: light;
+
     /* ── Eldir palette ─────────────────────────────────────── */
     --eldir-orange: 15 63% 60%;
     --eldir-orange-soft: 14 71% 69%;
@@ -13,7 +20,9 @@
     --eldir-paper: 43 47% 97%;
     --eldir-ink: 0 0% 10%;
     --eldir-ink-2: 30 8% 15%;
-    --eldir-gray: 33 5% 52%;
+    /* 40 % et plus 52 % : l'ancien gris ne tenait que 3,46:1 sur le fond,
+       sous le minimum pour tout le petit texte secondaire. */
+    --eldir-gray: 33 6% 40%;
     --eldir-gray-2: 37 8% 70%;
     --eldir-gray-3: 39 16% 82%;
     --eldir-gold: 34 42% 64%;
@@ -21,6 +30,19 @@
     --eldir-amber: 37 65% 57%;
     --eldir-red: 7 44% 50%;
     --eldir-blue: 210 26% 48%;
+
+    /* ── Rôles qui ne suivent pas simplement ink/paper ─────── */
+    /* Consoles (logs, diff, blocs de code) : toujours sombres, dans les
+       deux thèmes. Avant, elles utilisaient `ink` comme fond : en thème
+       sombre, ink devient clair et les consoles se seraient inversées. */
+    --eldir-console: 0 0% 10%;
+    --eldir-console-fg: 42 31% 94%;
+    /* Texte posé sur l'orange des actions principales. Brun très foncé et
+       pas blanc : le blanc ne tenait que 3,07:1 sur cet orange, sous le
+       minimum de 4,5:1. Celui-ci tient 5,47:1 et reste dans la famille. */
+    --eldir-on-orange: 15 30% 12%;
+    /* Voile derrière les modales. */
+    --eldir-scrim: 0 0% 10%;
 
     /* ── shadcn/ui aliases mappés sur Eldir ────────────────── */
     --background: var(--eldir-paper);
@@ -30,7 +52,7 @@
     --card-foreground: var(--eldir-ink);
 
     --primary: var(--eldir-orange);
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: var(--eldir-on-orange);
 
     --secondary: var(--eldir-cream-2);
     --secondary-foreground: var(--eldir-ink);
@@ -47,5 +69,34 @@
     --border: var(--eldir-gray-3);
     --input: var(--eldir-gray-3);
     --ring: var(--eldir-orange);
+  }
+
+  /* Thème sombre : terre chaude et pas noir pur, pour rester dans la famille
+     crème / orange du clair. Les accents sont éclaircis pour garder leur
+     contraste sur fond sombre. */
+  .dark {
+    color-scheme: dark;
+
+    --eldir-orange: 15 68% 62%;
+    --eldir-orange-soft: 14 71% 69%;
+    --eldir-cream: 30 6% 11%;
+    --eldir-cream-2: 30 6% 14%;
+    --eldir-paper: 30 6% 8%;
+    --eldir-ink: 40 25% 92%;
+    --eldir-ink-2: 38 12% 76%;
+    --eldir-gray: 36 7% 60%;
+    --eldir-gray-2: 34 6% 40%;
+    --eldir-gray-3: 32 6% 22%;
+    --eldir-gold: 34 48% 66%;
+    --eldir-green: 118 28% 58%;
+    --eldir-amber: 37 72% 62%;
+    --eldir-red: 7 62% 64%;
+    --eldir-blue: 210 40% 66%;
+
+    --eldir-console: 30 8% 5%;
+    --eldir-console-fg: 40 22% 88%;
+    /* Texte sombre sur l'orange : 6,3:1, là où le blanc plafonne à 3:1. */
+    --eldir-on-orange: 30 10% 8%;
+    --eldir-scrim: 0 0% 0%;
   }
 }

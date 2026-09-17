@@ -38,8 +38,8 @@ export function SupervisorPage(): JSX.Element {
         <>
           <p className="font-mono text-xs text-eldir-red">{error}</p>
           <p className="max-w-sm font-sans text-sm text-eldir-gray">
-            Eldir a besoin d&apos;un credential Claude actif. Configure-le dans
-            Settings &gt; Claude puis reviens.
+            Eldir a besoin d&apos;un identifiant Claude actif. Configure-le dans
+            Réglages › Identifiants Claude, puis reviens.
           </p>
         </>
       ) : (

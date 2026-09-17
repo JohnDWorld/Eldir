@@ -37,23 +37,23 @@ export function SessionGitActions({
               dirty ? 'text-eldir-amber' : 'text-eldir-gray',
             )}
           >
-            {dirty ? `${totalChanges} changes` : 'clean'}
+            {dirty ? `${totalChanges} modif${totalChanges > 1 ? 's' : ''}` : 'propre'}
           </span>
         )}
         <button
           type="button"
           onClick={() => setOpenWhich('commit')}
           disabled={!dirty}
-          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream disabled:opacity-40"
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
           commit & push
         </button>
         <button
           type="button"
           onClick={() => setOpenWhich('pr')}
-          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream"
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
-          open pr
+          ouvrir une pr
         </button>
       </div>
 
@@ -125,7 +125,7 @@ function CommitDialog({
             required
             maxLength={1000}
             placeholder="feat(sessions): add per-session ring buffer"
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
         <label className="flex items-center gap-2 font-mono text-xs text-eldir-ink">
@@ -196,14 +196,14 @@ function OpenPrDialog({
             href={created.url}
             target="_blank"
             rel="noreferrer"
-            className="break-all rounded-eldir bg-eldir-orange px-3 py-2 text-center font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+            className="eldir-btn eldir-btn--primary"
           >
-            ouvrir sur le provider →
+            ouvrir la PR
           </a>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream"
+            className="eldir-btn eldir-btn--secondary eldir-btn--sm"
           >
             fermer
           </button>
@@ -227,7 +227,7 @@ function OpenPrDialog({
             onChange={(e) => setTitle(e.target.value)}
             required
             maxLength={255}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
         <label className="block">
@@ -237,18 +237,18 @@ function OpenPrDialog({
             onChange={(e) => setBody(e.target.value)}
             rows={5}
             maxLength={8000}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
         <label className="block">
-          <span className="eldir-caps mb-1 block">Base branch (optionnelle)</span>
+          <span className="eldir-caps mb-1 block">Branche de base (optionnelle)</span>
           <input
             type="text"
             value={base}
             onChange={(e) => setBase(e.target.value)}
             placeholder="main"
             maxLength={120}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
 
@@ -257,7 +257,7 @@ function OpenPrDialog({
         <FormFooter
           onClose={onClose}
           submitting={openPr.isPending}
-          label="open pr"
+          label="ouvrir la pr"
         />
       </form>
     </DialogShell>
@@ -275,7 +275,7 @@ function DialogShell({
   children: React.ReactNode;
 }): JSX.Element {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <div className="w-full max-w-lg rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="flex items-center justify-between border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">{title}</div>
@@ -323,14 +323,14 @@ function FormFooter({
       <button
         type="button"
         onClick={onClose}
-        className="rounded-eldir border border-eldir-gray-3 px-4 py-2 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream"
+        className="eldir-btn eldir-btn--secondary"
       >
         annuler
       </button>
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+        className="eldir-btn eldir-btn--primary"
       >
         {submitting ? '…' : label}
       </button>

@@ -2,6 +2,16 @@
  * ProjectsPage - liste des projets Eldir + bouton "Ajouter depuis un repo".
  */
 
+import {
+  Check,
+  Circle,
+  FolderGit2,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -36,6 +46,7 @@ export function ProjectsPage(): JSX.Element {
   const batch = useTemplateBatchState();
   const [syncReport, setSyncReport] = useState<RepoSyncItem[] | null>(null);
   const [batchError, setBatchError] = useState<string | null>(null);
+  const [generateAsked, setGenerateAsked] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [newRepoOpen, setNewRepoOpen] = useState(false);
   // Quand UN seul projet vient d'être cloné via le dialog, on propose
@@ -89,6 +100,7 @@ export function ProjectsPage(): JSX.Element {
     }
     setSyncReport(null);
     setBatchError(null);
+    setGenerateAsked(true);
     try {
       await generateMissing.mutateAsync();
     } catch (err) {
@@ -102,10 +114,11 @@ export function ProjectsPage(): JSX.Element {
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <div className="eldir-caps">Projects</div>
-          <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
-            Projets clonés
-          </h1>
+          <h1 className="eldir-title">Projets</h1>
+          <p className="eldir-lede">
+            Les repos clonés sur le serveur. Chaque session travaille dans une
+            copie isolée de l&apos;un d&apos;eux.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {nbProjets > 0 && (
@@ -114,35 +127,45 @@ export function ProjectsPage(): JSX.Element {
                 type="button"
                 onClick={handleSyncAll}
                 disabled={syncAll.isPending}
-                className="min-h-11 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+                className="eldir-btn eldir-btn--secondary"
                 title="Fetch et fast-forward de tous les repos clonés"
               >
-                {syncAll.isPending ? 'synchro…' : '↻ sync all'}
+                <RefreshCw
+                  size={14}
+                  aria-hidden="true"
+                  className={syncAll.isPending ? 'animate-spin' : undefined}
+                />
+                {syncAll.isPending ? 'synchro…' : 'tout synchroniser'}
               </button>
               <button
                 type="button"
                 onClick={handleGenerateMissing}
                 disabled={generateMissing.isPending || batch.data?.running === true}
-                className="min-h-11 rounded-eldir border border-eldir-gold bg-eldir-gold/10 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-gold/20 disabled:opacity-50"
+                className="eldir-btn eldir-btn--secondary"
                 title="Génère et applique le Mission Template des repos qui n'en ont pas"
               >
-                {batch.data?.running ? 'génération…' : '✨ templates manquants'}
+                <Sparkles size={14} aria-hidden="true" className="text-eldir-gold" />
+                {batch.data?.running ? 'génération…' : 'templates manquants'}
               </button>
             </>
           )}
           <button
             type="button"
             onClick={() => setNewRepoOpen(true)}
-            className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+            className="eldir-btn eldir-btn--secondary"
+            title="Crée un repo vide chez ton provider, puis le clone ici"
           >
-            + nouveau repo
+            <Plus size={14} aria-hidden="true" />
+            créer un repo
           </button>
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+            className="eldir-btn eldir-btn--primary"
+            title="Clone un repo existant de ton compte GitHub ou Forgejo"
           >
-            + ajouter un repo
+            <Plus size={14} aria-hidden="true" />
+            ajouter un repo
           </button>
         </div>
       </header>
@@ -161,44 +184,79 @@ export function ProjectsPage(): JSX.Element {
           items={batch.data.items}
         />
       )}
-      {batch.data && !batch.data.running && batch.data.items.length === 0 && (
-        <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-xs text-eldir-gray">
-          Tous les repos ont déjà un Mission Template : rien à générer.
-        </div>
-      )}
+      {/* Seulement en réponse au clic : l'état du lot est vide aussi quand
+          aucun lot n'a jamais tourné, et ce message restait affiché en
+          permanence en haut de la page. */}
+      {generateAsked &&
+        batch.data &&
+        !batch.data.running &&
+        batch.data.items.length === 0 && (
+          <div
+            role="status"
+            className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-xs text-eldir-gray"
+          >
+            Tous les repos ont déjà un Mission Template : rien à générer.
+          </div>
+        )}
 
-      <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
+      <section
+        className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream"
+        aria-busy={projects.isPending}
+      >
         {projects.isPending ? (
-          <p className="px-4 py-6 font-mono text-xs text-eldir-gray">chargement…</p>
+          <ul className="divide-y divide-eldir-gray-3" aria-label="Chargement des projets">
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-4">
+                <span className="eldir-skeleton h-3.5 w-3.5 shrink-0" />
+                <span className="flex min-w-0 flex-1 flex-col gap-2">
+                  <span className="eldir-skeleton h-3.5 w-2/5" />
+                  <span className="eldir-skeleton h-3 w-3/5" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : projects.isError ? (
+          <div className="flex flex-col items-start gap-3 px-4 py-6">
+            <p className="font-sans text-sm text-eldir-red">
+              Impossible de charger les projets : {projects.error.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => void projects.refetch()}
+              className="eldir-btn eldir-btn--secondary eldir-btn--sm"
+            >
+              réessayer
+            </button>
+          </div>
         ) : (projects.data ?? []).length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-            <span className="text-3xl text-eldir-gray-2" aria-hidden="true">
-              ⌥
-            </span>
-            <div className="font-mono text-sm font-semibold text-eldir-ink">
-              Aucun projet pour l'instant
-            </div>
-            <p className="max-w-md text-xs text-eldir-ink-2">
+            <FolderGit2 size={28} aria-hidden="true" className="text-eldir-gray-2" />
+            <h2 className="font-sans text-base font-semibold text-eldir-ink">
+              Aucun projet pour l&apos;instant
+            </h2>
+            <p className="max-w-md font-sans text-sm text-eldir-ink-2">
               Connecte GitHub ou Forgejo dans{' '}
-              <a href="/settings/git" className="text-eldir-orange underline">
-                Settings → Git
-              </a>{' '}
-              puis ajoute un repo existant ou crées-en un nouveau.
+              <Link to="/settings/git" className="text-eldir-orange underline underline-offset-2">
+                Réglages › Identifiants Git
+              </Link>
+              , puis ajoute un repo existant ou crées-en un nouveau.
             </p>
-            <div className="mt-1 flex gap-2">
+            <div className="mt-1 flex flex-wrap justify-center gap-2">
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+                className="eldir-btn eldir-btn--primary"
               >
-                + ajouter un repo
+                <Plus size={14} aria-hidden="true" />
+                ajouter un repo
               </button>
               <button
                 type="button"
                 onClick={() => setNewRepoOpen(true)}
-                className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+                className="eldir-btn eldir-btn--secondary"
               >
-                + nouveau repo
+                <Plus size={14} aria-hidden="true" />
+                créer un repo
               </button>
             </div>
           </div>
@@ -252,13 +310,18 @@ function TemplateBadge({ filled }: { filled: boolean }): JSX.Element {
           : 'Aucun Mission Template : les sessions partiront avec le prompt par défaut'
       }
       className={cn(
-        'shrink-0 rounded-eldir border px-1.5 py-0.5 font-mono text-2xs uppercase tracking-caps',
+        'inline-flex shrink-0 items-center gap-1 rounded-eldir border px-1.5 py-0.5 font-mono text-2xs uppercase tracking-caps',
         filled
           ? 'border-eldir-green text-eldir-green'
           : 'border-eldir-gold bg-eldir-gold/10 text-eldir-ink-2',
       )}
     >
-      {filled ? '✓ template' : '○ sans template'}
+      {filled ? (
+        <Check size={10} strokeWidth={2.5} aria-hidden="true" />
+      ) : (
+        <Circle size={9} strokeWidth={2.5} aria-hidden="true" />
+      )}
+      {filled ? 'template' : 'sans template'}
     </span>
   );
 }
@@ -282,7 +345,13 @@ function SyncReport({ items }: { items: RepoSyncItem[] }): JSX.Element {
           ))}
           {rates.map((i) => (
             <li key={i.project_id} className="font-mono text-2xs text-eldir-red">
-              ✕ {i.project_name} · {i.error}
+              <X
+                size={11}
+                strokeWidth={2.5}
+                aria-hidden="true"
+                className="mr-1 inline align-[-1px]"
+              />
+              {i.project_name} · {i.error}
             </li>
           ))}
         </ul>
@@ -306,11 +375,11 @@ function TemplateBatchReport({
     done: 'text-eldir-green',
     error: 'text-eldir-red',
   };
-  const mark: Record<TemplateBatchItem['state'], string> = {
-    pending: '·',
-    running: '⋯',
-    done: '✓',
-    error: '✕',
+  const mark: Record<TemplateBatchItem['state'], JSX.Element> = {
+    pending: <Circle size={9} aria-hidden="true" />,
+    running: <Loader2 size={11} aria-hidden="true" className="animate-spin" />,
+    done: <Check size={11} strokeWidth={2.5} aria-hidden="true" />,
+    error: <X size={11} strokeWidth={2.5} aria-hidden="true" />,
   };
   return (
     <div className="rounded-eldir border border-eldir-gold bg-eldir-gold/5 px-3 py-2">
@@ -327,7 +396,10 @@ function TemplateBatchReport({
         {items.map((i) => (
           <li
             key={i.project_id}
-            className={cn('min-w-0 font-mono text-2xs', tone[i.state])}
+            className={cn(
+              'flex min-w-0 flex-wrap items-center gap-x-1.5 font-mono text-2xs',
+              tone[i.state],
+            )}
           >
             {mark[i.state]} {i.project_name}
             {i.detail && <span className="text-eldir-gray"> · {i.detail}</span>}
@@ -382,15 +454,18 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
               </span>
               <TemplateBadge filled={project.has_template} />
             </div>
-            <div className="mt-0.5 break-all font-mono text-xs text-eldir-gray">
-              slug: {project.slug} · branch: {project.default_branch}
+            {/* Deux données, deux blocs qui passent à la ligne entre eux :
+                `break-all` coupait « branch » en plein milieu sur mobile. */}
+            <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-xs text-eldir-gray">
+              <span className="break-all">slug {project.slug}</span>
+              <span>branche {project.default_branch}</span>
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 sm:shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           <Link
             to={`/projects/${project.id}/template`}
-            className="inline-flex min-h-11 items-center rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase leading-none tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+            className="eldir-btn eldir-btn--secondary eldir-btn--sm"
           >
             template
           </Link>
@@ -398,21 +473,29 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
             type="button"
             onClick={handleSync}
             disabled={syncMut.isPending}
-            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+            className="eldir-btn eldir-btn--secondary eldir-btn--sm"
           >
             {syncMut.isPending ? 'sync…' : 'sync'}
           </button>
           <button
             type="button"
             onClick={() => {
-              if (confirm(`Supprimer ${project.repo_full_name} ? Le workspace local sera détruit.`)) {
+              if (
+                confirm(
+                  `Supprimer ${project.repo_full_name} d'Eldir ?\n\n` +
+                    `Le clone, les sessions et leur historique, le toolchain ` +
+                    `installé et les fichiers collectés seront effacés. Si une ` +
+                    `machine est connectée, la clé Eldir en sera retirée.\n\n` +
+                    `Le repo chez ton provider n'est pas touché.`,
+                )
+              ) {
                 deleteMut.mutate(project.id);
               }
             }}
             disabled={deleteMut.isPending}
-            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+            className="eldir-btn eldir-btn--danger eldir-btn--sm sm:ml-2"
           >
-            supprimer
+            {deleteMut.isPending ? 'suppression…' : 'supprimer'}
           </button>
         </div>
       </div>
@@ -540,7 +623,7 @@ function AddProjectDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Ajouter des repos</div>
@@ -580,14 +663,14 @@ function AddProjectDialog({
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="filtrer par nom (owner/repo)…"
-            className="min-w-0 flex-1 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="min-w-0 flex-1 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
           {filtered.length > 0 && (
             <button
               type="button"
               onClick={toggleAllFiltered}
               disabled={submitting}
-              className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink disabled:opacity-50"
+              className="eldir-btn eldir-btn--secondary eldir-btn--sm"
             >
               {allFilteredSelected ? 'tout désél.' : 'tout sél.'}
             </button>
@@ -672,7 +755,7 @@ function AddProjectDialog({
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink disabled:opacity-50"
+              className="eldir-btn eldir-btn--secondary eldir-btn--sm"
             >
               annuler
             </button>
@@ -680,7 +763,7 @@ function AddProjectDialog({
               type="button"
               onClick={handleValidate}
               disabled={selected.size === 0 || submitting}
-              className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+              className="eldir-btn eldir-btn--primary"
             >
               {submitting
                 ? 'clonage…'
@@ -722,7 +805,7 @@ function PostCloneOfferDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <div className="flex w-full max-w-md flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Mission Template</div>
@@ -745,14 +828,15 @@ function PostCloneOfferDialog({
           <button
             type="button"
             onClick={() => setOpenGenerate(true)}
-            className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+            className="eldir-btn eldir-btn--primary"
           >
-            ✨ analyser avec claude
+            <Sparkles size={14} aria-hidden="true" />
+            analyser avec claude
           </button>
           <Link
             to={`/projects/${projectId}/template`}
             onClick={onClose}
-            className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-4 py-2 text-center font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+            className="eldir-btn eldir-btn--secondary"
           >
             configurer manuellement
           </Link>

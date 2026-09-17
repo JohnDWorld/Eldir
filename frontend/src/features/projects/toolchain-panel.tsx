@@ -71,7 +71,7 @@ export function ToolchainPanel({
   return (
     <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="eldir-caps">Toolchain du repo</div>
+        <div className="eldir-caps">Outils du repo</div>
         <StatusPill status={data?.status ?? 'absent'} />
       </div>
 
@@ -130,7 +130,7 @@ export function ToolchainPanel({
           type="button"
           onClick={() => run('install')}
           disabled={installing || saved.length === 0 || install.isPending}
-          className="min-h-11 rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-40"
+          className="eldir-btn eldir-btn--primary"
         >
           {installing
             ? 'installation…'
@@ -147,7 +147,7 @@ export function ToolchainPanel({
               }
             }}
             disabled={installing || remove.isPending}
-            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-40"
+            className="eldir-btn eldir-btn--danger eldir-btn--sm"
           >
             supprimer
           </button>
@@ -164,7 +164,7 @@ export function ToolchainPanel({
       </div>
 
       {logOpen && data?.log && (
-        <pre className="mt-3 max-h-64 overflow-auto rounded-eldir bg-eldir-ink p-3 font-mono text-2xs leading-relaxed text-eldir-cream">
+        <pre className="mt-3 max-h-64 overflow-auto rounded-eldir bg-eldir-console p-3 font-mono text-2xs leading-relaxed text-eldir-console-fg">
           {data.log}
         </pre>
       )}

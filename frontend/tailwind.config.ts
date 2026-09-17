@@ -33,6 +33,10 @@ const config: Config = {
           amber: 'hsl(var(--eldir-amber) / <alpha-value>)',
           red: 'hsl(var(--eldir-red) / <alpha-value>)',
           blue: 'hsl(var(--eldir-blue) / <alpha-value>)',
+          console: 'hsl(var(--eldir-console) / <alpha-value>)',
+          'console-fg': 'hsl(var(--eldir-console-fg) / <alpha-value>)',
+          'on-orange': 'hsl(var(--eldir-on-orange) / <alpha-value>)',
+          scrim: 'hsl(var(--eldir-scrim) / <alpha-value>)',
         },
         // shadcn/ui aliases - mappés sur les tokens Eldir.
         background: 'hsl(var(--background) / <alpha-value>)',
@@ -71,8 +75,11 @@ const config: Config = {
       },
       fontSize: {
         // échelle dense Mission Control (mono = labels caps)
-        '2xs': ['9px', { lineHeight: '1' }],
-        xxs: ['10px', { lineHeight: '1.1' }],
+        // Interligne à 1,35 et plus à 1 : en français, les capitales portent
+        // des accents (É, À, È). Avec un interligne de 1 et un `truncate`, ils
+        // étaient rognés au-dessus de la lettre (« DEPENSE », « A TOI »).
+        '2xs': ['9px', { lineHeight: '1.35' }],
+        xxs: ['10px', { lineHeight: '1.35' }],
       },
       borderRadius: {
         // DA D1 = coins quasi droits (3px), pas de SaaS rounded-2xl

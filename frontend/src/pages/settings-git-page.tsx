@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { BackLink } from '@/components/eldir/back-link';
 import { ApiError } from '@/lib/api/client';
 import {
   useDeleteGitCredential,
@@ -75,11 +76,11 @@ export function SettingsGitPage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-8">
       <header>
-        <div className="eldir-caps">Settings · git</div>
-        <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
-          Credentials Git providers
+        <BackLink to="/settings" label="réglages" />
+        <h1 className="eldir-title mt-1">
+          Identifiants Git
         </h1>
-        <p className="mt-2 text-sm text-eldir-ink-2">
+        <p className="eldir-lede">
           Eldir utilise ces tokens pour lister tes repos, en cloner, en créer et
           publier des pull requests. Stockage chiffré (Fernet) en base.
         </p>
@@ -99,13 +100,13 @@ export function SettingsGitPage(): JSX.Element {
 
       <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
         <div className="border-b border-eldir-gray-3 px-4 py-3">
-          <span className="eldir-caps">Actuels</span>
+          <span className="eldir-caps">Enregistrés</span>
         </div>
         {credentials.isPending ? (
           <p className="px-4 py-6 font-mono text-xs text-eldir-gray">chargement…</p>
         ) : (credentials.data ?? []).length === 0 ? (
           <p className="px-4 py-6 font-mono text-xs text-eldir-gray">
-            Aucun credential configuré.
+            Aucun identifiant configuré.
           </p>
         ) : (
           <ul className="divide-y divide-eldir-gray-3">
@@ -137,7 +138,7 @@ function GitHubOauthSection(): JSX.Element | null {
   if (!config.data?.enabled) {
     return (
       <section className="rounded-eldir border border-dashed border-eldir-gray-3 bg-eldir-paper p-4">
-        <div className="eldir-caps">Connect with GitHub</div>
+        <div className="eldir-caps">Connexion GitHub</div>
         <p className="mt-2 text-sm text-eldir-ink-2">
           OAuth GitHub n'est pas configuré sur ce serveur Eldir. Pour l'activer,
           crée une{' '}
@@ -169,7 +170,7 @@ function GitHubOauthSection(): JSX.Element | null {
 
   return (
     <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-4">
-      <div className="eldir-caps">Connect with GitHub</div>
+      <div className="eldir-caps">Connexion GitHub</div>
       <h2 className="mt-1 font-mono text-base font-semibold text-eldir-ink">
         Connexion OAuth GitHub
       </h2>
@@ -231,7 +232,7 @@ function CredentialRow({
         type="button"
         onClick={onDelete}
         disabled={deleting}
-        className="min-h-11 shrink-0 self-start rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50 sm:self-auto"
+        className="eldir-btn eldir-btn--danger eldir-btn--sm shrink-0 self-start sm:self-auto"
       >
         supprimer
       </button>
@@ -292,7 +293,7 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://forgejo.example.com"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             />
           </label>
         )}
@@ -303,17 +304,17 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder={provider === 'github' ? 'ghp_… ou github_pat_…' : 'token Forgejo'}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
         <label className="block">
-          <span className="eldir-caps mb-1 block">Label (optionnel)</span>
+          <span className="eldir-caps mb-1 block">Libellé (optionnel)</span>
           <input
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={120}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
         {error && (
@@ -329,7 +330,7 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
         <button
           type="submit"
           disabled={upsert.isPending}
-          className="self-start rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+          className="eldir-btn eldir-btn--primary self-start"
         >
           {upsert.isPending ? 'enregistrement…' : 'enregistrer'}
         </button>

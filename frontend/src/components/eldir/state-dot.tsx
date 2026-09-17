@@ -3,8 +3,8 @@
  * Cf. DA/shared.jsx · STATES + DA/tokens.css · .dot.*
  */
 
+import { SESSION_STATE_LABEL, type SessionState } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import type { SessionState } from '@/lib/constants';
 
 const SIZE_CLASSES: Record<6 | 7 | 8 | 9 | 10, string> = {
   6: 'h-1.5 w-1.5',
@@ -26,13 +26,24 @@ export interface StateDotProps {
   state: SessionState;
   size?: 6 | 7 | 8 | 9 | 10;
   className?: string;
+  /**
+   * Pastille purement visuelle quand le libellé est déjà écrit à côté
+   * (StatePill). Sinon un lecteur d'écran annonçait l'état deux fois.
+   */
+  decorative?: boolean;
 }
 
-export function StateDot({ state, size = 8, className }: StateDotProps): JSX.Element {
+export function StateDot({
+  state,
+  size = 8,
+  className,
+  decorative = false,
+}: StateDotProps): JSX.Element {
   return (
     <span
-      role="status"
-      aria-label={state}
+      {...(decorative
+        ? { 'aria-hidden': true }
+        : { role: 'img', 'aria-label': `état : ${SESSION_STATE_LABEL[state]}` })}
       className={cn('eldir-dot', SIZE_CLASSES[size], STATE_CLASS[state], className)}
     />
   );

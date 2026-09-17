@@ -15,11 +15,11 @@ export function StatePill({ state, className }: StatePillProps): JSX.Element {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-caps text-eldir-gray',
+        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-[10px] uppercase leading-[1.35] tracking-caps text-eldir-gray',
         className,
       )}
     >
-      <StateDot state={state} size={7} />
+      <StateDot state={state} size={7} decorative />
       {SESSION_STATE_LABEL[state]}
     </span>
   );

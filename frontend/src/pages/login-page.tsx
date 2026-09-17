@@ -56,19 +56,19 @@ export function LoginPage(): JSX.Element {
             {APP_NAME.toUpperCase()}
             <span className="text-eldir-orange">·</span>CTL
           </div>
-          <div className="eldir-caps mt-1">Mission Control · login</div>
+          <div className="eldir-caps mt-1">Connexion</div>
         </header>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <label className="block">
-            <span className="eldir-caps mb-1 block">Email</span>
+            <span className="eldir-caps mb-1 block">E-mail</span>
             <input
               type="email"
               autoComplete="username"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             />
           </label>
 
@@ -80,7 +80,7 @@ export function LoginPage(): JSX.Element {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             />
           </label>
 
@@ -93,7 +93,7 @@ export function LoginPage(): JSX.Element {
           <button
             type="submit"
             disabled={login.isPending}
-            className="rounded-eldir bg-eldir-orange px-4 py-3 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+            className="eldir-btn eldir-btn--primary"
           >
             {login.isPending ? 'connexion…' : 'se connecter'}
           </button>

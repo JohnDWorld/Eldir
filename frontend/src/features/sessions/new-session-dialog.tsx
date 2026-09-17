@@ -38,7 +38,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Elem
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="flex items-center justify-between border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Nouvelle session</div>
@@ -109,7 +109,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Elem
                   type="button"
                   onClick={() => launch(p)}
                   disabled={createSession.isPending}
-                  className="rounded-eldir bg-eldir-orange px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+                  className="eldir-btn eldir-btn--primary eldir-btn--sm"
                 >
                   {selected?.id === p.id ? 'démarrage…' : 'lancer'}
                 </button>
