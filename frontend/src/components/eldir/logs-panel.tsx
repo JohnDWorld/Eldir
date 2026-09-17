@@ -32,7 +32,7 @@ interface LogsPanelProps {
 }
 
 export function LogsPanel({
-  title = '// stream · all sessions',
+  title = '// flux · toutes les sessions',
   lines,
   className,
 }: LogsPanelProps): JSX.Element {

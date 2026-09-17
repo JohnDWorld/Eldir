@@ -75,7 +75,7 @@ export function SettingsOllamaPage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 p-4 md:p-8">
       <header>
-        <BackLink to="/settings" label="settings" />
+        <BackLink to="/settings" label="réglages" />
         <h1 className="eldir-title mt-1">
           Pré-traitement local via Ollama
         </h1>
@@ -192,7 +192,7 @@ export function SettingsOllamaPage(): JSX.Element {
 
       {status.data?.reachable && (
         <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-5">
-          <div className="eldir-caps mb-3">Playground</div>
+          <div className="eldir-caps mb-3">Essai</div>
 
           <div className="mb-3 flex flex-wrap gap-2">
             {MODE_OPTIONS.map((opt) => (

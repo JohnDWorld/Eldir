@@ -152,7 +152,7 @@ export function ProjectTemplatePage(): JSX.Element {
   const toolsHelper = useMemo(
     () =>
       allowedTools.size === 0
-        ? 'Aucun outil sélectionné ⇒ tous les outils built-in autorisés.'
+        ? 'Aucun outil sélectionné : tous les outils intégrés sont autorisés.'
         : `${allowedTools.size} outil(s) autorisé(s). Les autres seront bloqués.`,
     [allowedTools],
   );
@@ -200,10 +200,10 @@ export function ProjectTemplatePage(): JSX.Element {
 
       {/* Config principale */}
       <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-5">
-        <div className="eldir-caps mb-4">Config</div>
+        <div className="eldir-caps mb-4">Configuration</div>
         <div className="flex flex-col gap-4">
           <label className="block">
-            <span className="eldir-caps mb-1 block">System prompt</span>
+            <span className="eldir-caps mb-1 block">Prompt système</span>
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}

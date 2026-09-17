@@ -37,7 +37,7 @@ export function SessionGitActions({
               dirty ? 'text-eldir-amber' : 'text-eldir-gray',
             )}
           >
-            {dirty ? `${totalChanges} changes` : 'clean'}
+            {dirty ? `${totalChanges} modif${totalChanges > 1 ? 's' : ''}` : 'propre'}
           </span>
         )}
         <button
@@ -53,7 +53,7 @@ export function SessionGitActions({
           onClick={() => setOpenWhich('pr')}
           className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
-          open pr
+          ouvrir une pr
         </button>
       </div>
 
@@ -241,7 +241,7 @@ function OpenPrDialog({
           />
         </label>
         <label className="block">
-          <span className="eldir-caps mb-1 block">Base branch (optionnelle)</span>
+          <span className="eldir-caps mb-1 block">Branche de base (optionnelle)</span>
           <input
             type="text"
             value={base}
@@ -257,7 +257,7 @@ function OpenPrDialog({
         <FormFooter
           onClose={onClose}
           submitting={openPr.isPending}
-          label="open pr"
+          label="ouvrir la pr"
         />
       </form>
     </DialogShell>

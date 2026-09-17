@@ -74,7 +74,7 @@ export function ApplyPresetDialog({
             )}
             {presets.data && presets.data.length === 0 && (
               <p className="px-4 py-4 font-mono text-xs text-eldir-gray">
-                Aucun preset bundlé.
+                Aucun preset disponible.
               </p>
             )}
             <ul className="divide-y divide-eldir-gray-3">

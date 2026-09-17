@@ -32,14 +32,14 @@ export function SettingsPromptsPage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4 md:p-8">
       <header>
-        <BackLink to="/settings" label="settings" />
+        <BackLink to="/settings" label="réglages" />
         <h1 className="eldir-title mt-1">
           Prompts Eldir
         </h1>
         <p className="eldir-lede">
           Eldir utilise Claude pour certaines opérations internes (génération
           d'un Mission Template depuis un repo cloné, par exemple). Tu peux
-          modifier ces prompts ici. Reset au défaut possible à tout moment.
+          modifier ces prompts ici, et revenir au défaut à tout moment.
         </p>
       </header>
 
@@ -200,7 +200,7 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
             disabled={reset.isPending || !prompt.is_overridden}
             className="eldir-btn eldir-btn--secondary eldir-btn--sm"
           >
-            {reset.isPending ? 'reset…' : 'restaurer le défaut'}
+            {reset.isPending ? 'restauration…' : 'restaurer le défaut'}
           </button>
           <button
             type="button"

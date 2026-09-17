@@ -71,7 +71,7 @@ export function ToolchainPanel({
   return (
     <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="eldir-caps">Toolchain du repo</div>
+        <div className="eldir-caps">Outils du repo</div>
         <StatusPill status={data?.status ?? 'absent'} />
       </div>
 

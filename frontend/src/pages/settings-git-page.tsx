@@ -76,9 +76,9 @@ export function SettingsGitPage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-8">
       <header>
-        <BackLink to="/settings" label="settings" />
+        <BackLink to="/settings" label="réglages" />
         <h1 className="eldir-title mt-1">
-          Credentials Git providers
+          Identifiants Git
         </h1>
         <p className="eldir-lede">
           Eldir utilise ces tokens pour lister tes repos, en cloner, en créer et
@@ -100,13 +100,13 @@ export function SettingsGitPage(): JSX.Element {
 
       <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
         <div className="border-b border-eldir-gray-3 px-4 py-3">
-          <span className="eldir-caps">Actuels</span>
+          <span className="eldir-caps">Enregistrés</span>
         </div>
         {credentials.isPending ? (
           <p className="px-4 py-6 font-mono text-xs text-eldir-gray">chargement…</p>
         ) : (credentials.data ?? []).length === 0 ? (
           <p className="px-4 py-6 font-mono text-xs text-eldir-gray">
-            Aucun credential configuré.
+            Aucun identifiant configuré.
           </p>
         ) : (
           <ul className="divide-y divide-eldir-gray-3">
@@ -138,7 +138,7 @@ function GitHubOauthSection(): JSX.Element | null {
   if (!config.data?.enabled) {
     return (
       <section className="rounded-eldir border border-dashed border-eldir-gray-3 bg-eldir-paper p-4">
-        <div className="eldir-caps">Connect with GitHub</div>
+        <div className="eldir-caps">Connexion GitHub</div>
         <p className="mt-2 text-sm text-eldir-ink-2">
           OAuth GitHub n'est pas configuré sur ce serveur Eldir. Pour l'activer,
           crée une{' '}
@@ -170,7 +170,7 @@ function GitHubOauthSection(): JSX.Element | null {
 
   return (
     <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-4">
-      <div className="eldir-caps">Connect with GitHub</div>
+      <div className="eldir-caps">Connexion GitHub</div>
       <h2 className="mt-1 font-mono text-base font-semibold text-eldir-ink">
         Connexion OAuth GitHub
       </h2>
@@ -308,7 +308,7 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
           />
         </label>
         <label className="block">
-          <span className="eldir-caps mb-1 block">Label (optionnel)</span>
+          <span className="eldir-caps mb-1 block">Libellé (optionnel)</span>
           <input
             type="text"
             value={label}

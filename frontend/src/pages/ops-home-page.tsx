@@ -108,22 +108,22 @@ export function OpsHomePage(): JSX.Element {
   );
 
   const telemetry: readonly TelemetryItem[] = [
-    { label: 'Active', value: String(activeSessions.length), sub: 'sessions' },
-    { label: 'Projects', value: String((projects.data ?? []).length), sub: 'cloned' },
-    { label: 'Input', value: String(waitingInput), sub: 'awaiting you' },
-    { label: 'Blocked', value: String(blocked), sub: '-' },
+    { label: 'Actives', value: String(activeSessions.length), sub: 'sessions' },
+    { label: 'Projets', value: String((projects.data ?? []).length), sub: 'clonés' },
+    { label: 'À toi', value: String(waitingInput), sub: 'en attente' },
+    { label: 'Bloquées', value: String(blocked), sub: 'sessions' },
     {
       label: 'Tokens',
       value: formatTokens(tokensToday),
-      sub: 'today',
+      sub: 'aujourd’hui',
       // Une courbe à plat sur des zéros est de la décoration : on ne la
       // dessine que s'il y a quelque chose à montrer.
       ...(tokensSpark.some((v) => v > 0) ? { spark: tokensSpark } : {}),
     },
     {
-      label: 'Spend',
+      label: 'Dépense',
       value: spend7d > 0 ? `$${spend7d.toFixed(2)}` : '$0.00',
-      sub: '7-day',
+      sub: '7 jours',
       ...(dailySpark.some((v) => v > 0) ? { spark: dailySpark } : {}),
     },
   ];
@@ -159,12 +159,10 @@ export function OpsHomePage(): JSX.Element {
     .map((s) => ({
       id: s.id.slice(0, 8),
       projectSlug:
-        (s.project_id ? projectSlugById.get(s.project_id) : 'eldir') ?? 'unknown',
+        (s.project_id ? projectSlugById.get(s.project_id) : 'eldir') ?? 'inconnu',
       state: s.state,
       summary: s.summary ?? null,
       duration: durationSince(s.created_at),
-      tokens: '-',
-      cost: '-',
     }));
 
   return (
@@ -174,7 +172,7 @@ export function OpsHomePage(): JSX.Element {
         <aside className="flex min-w-0 flex-col overflow-y-auto border-eldir-gray-3 py-2.5 md:border-r">
           <div className="flex items-center justify-between px-3.5 py-1 pb-2">
             <span className="eldir-caps">
-              Projects · {(projects.data ?? []).length}
+              Projets · {(projects.data ?? []).length}
             </span>
             <Link
               to="/projects"
@@ -232,7 +230,7 @@ export function OpsHomePage(): JSX.Element {
             </div>
           )}
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="eldir-caps">Live sessions</span>
+            <span className="eldir-caps">Sessions en cours</span>
             {/* Quand la liste est vide, l'état vide porte déjà l'action :
                 deux boutons identiques côte à côte, c'était un de trop. */}
             {cards.length > 0 && (
@@ -242,7 +240,7 @@ export function OpsHomePage(): JSX.Element {
                 className="eldir-btn eldir-btn--primary eldir-btn--sm"
               >
                 <Plus size={14} aria-hidden="true" />
-                new session
+                nouvelle session
               </button>
             )}
           </div>
@@ -276,7 +274,7 @@ export function OpsHomePage(): JSX.Element {
                     className="eldir-btn eldir-btn--primary"
                   >
                     <Plus size={14} aria-hidden="true" />
-                    new session
+                    nouvelle session
                   </button>
                   <Link to="/supervisor" className="eldir-btn eldir-btn--secondary">
                     parler à eldir
@@ -316,7 +314,7 @@ export function OpsHomePage(): JSX.Element {
           )}
           <LogsPanel
             className="mt-3.5 max-h-[160px]"
-            title={`// stream · ${activeSessions.length} active`}
+            title={`// flux · ${activeSessions.length} active${activeSessions.length > 1 ? 's' : ''}`}
             lines={sessionLogLines(sessions.data ?? [], projectSlugById)}
           />
         </section>
@@ -325,7 +323,7 @@ export function OpsHomePage(): JSX.Element {
         <aside className="hidden flex-col gap-3.5 overflow-y-auto border-l border-eldir-gray-3 px-3.5 py-2.5 md:flex">
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <span className="eldir-caps">Spend · 7-day</span>
+              <span className="eldir-caps">Dépense · 7 jours</span>
               <Link
                 to="/costs"
                 className="inline-flex items-center font-mono text-2xs text-eldir-orange hover:underline"

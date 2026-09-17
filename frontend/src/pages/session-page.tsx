@@ -11,6 +11,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { Avatar } from '@/components/eldir/avatar';
 import { StatePill } from '@/components/eldir/state-pill';
+import { SESSION_STATE_LABEL } from '@/lib/constants';
 import { DiffPanel } from '@/features/sessions/diff-panel';
 import { SessionGitActions } from '@/features/sessions/git-actions';
 import { useSessionStream } from '@/hooks/use-session-stream';
@@ -147,7 +148,7 @@ export function SessionPage(): JSX.Element {
         </p>
         <Link to="/" className="eldir-btn eldir-btn--secondary eldir-btn--sm">
           <ChevronLeft size={14} aria-hidden="true" />
-          retour à ops
+          retour au pilotage
         </Link>
       </main>
     );
@@ -162,14 +163,14 @@ export function SessionPage(): JSX.Element {
           className="inline-flex min-h-11 items-center gap-0.5 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink md:min-h-0"
         >
           <ChevronLeft size={14} aria-hidden="true" />
-          ops
+          pilotage
         </Link>
         <span className="font-mono text-xs font-semibold text-eldir-ink">
           / {session.data.id.slice(0, 8)}
         </span>
         <StatePill state={session.data.state} />
         <span className="hidden font-mono text-[11px] text-eldir-gray md:inline">
-          {session.data.branch} · {session.data.model ?? 'default model'}
+          {session.data.branch} · {session.data.model ?? 'modèle par défaut'}
         </span>
         <div className="flex-1" />
         {!isSystem && (
@@ -187,7 +188,7 @@ export function SessionPage(): JSX.Element {
           onClick={() => stopMut.mutate(sessionId)}
           className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
-          stop
+          arrêter
         </button>
         <button
           type="button"
@@ -213,7 +214,7 @@ export function SessionPage(): JSX.Element {
                 : 'border-b-2 border-transparent text-eldir-gray',
             )}
           >
-            {tab}
+            {MOBILE_TAB_LABEL[tab]}
           </button>
         ))}
       </div>
@@ -235,7 +236,7 @@ export function SessionPage(): JSX.Element {
                 s.system_kind === 'supervisor'
                   ? 'Eldir · superviseur'
                   : s.is_system
-                    ? `système · ${s.system_kind ?? 'inconnu'}`
+                    ? `système · ${SYSTEM_KIND_LABEL[s.system_kind ?? ''] ?? 'tâche interne'}`
                     : (project?.name ?? 'projet inconnu');
               const active = s.id === sessionId;
               return (
@@ -332,22 +333,22 @@ export function SessionPage(): JSX.Element {
           )}
         >
           <div className="flex flex-col gap-3 border-b border-eldir-gray-3 bg-eldir-paper p-4">
-            <div className="eldir-caps">Session meta</div>
+            <div className="eldir-caps">Détails</div>
             <Kv k="id" v={session.data.id.slice(0, 12)} />
             {(() => {
               const project = projects.data?.find((p) => p.id === session.data.project_id);
               return (
                 <>
-                  <Kv k="project" v={isSupervisor ? 'superviseur' : (project?.name ?? '-')} />
+                  <Kv k="projet" v={isSupervisor ? 'superviseur' : (project?.name ?? '-')} />
                   <Kv k="repo" v={project?.repo_full_name ?? '-'} />
                 </>
               );
             })()}
-            <Kv k="branch" v={session.data.branch} />
-            <Kv k="state" v={session.data.state} />
-            <Kv k="model" v={session.data.model ?? '-'} />
+            <Kv k="branche" v={session.data.branch} />
+            <Kv k="état" v={SESSION_STATE_LABEL[session.data.state]} />
+            <Kv k="modèle" v={session.data.model ?? '-'} />
             <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '-'} />
-            <Kv k="created" v={new Date(session.data.created_at).toLocaleTimeString()} />
+            <Kv k="créée" v={new Date(session.data.created_at).toLocaleTimeString()} />
           </div>
 
           <SessionCostPanel
@@ -360,7 +361,7 @@ export function SessionPage(): JSX.Element {
 
           <div className="flex border-b border-eldir-gray-3 bg-eldir-cream-2">
             <RightTab
-              label={`live · ${live.state}`}
+              label={`direct · ${CONNECTION_LABEL[live.state] ?? live.state}`}
               active={rightTab === 'live'}
               onClick={() => setRightTab('live')}
             />
@@ -391,6 +392,20 @@ export function SessionPage(): JSX.Element {
 }
 
 // ── helpers ─────────────────────────────────────────────────────
+const MOBILE_TAB_LABEL = { chat: 'fil', diff: 'diff', live: 'direct' } as const;
+
+const CONNECTION_LABEL: Record<string, string> = {
+  idle: 'inactif',
+  connecting: 'connexion…',
+  open: 'connecté',
+  closed: 'coupé',
+};
+
+const SYSTEM_KIND_LABEL: Record<string, string> = {
+  template_generator: 'génération de template',
+  supervisor: 'superviseur',
+};
+
 interface NormalizedEvent {
   key: string;
   type: SessionEvent['type'] | SessionEventRead['type'];
@@ -679,7 +694,7 @@ function SessionCostPanel({
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="eldir-caps">Cost · session</span>
+        <span className="eldir-caps">Coût · session</span>
         {overBudget && (
           <span className="font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-red">
             budget dépassé
@@ -692,9 +707,9 @@ function SessionCostPanel({
           {numTurns} tour{numTurns > 1 ? 's' : ''}
         </span>
       </div>
-      <Kv k="input" v={formatTokens(inputTokens)} />
-      <Kv k="output" v={formatTokens(outputTokens)} />
-      <Kv k="cache read" v={`${formatTokens(cacheReadTokens)} (${cacheRatio}%)`} />
+      <Kv k="entrée" v={formatTokens(inputTokens)} />
+      <Kv k="sortie" v={formatTokens(outputTokens)} />
+      <Kv k="cache lu" v={`${formatTokens(cacheReadTokens)} (${cacheRatio}%)`} />
     </div>
   );
 }

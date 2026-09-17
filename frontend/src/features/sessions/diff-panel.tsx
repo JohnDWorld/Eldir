@@ -20,13 +20,13 @@ interface DiffPanelProps {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  A: 'add',
-  M: 'mod',
-  D: 'del',
-  R: 'ren',
-  C: 'cpy',
-  T: 'typ',
-  U: 'unm',
+  A: 'ajout',
+  M: 'modif',
+  D: 'suppr',
+  R: 'renom',
+  C: 'copie',
+  T: 'type',
+  U: 'conflit',
 };
 
 const STATUS_COLOR: Record<string, string> = {

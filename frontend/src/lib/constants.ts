@@ -24,11 +24,11 @@ export const SESSION_STATES = [
 export type SessionState = (typeof SESSION_STATES)[number];
 
 export const SESSION_STATE_LABEL: Record<SessionState, string> = {
-  idle: 'idle',
-  thinking: 'thinking',
-  tool_use: 'tool use',
-  waiting_input: 'awaiting',
-  blocked: 'blocked',
+  idle: 'au repos',
+  thinking: 'réfléchit',
+  tool_use: 'outil',
+  waiting_input: 'attend',
+  blocked: 'bloquée',
 };
 
 export const PROVIDERS = ['github', 'forgejo'] as const;

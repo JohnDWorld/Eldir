@@ -37,24 +37,24 @@ export function SettingsClaudePage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-8">
       <header>
-        <BackLink to="/settings" label="settings" />
+        <BackLink to="/settings" label="réglages" />
         <h1 className="eldir-title mt-1">
-          Credentials Anthropic
+          Identifiants Anthropic
         </h1>
         <p className="eldir-lede">
           Eldir utilise <span className="font-mono">CLAUDE_CODE_OAUTH_TOKEN</span> en priorité
           (compte Pro/Max), avec <span className="font-mono">ANTHROPIC_API_KEY</span> en
-          fallback. Les valeurs sont chiffrées en base.
+          secours. Les valeurs sont chiffrées en base.
         </p>
       </header>
 
       <section className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
         <div className="border-b border-eldir-gray-3 px-4 py-3">
-          <span className="eldir-caps">Actuels</span>
+          <span className="eldir-caps">Enregistrés</span>
         </div>
         {items.length === 0 ? (
           <p className="px-4 py-6 font-mono text-xs text-eldir-gray">
-            Aucun credential configuré.
+            Aucun identifiant configuré.
           </p>
         ) : (
           <ul className="divide-y divide-eldir-gray-3">
@@ -90,7 +90,7 @@ export function SettingsClaudePage(): JSX.Element {
 
       <CredentialForm
         kind="api_key"
-        title="Mettre à jour la clé API Console (fallback)"
+        title="Mettre à jour la clé API Console (secours)"
         helper={
           <>
             Récupère ta clé API sur{' '}
@@ -186,7 +186,7 @@ function CredentialRow({
           )}
         >
           <div className="font-semibold uppercase tracking-caps">
-            {verdict.ok ? 'credential accepté' : 'credential refusé'}
+            {verdict.ok ? 'identifiant accepté' : 'identifiant refusé'}
           </div>
           <div className="mt-1 whitespace-pre-wrap break-words">{verdict.detail}</div>
         </div>
@@ -249,7 +249,7 @@ function CredentialForm({
           />
         </label>
         <label className="block">
-          <span className="eldir-caps mb-1 block">Label (optionnel)</span>
+          <span className="eldir-caps mb-1 block">Libellé (optionnel)</span>
           <input
             type="text"
             value={label}

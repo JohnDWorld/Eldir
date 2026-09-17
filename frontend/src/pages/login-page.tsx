@@ -56,12 +56,12 @@ export function LoginPage(): JSX.Element {
             {APP_NAME.toUpperCase()}
             <span className="text-eldir-orange">·</span>CTL
           </div>
-          <div className="eldir-caps mt-1">Mission Control · login</div>
+          <div className="eldir-caps mt-1">Connexion</div>
         </header>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <label className="block">
-            <span className="eldir-caps mb-1 block">Email</span>
+            <span className="eldir-caps mb-1 block">E-mail</span>
             <input
               type="email"
               autoComplete="username"

@@ -71,20 +71,20 @@ export function SettingsPage(): JSX.Element {
       <header>
         <h1 className="eldir-title">Paramètres</h1>
         <p className="eldir-lede">
-          Tokens, credentials, prompts et intégrations utilisés par Eldir.
+          Tokens, identifiants, prompts et intégrations utilisés par Eldir.
         </p>
       </header>
 
       <ul className="divide-y divide-eldir-gray-3 overflow-hidden rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
         <SettingsRow
           to="/settings/claude"
-          title="Credentials Claude"
+          title="Identifiants Claude"
           description="Token OAuth Pro/Max ou clé API Anthropic. L'OAuth est utilisé en priorité s'il est présent."
           icon={<KeyRound size={17} aria-hidden="true" />}
         />
         <SettingsRow
           to="/settings/git"
-          title="Credentials Git"
+          title="Identifiants Git"
           description="GitHub (OAuth ou PAT) et Forgejo, pour cloner, créer des repos et ouvrir des PR."
           icon={<GitMark provider="github" size={17} className="text-current" />}
         />

@@ -247,7 +247,7 @@ function ChooseModelStep({
             💡 Haiku suffit largement.
           </strong>{' '}
           Eldir embarque ses propres instructions pour le générateur (cf.
-          Settings &gt; Prompts &gt; Génération de Mission Template), donc même
+          Réglages › Prompts Eldir), donc même
           le modèle le plus économique fait le travail. Choisis Sonnet ou Opus
           uniquement si ton repo a une structure très atypique.
         </div>

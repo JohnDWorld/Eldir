@@ -237,7 +237,7 @@ export function ProjectsPage(): JSX.Element {
             <p className="max-w-md font-sans text-sm text-eldir-ink-2">
               Connecte GitHub ou Forgejo dans{' '}
               <Link to="/settings/git" className="text-eldir-orange underline underline-offset-2">
-                Settings › Git
+                Réglages › Identifiants Git
               </Link>
               , puis ajoute un repo existant ou crées-en un nouveau.
             </p>

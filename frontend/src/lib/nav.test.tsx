@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { currentNavLabel, isNavItemActive, NAV_ITEMS } from '@/lib/nav';
 
 describe('navigation', () => {
-  it('marque Ops actif seulement sur la racine', () => {
+  it('marque Pilotage actif seulement sur la racine', () => {
     const ops = NAV_ITEMS[0]!;
     expect(isNavItemActive(ops, '/')).toBe(true);
     expect(isNavItemActive(ops, '/projects')).toBe(false);
@@ -17,7 +17,7 @@ describe('navigation', () => {
   });
 
   it('donne le libellé de la page courante pour la topbar mobile', () => {
-    expect(currentNavLabel('/settings/ollama')).toBe('Settings');
+    expect(currentNavLabel('/settings/ollama')).toBe('Réglages');
     expect(currentNavLabel('/sessions/abc')).toBeNull();
   });
 

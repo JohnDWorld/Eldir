@@ -91,7 +91,7 @@ export function CostsPage(): JSX.Element {
           disabled={exporting}
           className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
-          {exporting ? 'Export…' : 'Export CSV'}
+          {exporting ? 'export…' : 'exporter en csv'}
         </button>
       </header>
 
@@ -161,8 +161,8 @@ export function CostsPage(): JSX.Element {
               <thead className="border-b border-eldir-gray-3 bg-eldir-paper">
                 <tr className="text-left text-eldir-gray">
                   <th className="px-3 py-2">Projet</th>
-                  <th className="px-3 py-2 text-right">Input</th>
-                  <th className="px-3 py-2 text-right">Output</th>
+                  <th className="px-3 py-2 text-right">Entrée</th>
+                  <th className="px-3 py-2 text-right">Sortie</th>
                   <th className="px-3 py-2 text-right">Coût</th>
                 </tr>
               </thead>
@@ -222,25 +222,25 @@ function KpiCard({
         </span>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-1 font-mono text-2xs text-eldir-gray">
-        <dt>Input</dt>
+        <dt>Entrée</dt>
         <dd className="text-right text-eldir-ink-2">
           {formatTokens(totals.input_tokens)}
         </dd>
-        <dt>Output</dt>
+        <dt>Sortie</dt>
         <dd className="text-right text-eldir-ink-2">
           {formatTokens(totals.output_tokens)}
         </dd>
-        <dt>Cache read</dt>
+        <dt>Cache lu</dt>
         <dd className="text-right text-eldir-ink-2">
           {formatTokens(totals.cache_read_tokens)}
         </dd>
-        <dt>Cache write</dt>
+        <dt>Cache écrit</dt>
         <dd className="text-right text-eldir-ink-2">
           {formatTokens(totals.cache_write_tokens)}
         </dd>
         {totalTokens > 0 && (
           <>
-            <dt>Cache ratio</dt>
+            <dt>Part du cache</dt>
             <dd className="text-right text-eldir-orange">{cacheRatio}%</dd>
           </>
         )}
