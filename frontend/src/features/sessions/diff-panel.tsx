@@ -8,6 +8,7 @@
  * main depuis.
  */
 
+import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 
 import { useSessionDiff, useSessionDiffFile } from '@/lib/api/queries';
@@ -48,9 +49,15 @@ export function DiffPanel({ sessionId }: DiffPanelProps): JSX.Element {
           type="button"
           onClick={() => diff.refetch()}
           disabled={diff.isFetching}
-          className="font-mono text-2xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink disabled:opacity-50"
+          aria-label="Rafraîchir le diff"
+          title="Rafraîchir le diff"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-eldir text-eldir-gray hover:text-eldir-ink disabled:opacity-45 md:min-h-8 md:min-w-8"
         >
-          {diff.isFetching ? 'maj…' : '↻'}
+          <RefreshCw
+            size={14}
+            aria-hidden="true"
+            className={diff.isFetching ? 'animate-spin' : undefined}
+          />
         </button>
       </header>
 

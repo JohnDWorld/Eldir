@@ -130,7 +130,7 @@ export function ToolchainPanel({
           type="button"
           onClick={() => run('install')}
           disabled={installing || saved.length === 0 || install.isPending}
-          className="min-h-11 rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-40"
+          className="eldir-btn eldir-btn--primary"
         >
           {installing
             ? 'installation…'
@@ -147,7 +147,7 @@ export function ToolchainPanel({
               }
             }}
             disabled={installing || remove.isPending}
-            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-40"
+            className="eldir-btn eldir-btn--danger eldir-btn--sm"
           >
             supprimer
           </button>

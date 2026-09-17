@@ -19,7 +19,7 @@ export function StatePill({ state, className }: StatePillProps): JSX.Element {
         className,
       )}
     >
-      <StateDot state={state} size={7} />
+      <StateDot state={state} size={7} decorative />
       {SESSION_STATE_LABEL[state]}
     </span>
   );

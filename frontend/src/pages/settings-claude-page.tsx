@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 
+import { BackLink } from '@/components/eldir/back-link';
 import { ApiError } from '@/lib/api/client';
 import {
   useClaudeCredentials,
@@ -36,11 +37,11 @@ export function SettingsClaudePage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-8">
       <header>
-        <div className="eldir-caps">Settings · claude</div>
-        <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
+        <BackLink to="/settings" label="settings" />
+        <h1 className="eldir-title mt-1">
           Credentials Anthropic
         </h1>
-        <p className="mt-2 text-sm text-eldir-ink-2">
+        <p className="eldir-lede">
           Eldir utilise <span className="font-mono">CLAUDE_CODE_OAUTH_TOKEN</span> en priorité
           (compte Pro/Max), avec <span className="font-mono">ANTHROPIC_API_KEY</span> en
           fallback. Les valeurs sont chiffrées en base.
@@ -244,7 +245,7 @@ function CredentialForm({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={kind === 'oauth_token' ? 'sk-ant-oat…' : 'sk-ant-api…'}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
         <label className="block">
@@ -254,7 +255,7 @@ function CredentialForm({
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={120}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
         </label>
         {error && (
@@ -270,9 +271,7 @@ function CredentialForm({
         <button
           type="submit"
           disabled={submitting}
-          className={cn(
-            'self-start rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50',
-          )}
+          className="eldir-btn eldir-btn--primary self-start"
         >
           {submitting ? 'enregistrement…' : 'enregistrer'}
         </button>

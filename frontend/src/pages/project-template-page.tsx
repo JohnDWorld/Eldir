@@ -6,9 +6,11 @@
  * le worktree à chaque création de session.
  */
 
+import { Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
+import { BackLink } from '@/components/eldir/back-link';
 import { ApiError } from '@/lib/api/client';
 import {
   useProjectTemplate,
@@ -161,11 +163,11 @@ export function ProjectTemplatePage(): JSX.Element {
     <main className="mx-auto flex max-w-4xl flex-col gap-6 p-4 md:p-8">
       <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <div className="eldir-caps">Projects · template</div>
-          <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
+          <BackLink to="/projects" label="projets" />
+          <h1 className="eldir-title mt-1">
             Template du projet {project?.name ?? '…'}
           </h1>
-          <p className="mt-2 text-sm text-eldir-ink-2">
+          <p className="eldir-lede">
             Applique automatiquement system prompt, modèle, outils, skills et
             sub-agents à chaque nouvelle session de ce projet. Les changements
             n'affectent pas les sessions déjà ouvertes.
@@ -180,15 +182,16 @@ export function ProjectTemplatePage(): JSX.Element {
           <button
             type="button"
             onClick={() => setGenerateOpen(true)}
-            className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+            className="eldir-btn eldir-btn--primary"
             title="Lance Claude pour analyser le repo et proposer un template clé en main"
           >
-            ✨ générer avec claude
+            <Sparkles size={14} aria-hidden="true" />
+            générer avec claude
           </button>
           <button
             type="button"
             onClick={() => setPresetOpen(true)}
-            className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2"
+            className="eldir-btn eldir-btn--secondary"
           >
             appliquer un preset
           </button>
@@ -206,7 +209,7 @@ export function ProjectTemplatePage(): JSX.Element {
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={8}
               placeholder="Ex: 'Tu es l'agent maintainer du repo X. Convention : conventional commits, branches feature/. Stack: …'"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
               Surcharge le system prompt par défaut. Laisse vide pour utiliser le défaut.
@@ -218,7 +221,7 @@ export function ProjectTemplatePage(): JSX.Element {
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
             >
               {MODEL_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -267,7 +270,7 @@ export function ProjectTemplatePage(): JSX.Element {
                 'git clone --depth 1 -b stable https://github.com/flutter/flutter.git\n' +
                 'ln -sf $ELDIR_TOOLCHAIN/flutter/bin/flutter $ELDIR_TOOLCHAIN/bin/flutter'
               }
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
               Ce que le repo a besoin d&apos;avoir sur le serveur pour que
@@ -287,7 +290,7 @@ export function ProjectTemplatePage(): JSX.Element {
                 '# une ligne par fichier : fichier = commande\n' +
                 'adapter-matrix.py = ssh mon-serveur docker exec passerelle cat /opt/app/adapter.py'
               }
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
               Ce que la session doit lire mais qui ne vit pas dans le repo
@@ -325,7 +328,7 @@ export function ProjectTemplatePage(): JSX.Element {
             type="button"
             onClick={handleSave}
             disabled={upsert.isPending}
-            className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+            className="eldir-btn eldir-btn--primary"
           >
             {upsert.isPending ? 'enregistrement…' : 'enregistrer'}
           </button>

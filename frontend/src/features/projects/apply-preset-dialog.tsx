@@ -123,7 +123,7 @@ export function ApplyPresetDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+              className="eldir-btn eldir-btn--secondary eldir-btn--sm"
             >
               annuler
             </button>
@@ -131,7 +131,7 @@ export function ApplyPresetDialog({
               type="button"
               onClick={handleApply}
               disabled={!selectedSlug || apply.isPending}
-              className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+              className="eldir-btn eldir-btn--primary"
             >
               {apply.isPending ? 'application…' : 'appliquer'}
             </button>

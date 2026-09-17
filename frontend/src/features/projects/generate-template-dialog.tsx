@@ -294,14 +294,14 @@ function ChooseModelStep({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
           annuler
         </button>
         <button
           type="button"
           onClick={onLaunch}
-          className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+          className="eldir-btn eldir-btn--primary"
         >
           analyser le repo
         </button>
@@ -372,7 +372,7 @@ function ReviewStep({
         <div className="border-b border-eldir-gray-3 bg-eldir-orange/5 px-5 py-3">
           <div className="flex items-center justify-between gap-3">
             <div className="font-mono text-xs text-eldir-ink">
-              ✨ Preset généré. Relis-le, ajuste si nécessaire, puis applique.
+              Preset généré. Relis-le, ajuste si besoin, puis applique.
             </div>
             {sessionId && (
               <Link
@@ -406,14 +406,14 @@ function ReviewStep({
           <button
             type="button"
             onClick={onRegenerate}
-            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+            className="eldir-btn eldir-btn--secondary eldir-btn--sm"
           >
             regénérer
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+            className="eldir-btn eldir-btn--secondary eldir-btn--sm"
           >
             annuler
           </button>
@@ -421,7 +421,7 @@ function ReviewStep({
             type="button"
             onClick={onApply}
             disabled={applying}
-            className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+            className="eldir-btn eldir-btn--primary"
           >
             {applying ? 'application…' : 'appliquer ce template'}
           </button>
@@ -456,14 +456,14 @@ function ErrorStep({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-eldir border border-eldir-gray-3 px-3 py-2 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
           fermer
         </button>
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90"
+          className="eldir-btn eldir-btn--primary"
         >
           réessayer
         </button>

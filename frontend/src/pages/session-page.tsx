@@ -5,8 +5,9 @@
  * Layout mobile  : tabs CHAT | LIVE | META, full-width.
  */
 
+import { ChevronLeft, SendHorizontal, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { Avatar } from '@/components/eldir/avatar';
 import { StatePill } from '@/components/eldir/state-pill';
@@ -116,11 +117,18 @@ export function SessionPage(): JSX.Element {
     setError(null);
     const content = input.trim();
     if (!content) return;
+    setInput('');
     try {
-      setInput('');
       await sendMessage.mutateAsync({ content });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur envoi message');
+      // Le message n'est pas parti : on le rend à John au lieu de le perdre.
+      // Sans ça, un réseau coupé effaçait un paragraphe tapé au pouce.
+      setInput((current) => (current.length === 0 ? content : current));
+      setError(
+        err instanceof Error
+          ? `Message non envoyé : ${err.message}`
+          : 'Message non envoyé.',
+      );
     }
   };
 
@@ -133,10 +141,14 @@ export function SessionPage(): JSX.Element {
   }
   if (session.isError || !session.data) {
     return (
-      <main className="flex h-full items-center justify-center">
-        <div className="font-mono text-xs text-eldir-red">
-          {session.error?.message ?? 'session introuvable'}
-        </div>
+      <main className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="font-sans text-sm text-eldir-red">
+          {session.error?.message ?? 'Cette session est introuvable.'}
+        </p>
+        <Link to="/" className="eldir-btn eldir-btn--secondary eldir-btn--sm">
+          <ChevronLeft size={14} aria-hidden="true" />
+          retour à ops
+        </Link>
       </main>
     );
   }
@@ -145,12 +157,13 @@ export function SessionPage(): JSX.Element {
     <div className="flex h-full flex-col bg-eldir-paper">
       {/* Topbar */}
       <header className="flex min-h-[42px] shrink-0 flex-wrap items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 py-1.5 md:h-[42px] md:flex-nowrap md:gap-3.5 md:px-4 md:py-0">
-        <a
-          href="/"
-          className="font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink"
+        <Link
+          to="/"
+          className="inline-flex min-h-11 items-center gap-0.5 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink md:min-h-0"
         >
-          ‹ OPS
-        </a>
+          <ChevronLeft size={14} aria-hidden="true" />
+          ops
+        </Link>
         <span className="font-mono text-xs font-semibold text-eldir-ink">
           / {session.data.id.slice(0, 8)}
         </span>
@@ -172,7 +185,7 @@ export function SessionPage(): JSX.Element {
         <button
           type="button"
           onClick={() => stopMut.mutate(sessionId)}
-          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream"
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
           stop
         </button>
@@ -180,7 +193,7 @@ export function SessionPage(): JSX.Element {
           type="button"
           onClick={handleDelete}
           disabled={deleteMut.isPending}
-          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+          className="eldir-btn eldir-btn--danger eldir-btn--sm"
         >
           {deleteMut.isPending ? 'suppr…' : 'supprimer'}
         </button>
@@ -226,9 +239,10 @@ export function SessionPage(): JSX.Element {
                     : (project?.name ?? 'projet inconnu');
               const active = s.id === sessionId;
               return (
-                <a
+                <Link
                   key={s.id}
-                  href={`/sessions/${s.id}`}
+                  to={`/sessions/${s.id}`}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
                     'flex flex-col gap-0.5 border-l-2 px-3 py-2 font-mono text-xs',
                     active
@@ -248,7 +262,7 @@ export function SessionPage(): JSX.Element {
                     </span>
                   </div>
                   <span className="ml-5 truncate text-eldir-gray">{s.id.slice(0, 8)}</span>
-                </a>
+                </Link>
               );
             })}
         </aside>
@@ -289,20 +303,24 @@ export function SessionPage(): JSX.Element {
                     void handleSend(e);
                   }
                 }}
-                placeholder="Reply, /command, ou @file…"
+                placeholder={isSupervisor ? 'Écris à Eldir…' : 'Écris à Claude…'}
+                aria-label="Message"
                 disabled={sendMessage.isPending}
-                className="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-3 font-sans text-sm leading-5 text-eldir-ink focus:outline-none disabled:opacity-50"
+                className="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-3 font-sans text-sm leading-5 text-eldir-ink disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={sendMessage.isPending || input.trim().length === 0}
                 aria-label="Envoyer le message"
-                title="Envoyer (⌘↵)"
+                title="Envoyer (⌘ ou Ctrl + Entrée)"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-eldir bg-eldir-orange font-mono text-sm text-white transition-colors hover:bg-eldir-orange/90 disabled:opacity-40"
               >
-                ↵
+                <SendHorizontal size={16} aria-hidden="true" />
               </button>
             </div>
+            <p className="mt-1.5 hidden font-mono text-2xs text-eldir-gray md:block">
+              Entrée pour une nouvelle ligne · ⌘/Ctrl + Entrée pour envoyer
+            </p>
           </form>
         </section>
 
@@ -382,23 +400,42 @@ interface NormalizedEvent {
 
 function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
   const scroll = useRef<HTMLDivElement>(null);
+  // Suit le bas du fil seulement si John y était déjà. Sinon, remonter lire
+  // une réponse pendant que l'agent travaille le ramenait en bas à chaque
+  // outil lancé.
+  const stuckToBottom = useRef(true);
   useEffect(() => {
-    if (scroll.current) {
-      scroll.current.scrollTop = scroll.current.scrollHeight;
-    }
+    const el = scroll.current;
+    if (el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
   }, [events.length]);
 
-  // Filtre : on affiche text + tool_use + stop + user_message.
-  const visible = events.filter(
-    (e) =>
-      e.type === 'text' || e.type === 'tool_use' || e.type === 'stop' || e.type === 'user_message',
-  );
+  // Filtre : on affiche text + tool_use + stop + user_message. Deux marqueurs
+  // de fin d'affilée (fin de tour puis arrêt de la session) n'en font qu'un.
+  const visible = events
+    .filter(
+      (e) =>
+        e.type === 'text' ||
+        e.type === 'tool_use' ||
+        e.type === 'stop' ||
+        e.type === 'user_message',
+    )
+    .filter((e, i, all) => !(e.type === 'stop' && all[i - 1]?.type === 'stop'));
 
   return (
-    <div ref={scroll} className="min-w-0 flex-1 space-y-3 overflow-y-auto bg-eldir-paper p-4">
+    <div
+      ref={scroll}
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        stuckToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      }}
+      role="log"
+      aria-live="polite"
+      className="min-w-0 flex-1 space-y-3 overflow-y-auto bg-eldir-paper p-4"
+    >
       {visible.length === 0 && (
-        <p className="text-center font-mono text-xs text-eldir-gray">
-          Pose ta première question à Claude…
+        <p className="mx-auto max-w-sm pt-8 text-center font-sans text-sm text-eldir-gray">
+          Rien pour l&apos;instant. Écris une consigne en bas : l&apos;agent
+          lit le repo, travaille, et te rend un compte rendu à la fin du tour.
         </p>
       )}
       {visible.map((e) => {
@@ -425,12 +462,16 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
             />
           );
         }
+        // `turn_complete` = Claude a fini de répondre ; sans raison = la
+        // session elle-même a été arrêtée. Deux faits différents.
         return (
           <div
             key={e.key}
-            className="text-center font-mono text-2xs uppercase tracking-caps text-eldir-gray"
+            className="flex items-center gap-3 font-mono text-2xs uppercase tracking-caps text-eldir-gray"
           >
-            - tour terminé -
+            <span className="h-px flex-1 bg-eldir-gray-3" />
+            {e.data.reason === 'turn_complete' ? 'tour terminé' : 'session arrêtée'}
+            <span className="h-px flex-1 bg-eldir-gray-3" />
           </div>
         );
       })}
@@ -440,7 +481,7 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
 
 function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <div className="rounded-eldir border border-eldir-gray-3 border-l-2 border-l-eldir-orange bg-eldir-cream-2 px-3 py-2">
+    <div className="rounded-eldir border border-eldir-orange/35 bg-eldir-orange/5 px-3 py-2">
       <div className="eldir-caps mb-1 text-eldir-orange">Eldir · automatique</div>
       <div className="whitespace-pre-wrap break-words font-sans text-sm text-eldir-ink-2">
         {children}
@@ -505,14 +546,61 @@ function firstStringArg(input: unknown): string {
   return '';
 }
 
-function ClaudeBubble({ children }: { children: React.ReactNode }): JSX.Element {
+/**
+ * Texte d'agent : prose et blocs de code séparés. Un agent de code répond avec
+ * des extraits, du JSON, des diffs ; en police proportionnelle et sans
+ * alignement, c'était illisible. Pas de moteur Markdown complet : les blocs
+ * ``` suffisent à rendre la réponse lisible, sans dépendance de plus.
+ */
+function RichText({ text }: { text: string }): JSX.Element {
+  // Une clôture ``` n'ouvre un bloc qu'en début de ligne. Au milieu d'une
+  // ligne (dans une chaîne JSON, par exemple), c'est du texte : la découper
+  // là produisait des blocs de code au hasard.
+  const blocks: { code: boolean; lines: string[] }[] = [];
+  let current: { code: boolean; lines: string[] } = { code: false, lines: [] };
+  for (const line of text.split('\n')) {
+    if (/^\s*```/.test(line)) {
+      blocks.push(current);
+      current = { code: !current.code, lines: [] };
+      continue;
+    }
+    current.lines.push(line);
+  }
+  blocks.push(current);
+
+  return (
+    <>
+      {blocks.map((block, i) => {
+        const body = block.lines.join('\n');
+        if (block.code) {
+          return (
+            <pre
+              key={i}
+              className="my-2 overflow-x-auto rounded-eldir bg-eldir-ink px-3 py-2 font-mono text-xs leading-relaxed text-eldir-cream"
+            >
+              {body}
+            </pre>
+          );
+        }
+        const prose = body.replace(/^\n+|\n+$/g, '');
+        return prose.trim().length > 0 ? (
+          <span key={i} className="block whitespace-pre-wrap break-words">
+            {prose}
+          </span>
+        ) : null;
+      })}
+    </>
+  );
+}
+
+function ClaudeBubble({ children }: { children: string }): JSX.Element {
   return (
     <div className="flex max-w-[90%] min-w-0 gap-2">
       <Avatar bg="hsl(var(--eldir-orange))" fg="#fff" size={20}>
         C
       </Avatar>
-      <div className="min-w-0 whitespace-pre-wrap break-words rounded-[2px_10px_10px_10px] border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-sans text-sm text-eldir-ink">
-        {children}
+      <div className="min-w-0 rounded-[2px_10px_10px_10px] border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-sans text-sm leading-relaxed text-eldir-ink">
+        <RichText text={children} />
       </div>
     </div>
   );
@@ -521,7 +609,7 @@ function ClaudeBubble({ children }: { children: React.ReactNode }): JSX.Element 
 function ToolRow({ name, arg }: { name: string; arg: string }): JSX.Element {
   return (
     <div className="flex min-w-0 max-w-full items-center gap-2 rounded-eldir border border-dashed border-eldir-gray-2 px-2.5 py-1.5 font-mono text-2xs text-eldir-gray">
-      <span className="shrink-0 text-eldir-gold">◇</span>
+      <Wrench size={11} aria-hidden="true" className="shrink-0 text-eldir-gold" />
       <span className="shrink-0 text-eldir-ink">{name}</span>
       {arg && <span className="min-w-0 flex-1 truncate opacity-70">({arg})</span>}
     </div>

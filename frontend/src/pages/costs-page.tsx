@@ -27,16 +27,42 @@ export function CostsPage(): JSX.Element {
   };
 
   if (dashboard.isLoading) {
+    // Squelette à la forme de la page : pas de texte au milieu du vide, et
+    // rien ne saute quand les chiffres arrivent.
     return (
-      <main className="p-6 font-mono text-sm text-eldir-gray">
-        Chargement des coûts…
+      <main
+        className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-8"
+        aria-busy="true"
+        aria-label="Chargement des coûts"
+      >
+        <div className="flex flex-col gap-2">
+          <span className="eldir-skeleton h-6 w-44" />
+          <span className="eldir-skeleton h-4 w-72 max-w-full" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="eldir-skeleton h-36" />
+          ))}
+        </div>
+        <span className="eldir-skeleton h-14" />
+        <span className="eldir-skeleton h-14" />
       </main>
     );
   }
   if (dashboard.isError || !dashboard.data) {
     return (
-      <main className="p-6 font-mono text-sm text-eldir-red">
-        Impossible de charger les coûts.
+      <main className="mx-auto flex max-w-5xl flex-col items-start gap-3 p-4 md:p-8">
+        <p className="font-sans text-sm text-eldir-red">
+          Impossible de charger les coûts
+          {dashboard.error ? ` : ${dashboard.error.message}` : '.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => void dashboard.refetch()}
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
+        >
+          réessayer
+        </button>
       </main>
     );
   }
@@ -49,22 +75,21 @@ export function CostsPage(): JSX.Element {
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-8">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <div className="eldir-caps">Costs</div>
-          <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="eldir-title">
             Tokens &amp; coûts
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-eldir-ink-2">
-            Suivi en temps réel basé sur les <code className="font-mono">ResultMessage.usage</code> du
-            Claude Agent SDK. Une ligne par tour, agrégée ci-dessous.
+          <p className="eldir-lede">
+            Ce que coûte chaque tour de Claude, sessions système comprises,
+            cumulé par jour et par projet.
           </p>
         </div>
         <button
           type="button"
           onClick={handleExport}
           disabled={exporting}
-          className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-1.5 font-mono text-xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-cream-2 disabled:opacity-50"
+          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
         >
           {exporting ? 'Export…' : 'Export CSV'}
         </button>

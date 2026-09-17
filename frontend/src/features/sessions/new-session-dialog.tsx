@@ -109,7 +109,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Elem
                   type="button"
                   onClick={() => launch(p)}
                   disabled={createSession.isPending}
-                  className="rounded-eldir bg-eldir-orange px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+                  className="eldir-btn eldir-btn--primary eldir-btn--sm"
                 >
                   {selected?.id === p.id ? 'démarrage…' : 'lancer'}
                 </button>

@@ -8,8 +8,8 @@
  */
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 
+import { BackLink } from '@/components/eldir/back-link';
 import { ApiError } from '@/lib/api/client';
 import {
   useOllamaSettings,
@@ -75,17 +75,11 @@ export function SettingsOllamaPage(): JSX.Element {
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 p-4 md:p-8">
       <header>
-        <Link
-          to="/settings"
-          className="font-mono text-2xs uppercase tracking-caps text-eldir-gray hover:text-eldir-orange"
-        >
-          ← settings
-        </Link>
-        <div className="eldir-caps mt-2">Ollama · données sensibles</div>
-        <h1 className="mt-1 font-mono text-xl font-bold text-eldir-ink">
+        <BackLink to="/settings" label="settings" />
+        <h1 className="eldir-title mt-1">
           Pré-traitement local via Ollama
         </h1>
-        <p className="mt-2 max-w-3xl text-sm text-eldir-ink-2">
+        <p className="eldir-lede">
           Ollama tourne sur ton réseau et permet de masquer / anonymiser /
           résumer du texte <strong>localement</strong> avant de l'envoyer à
           Claude. Tes données sensibles ne traversent jamais Internet.
@@ -99,7 +93,7 @@ export function SettingsOllamaPage(): JSX.Element {
         )}
         {status.data && (
           <div className="flex flex-col gap-2 font-mono text-xs">
-            <Kv k="enabled" v={status.data.enabled ? '✓ oui' : '✗ non configuré'} />
+            <Kv k="enabled" v={status.data.enabled ? 'oui' : 'non configuré'} />
             {status.data.enabled && (
               <>
                 <Kv k="base_url" v={status.data.base_url ?? '-'} />
@@ -107,8 +101,8 @@ export function SettingsOllamaPage(): JSX.Element {
                   k="reachable"
                   v={
                     status.data.reachable
-                      ? '✓ accessible'
-                      : `✗ inaccessible${status.data.error ? ` (${status.data.error})` : ''}`
+                      ? 'accessible'
+                      : `inaccessible${status.data.error ? ` (${status.data.error})` : ''}`
                   }
                 />
                 <Kv k="default_model" v={status.data.default_model} />
@@ -171,12 +165,12 @@ export function SettingsOllamaPage(): JSX.Element {
               </div>
               <div className="mt-0.5 font-mono text-2xs text-eldir-gray">
                 {!status.data?.enabled
-                  ? '⚠ Ollama non configuré côté backend.'
+                  ? 'Ollama n’est pas configuré côté serveur.'
                   : !status.data?.reachable
-                    ? '⚠ Ollama configuré mais injoignable.'
+                    ? 'Ollama est configuré mais injoignable.'
                     : exposeSettings.data.expose_to_sessions
-                      ? '✓ Actif - injecté dans chaque nouvelle session.'
-                      : 'Désactivé - playground manuel uniquement.'}
+                      ? 'Actif : ajouté à chaque nouvelle session.'
+                      : 'Désactivé : utilisable seulement dans le playground ci-dessous.'}
               </div>
             </div>
             <input
@@ -228,7 +222,7 @@ export function SettingsOllamaPage(): JSX.Element {
               onChange={(e) => setInput(e.target.value)}
               rows={8}
               placeholder="Colle ici un fichier .env, un log, un fragment de code…"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:outline-none"
+              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
             />
           </label>
 
@@ -237,7 +231,7 @@ export function SettingsOllamaPage(): JSX.Element {
               type="button"
               onClick={run}
               disabled={transform.isPending}
-              className="rounded-eldir bg-eldir-orange px-4 py-2 font-mono text-xs font-semibold uppercase tracking-caps text-white hover:bg-eldir-orange/90 disabled:opacity-50"
+              className="eldir-btn eldir-btn--primary"
             >
               {transform.isPending ? 'traitement local…' : 'lancer'}
             </button>

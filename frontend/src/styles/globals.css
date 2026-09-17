@@ -10,17 +10,56 @@
   #root {
     @apply h-full;
   }
+  html {
+    /* Les contrôles natifs (case, radio, select, range) prennent l'orange
+       Eldir au lieu du bleu du navigateur. */
+    accent-color: hsl(var(--eldir-orange));
+    scrollbar-color: hsl(var(--eldir-gray-2)) transparent;
+  }
   body {
     @apply bg-eldir-paper text-eldir-ink font-sans antialiased;
     font-feature-settings:
       'ss01',
       'cv11';
+    caret-color: hsl(var(--eldir-orange));
+    -webkit-tap-highlight-color: transparent;
   }
+  ::selection {
+    background: hsl(var(--eldir-orange) / 0.22);
+    color: hsl(var(--eldir-ink));
+  }
+
   /* Tap targets ≥ 44×44 (cf. AGENTS.md règle mobile-first) */
   button,
   [role='button'],
   a[role='button'] {
     @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Focus clavier, une seule règle pour toute l'appli. Les champs gardaient
+     `focus:outline-none` sans rien à la place : au clavier, on ne savait plus
+     où on était. `:focus-visible` ne s'allume pas au clic souris sur un
+     bouton, mais toujours dans un champ texte, ce qui est le comportement
+     attendu. */
+  :where(a, button, summary, [role='button'], [role='tab'], [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--eldir-orange));
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  :where(input, textarea, select):focus-visible {
+    outline: 2px solid hsl(var(--eldir-orange) / 0.55);
+    outline-offset: -1px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      /* On garde les changements d'état, on retire le mouvement continu
+         (pulsations, rotations) qui n'apporte aucune information de plus. */
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -48,5 +87,40 @@
   /* Label caps mono - utilisé partout dans Mission Control */
   .eldir-caps {
     @apply font-mono text-2xs uppercase tracking-caps text-eldir-gray;
+  }
+
+  /* Titre de page. Sans et pas mono : le mono est réservé aux données
+     (ids, branches, montants) et aux libellés caps. Un titre en mono ressemble
+     à un costume « technique », pas à un titre. */
+  .eldir-title {
+    @apply font-sans text-xl font-semibold tracking-tight text-eldir-ink;
+  }
+  .eldir-lede {
+    @apply mt-1.5 max-w-prose font-sans text-sm text-eldir-ink-2;
+  }
+
+  /* Boutons. Il y en avait 26 recopiés à la main en sept variantes (hauteurs,
+     opacités désactivées, paddings différents) : un même geste ne doit avoir
+     qu'une seule apparence. */
+  .eldir-btn {
+    @apply inline-flex min-h-11 select-none items-center justify-center gap-2 whitespace-nowrap rounded-eldir px-4 font-mono text-xs font-semibold uppercase tracking-caps transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .eldir-btn--primary {
+    @apply bg-eldir-orange text-white hover:bg-eldir-orange/90 active:bg-eldir-orange/80;
+  }
+  .eldir-btn--secondary {
+    @apply border border-eldir-gray-3 bg-eldir-paper text-eldir-ink hover:bg-eldir-cream active:bg-eldir-cream-2;
+  }
+  /* Destructif mais discret : rouge au texte, pas de bloc plein. Il ne doit
+     jamais peser autant que l'action principale posée juste à côté. */
+  .eldir-btn--danger {
+    @apply text-eldir-red hover:bg-eldir-red/10 active:bg-eldir-red/15;
+  }
+  .eldir-btn--sm {
+    @apply px-3;
+  }
+
+  .eldir-skeleton {
+    @apply animate-pulse rounded-eldir bg-eldir-cream-2;
   }
 }
