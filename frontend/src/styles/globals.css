@@ -106,7 +106,7 @@
     @apply inline-flex min-h-11 select-none items-center justify-center gap-2 whitespace-nowrap rounded-eldir px-4 font-mono text-xs font-semibold uppercase tracking-caps transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45;
   }
   .eldir-btn--primary {
-    @apply bg-eldir-orange text-white hover:bg-eldir-orange/90 active:bg-eldir-orange/80;
+    @apply bg-eldir-orange text-eldir-on-orange hover:bg-eldir-orange/90 active:bg-eldir-orange/80;
   }
   .eldir-btn--secondary {
     @apply border border-eldir-gray-3 bg-eldir-paper text-eldir-ink hover:bg-eldir-cream active:bg-eldir-cream-2;

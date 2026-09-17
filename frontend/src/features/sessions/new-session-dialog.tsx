@@ -38,7 +38,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Elem
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-ink/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
       <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="flex items-center justify-between border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Nouvelle session</div>

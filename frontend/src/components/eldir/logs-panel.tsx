@@ -13,8 +13,8 @@ const TONE_CLASS: Record<LogTone, string> = {
   amber: 'text-eldir-amber',
   green: 'text-eldir-green',
   red: 'text-eldir-red',
-  gray: 'text-eldir-gray-2',
-  cream: 'text-eldir-cream',
+  gray: 'text-eldir-console-fg/55',
+  cream: 'text-eldir-console-fg',
 };
 
 export interface LogLine {
@@ -39,11 +39,11 @@ export function LogsPanel({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-eldir bg-eldir-ink p-3 font-mono text-[11px] leading-relaxed text-eldir-cream',
+        'overflow-hidden rounded-eldir bg-eldir-console p-3 font-mono text-[11px] leading-relaxed text-eldir-console-fg',
         className,
       )}
     >
-      <div className="mb-1.5 text-eldir-gray-2">{title}</div>
+      <div className="mb-1.5 text-eldir-console-fg/55">{title}</div>
       {lines.map((l) => (
         <div key={l.id} className="whitespace-nowrap">
           <span className={TONE_CLASS[l.prefix.tone]}>{l.prefix.text}</span>{' '}

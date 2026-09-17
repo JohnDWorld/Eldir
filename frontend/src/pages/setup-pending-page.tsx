@@ -19,7 +19,7 @@ export function SetupPendingPage(): JSX.Element {
           Pour terminer l'installation, exécute le script d'install à la racine du repo
           sur la machine hôte :
         </p>
-        <pre className="mt-3 overflow-x-auto rounded-eldir bg-eldir-ink p-4 font-mono text-xs text-eldir-cream">
+        <pre className="mt-3 overflow-x-auto rounded-eldir bg-eldir-console p-4 font-mono text-xs text-eldir-console-fg">
           {'./scripts/install-eldir.sh'}
         </pre>
         <p className="mt-4 text-sm text-eldir-ink-2">

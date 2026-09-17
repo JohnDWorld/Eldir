@@ -314,7 +314,7 @@ export function SessionPage(): JSX.Element {
                 disabled={sendMessage.isPending || input.trim().length === 0}
                 aria-label="Envoyer le message"
                 title="Envoyer (⌘ ou Ctrl + Entrée)"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-eldir bg-eldir-orange font-mono text-sm text-white transition-colors hover:bg-eldir-orange/90 disabled:opacity-40"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-eldir bg-eldir-orange font-mono text-sm text-eldir-on-orange transition-colors hover:bg-eldir-orange/90 disabled:opacity-40"
               >
                 <SendHorizontal size={16} aria-hidden="true" />
               </button>
@@ -375,8 +375,8 @@ export function SessionPage(): JSX.Element {
           </div>
 
           {rightTab === 'live' || isSystem ? (
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-eldir-ink">
-              <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-cream">
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-eldir-console">
+              <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-eldir-console-fg">
                 {events.map((e) => (
                   <LogLine key={e.key} event={e} />
                 ))}
@@ -591,7 +591,7 @@ function RichText({ text }: { text: string }): JSX.Element {
           return (
             <pre
               key={i}
-              className="my-2 overflow-x-auto rounded-eldir bg-eldir-ink px-3 py-2 font-mono text-xs leading-relaxed text-eldir-cream"
+              className="my-2 overflow-x-auto rounded-eldir bg-eldir-console px-3 py-2 font-mono text-xs leading-relaxed text-eldir-console-fg"
             >
               {body}
             </pre>
@@ -611,7 +611,7 @@ function RichText({ text }: { text: string }): JSX.Element {
 function ClaudeBubble({ children }: { children: string }): JSX.Element {
   return (
     <div className="flex max-w-[90%] min-w-0 gap-2">
-      <Avatar bg="hsl(var(--eldir-orange))" fg="#fff" size={20}>
+      <Avatar bg="hsl(var(--eldir-orange))" fg="hsl(var(--eldir-on-orange))" size={20}>
         C
       </Avatar>
       <div className="min-w-0 rounded-[2px_10px_10px_10px] border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-sans text-sm leading-relaxed text-eldir-ink">
@@ -636,9 +636,9 @@ function LogLine({ event }: { event: NormalizedEvent }): JSX.Element {
     hour12: false,
   });
   const tone: Record<string, string> = {
-    text: 'text-eldir-cream',
+    text: 'text-eldir-console-fg',
     tool_use: 'text-eldir-gold',
-    tool_result: 'text-eldir-gray-2',
+    tool_result: 'text-eldir-console-fg/55',
     state: 'text-eldir-orange',
     stop: 'text-eldir-amber',
     error: 'text-eldir-red',
@@ -655,11 +655,11 @@ function LogLine({ event }: { event: NormalizedEvent }): JSX.Element {
             : '';
   return (
     <div className="flex min-w-0 gap-2">
-      <span className="shrink-0 text-eldir-gray">{time}</span>
-      <span className={cn('w-20 shrink-0', tone[event.type] ?? 'text-eldir-cream')}>
+      <span className="shrink-0 text-eldir-console-fg/55">{time}</span>
+      <span className={cn('w-20 shrink-0', tone[event.type] ?? 'text-eldir-console-fg')}>
         {event.type}
       </span>
-      <span className="min-w-0 flex-1 truncate text-eldir-cream">{summary}</span>
+      <span className="min-w-0 flex-1 truncate text-eldir-console-fg">{summary}</span>
     </div>
   );
 }

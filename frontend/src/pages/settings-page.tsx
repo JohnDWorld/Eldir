@@ -12,7 +12,11 @@ import {
   ChevronRight,
   FileText,
   KeyRound,
+  Monitor,
+  Moon,
   ShieldCheck,
+  Sun,
+  SunMoon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -23,6 +27,8 @@ import {
   requestNotificationPermission,
   type NotificationPermissionState,
 } from '@/hooks/use-session-notifier';
+import { type ThemePreference, useThemeStore } from '@/lib/theme';
+import { cn } from '@/lib/utils';
 
 interface SettingsRowProps {
   to: string;
@@ -76,6 +82,7 @@ export function SettingsPage(): JSX.Element {
       </header>
 
       <ul className="divide-y divide-eldir-gray-3 overflow-hidden rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
+        <AppearanceRow />
         <SettingsRow
           to="/settings/claude"
           title="Identifiants Claude"
@@ -103,6 +110,65 @@ export function SettingsPage(): JSX.Element {
         <NotificationsRow />
       </ul>
     </main>
+  );
+}
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; icon: JSX.Element }[] = [
+  { value: 'system', label: 'système', icon: <Monitor size={14} aria-hidden="true" /> },
+  { value: 'light', label: 'clair', icon: <Sun size={14} aria-hidden="true" /> },
+  { value: 'dark', label: 'sombre', icon: <Moon size={14} aria-hidden="true" /> },
+];
+
+/**
+ * Choix du thème. Un groupe de boutons radio plutôt qu'un interrupteur :
+ * il y a trois états, et « système » est le bon défaut pour une PWA qui
+ * passe en sombre le soir avec le téléphone.
+ */
+function AppearanceRow(): JSX.Element {
+  const preference = useThemeStore((st) => st.preference);
+  const setPreference = useThemeStore((st) => st.setPreference);
+
+  return (
+    <li className="flex flex-wrap items-center gap-4 px-4 py-4">
+      <RowIcon>
+        <SunMoon size={17} aria-hidden="true" />
+      </RowIcon>
+      <div className="min-w-0 flex-1 basis-48">
+        <div id="apparence-titre" className="font-sans text-sm font-semibold text-eldir-ink">
+          Apparence
+        </div>
+        <p className="mt-0.5 font-sans text-sm text-eldir-ink-2">
+          Clair, sombre, ou au rythme de ton appareil. Retenu sur cet appareil.
+        </p>
+      </div>
+      <div
+        role="radiogroup"
+        aria-labelledby="apparence-titre"
+        className="inline-flex shrink-0 rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-0.5"
+      >
+        {THEME_OPTIONS.map((option) => {
+          const active = preference === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setPreference(option.value)}
+              className={cn(
+                'inline-flex min-h-10 items-center gap-1.5 rounded-sm px-3 font-mono text-2xs uppercase tracking-caps transition-colors duration-150',
+                active
+                  ? 'bg-eldir-cream-2 text-eldir-ink shadow-[inset_0_0_0_1px_hsl(var(--eldir-gray-3))]'
+                  : 'text-eldir-gray hover:text-eldir-ink',
+              )}
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </li>
   );
 }
 

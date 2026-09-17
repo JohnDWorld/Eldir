@@ -164,7 +164,7 @@ export function ToolchainPanel({
       </div>
 
       {logOpen && data?.log && (
-        <pre className="mt-3 max-h-64 overflow-auto rounded-eldir bg-eldir-ink p-3 font-mono text-2xs leading-relaxed text-eldir-cream">
+        <pre className="mt-3 max-h-64 overflow-auto rounded-eldir bg-eldir-console p-3 font-mono text-2xs leading-relaxed text-eldir-console-fg">
           {data.log}
         </pre>
       )}

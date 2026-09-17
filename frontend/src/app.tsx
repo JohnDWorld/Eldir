@@ -17,6 +17,7 @@ import { SettingsPage } from '@/pages/settings-page';
 import { SettingsPromptsPage } from '@/pages/settings-prompts-page';
 import { SupervisorPage } from '@/pages/supervisor-page';
 import { SetupPendingPage } from '@/pages/setup-pending-page';
+import { useThemeSync } from '@/lib/theme';
 import { useRegisterSw } from '@/pwa/use-register-sw';
 
 export function App(): JSX.Element {
@@ -34,6 +35,7 @@ export function App(): JSX.Element {
   );
 
   useRegisterSw();
+  useThemeSync();
 
   return (
     <QueryClientProvider client={queryClient}>

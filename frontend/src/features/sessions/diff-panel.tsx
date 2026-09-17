@@ -151,9 +151,9 @@ function PatchView({
 }): JSX.Element {
   const patch = useSessionDiffFile(sessionId, path);
   return (
-    <div className="h-full min-w-0 overflow-y-auto bg-eldir-ink font-mono text-[11px] leading-relaxed text-eldir-cream">
+    <div className="h-full min-w-0 overflow-y-auto bg-eldir-console font-mono text-[11px] leading-relaxed text-eldir-console-fg">
       {patch.isPending && (
-        <p className="px-3 py-3 text-eldir-gray-2">chargement…</p>
+        <p className="px-3 py-3 text-eldir-console-fg/55">chargement…</p>
       )}
       {patch.isError && (
         <p className="px-3 py-3 text-eldir-red">{patch.error.message}</p>
@@ -177,7 +177,7 @@ function colorize(patch: string): JSX.Element[] {
   return patch.split('\n').map((line, idx) => {
     let cls = '';
     if (line.startsWith('+++') || line.startsWith('---')) {
-      cls = 'text-eldir-gray-2';
+      cls = 'text-eldir-console-fg/55';
     } else if (line.startsWith('+')) {
       cls = 'text-eldir-green';
     } else if (line.startsWith('-')) {

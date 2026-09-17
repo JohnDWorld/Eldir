@@ -5,6 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#D97757" />
+    <!-- Thème appliqué avant le premier affichage : sans ça, la PWA s'ouvre
+         en clair puis bascule en sombre (flash blanc). Même clé et même
+         logique que src/lib/theme.ts. -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('eldir.theme');
+          var dark =
+            p === 'dark' ||
+            (p !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) {
+            document.documentElement.classList.add('dark');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#262422');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Eldir" />
@@ -18,7 +35,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     />
 
-    <title>Eldir · Mission Control</title>
+    <title>Eldir</title>
     <meta
       name="description"
       content="Hub multi-agents Claude pour orchestrer plusieurs sessions Claude Code en parallèle sur tes repos."
