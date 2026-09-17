@@ -37,8 +37,10 @@
        sombre, ink devient clair et les consoles se seraient inversées. */
     --eldir-console: 0 0% 10%;
     --eldir-console-fg: 42 31% 94%;
-    /* Texte posé sur l'orange des actions principales. */
-    --eldir-on-orange: 0 0% 100%;
+    /* Texte posé sur l'orange des actions principales. Brun très foncé et
+       pas blanc : le blanc ne tenait que 3,07:1 sur cet orange, sous le
+       minimum de 4,5:1. Celui-ci tient 5,47:1 et reste dans la famille. */
+    --eldir-on-orange: 15 30% 12%;
     /* Voile derrière les modales. */
     --eldir-scrim: 0 0% 10%;
 
