@@ -4,7 +4,7 @@ Le superviseur est une session Claude comme les autres (row `sessions`,
 events streamés, coûts comptés), à trois différences près :
 
 - elle n'a pas de projet ni de worktree : `project_id` est NULL ;
-- ses seuls outils sont quatre outils MCP in-process (aucun accès disque,
+- ses seuls outils sont cinq outils MCP in-process (aucun accès disque,
   aucun git, aucun réseau) ;
 - elle est notifiée automatiquement quand une session qu'elle a dispatchée
   termine son tour, via le compte rendu `<cr>` recopié dans `sessions.summary`.

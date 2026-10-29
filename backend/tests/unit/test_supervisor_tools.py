@@ -17,15 +17,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.unit.conftest_supervisor import pose_projet_et_session, service_superviseur
 
+# Un utilisateur qui ne ressemble à aucune valeur codée en dur dans le service :
+# si l'adaptateur oubliait de passer le `user_id` capturé, ça se verrait.
+UTILISATEUR = "u-capture-42"
 
-async def _appelle(
-    service: SupervisorService, nom: str, args: dict[str, Any], user_id: str = "u1"
-) -> str:
+
+async def _appelle(service: SupervisorService, nom: str, args: dict[str, Any], user_id: str) -> str:
     """Appelle un outil par l'adaptateur MCP in-process, comme le fait le SDK.
 
     Traverse les closures de `_build_mcp_server` (clés lues dans `args`,
     `user_id` capturé), que les appels directs aux méthodes `outil_*` ne
-    touchent pas.
+    touchent pas. Le `user_id` est obligatoire : une valeur par défaut qui
+    coïnciderait avec l'attendu d'un test le rendrait inoffensif.
     """
     instance = service._build_mcp_server(user_id)["instance"]
     requete = types.CallToolRequest(
@@ -72,19 +75,38 @@ async def test_sans_projet_list_projects_le_dit(
 
 
 @pytest.mark.asyncio
-async def test_list_projects_et_list_sessions_listent_ce_qui_existe(
+async def test_adaptateur_list_projects_filtre_sur_le_user_id_capture(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """Le nom `list_projects` est câblé sur sa closure, avec le bon utilisateur."""
     async with session_factory() as db:
-        user_id, project_id, session_id = await pose_projet_et_session(db)
+        proprio, project_id, _ = await pose_projet_et_session(db)
     service = service_superviseur(session_factory)
 
-    projets = await service.outil_list_projects(user_id)
-    assert f"Munin (id={project_id})" in projets
+    texte = await _appelle(service, "list_projects", {}, proprio)
+    assert f"Munin (id={project_id})" in texte
+    assert "### " not in texte  # pas le rendu de list_sessions
 
-    sessions = await service.outil_list_sessions(user_id)
-    assert f"session {session_id}" in sessions
-    assert "dormante" in sessions
+    autre = await _appelle(service, "list_projects", {}, UTILISATEUR)
+    assert autre == "Aucun projet branché sur Eldir."
+
+
+@pytest.mark.asyncio
+async def test_adaptateur_list_sessions_filtre_sur_le_user_id_capture(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Le nom `list_sessions` est câblé sur sa closure, avec le bon utilisateur."""
+    async with session_factory() as db:
+        proprio, project_id, session_id = await pose_projet_et_session(db)
+    service = service_superviseur(session_factory)
+
+    texte = await _appelle(service, "list_sessions", {}, proprio)
+    assert f"### Munin · session {session_id}" in texte
+    assert "dormante" in texte
+    assert f"(id={project_id})" not in texte  # pas le rendu de list_projects
+
+    autre = await _appelle(service, "list_sessions", {}, UTILISATEUR)
+    assert autre == "Aucune session projet ouverte."
 
 
 @pytest.mark.asyncio
@@ -101,22 +123,10 @@ async def test_adaptateur_dispatch_sur_un_projet_inconnu_rend_une_erreur_lisible
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     service = service_superviseur(session_factory)
-    texte = await _appelle(service, "dispatch", {"project_id": "p-fantome", "consigne": "fais x"})
-    assert texte == "Erreur : Projet p-fantome introuvable."
-
-
-@pytest.mark.asyncio
-async def test_adaptateur_dispatch_applique_le_user_id_capture(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """Le projet existe, mais pas pour cet utilisateur : l'adaptateur le passe."""
-    async with session_factory() as db:
-        _, project_id, _ = await pose_projet_et_session(db)
-    service = service_superviseur(session_factory)
     texte = await _appelle(
-        service, "dispatch", {"project_id": project_id, "consigne": "fais x"}, user_id="u-autre"
+        service, "dispatch", {"project_id": "p-fantome", "consigne": "fais x"}, UTILISATEUR
     )
-    assert texte == f"Erreur : Projet {project_id} introuvable."
+    assert texte == "Erreur : Projet p-fantome introuvable."
 
 
 @pytest.mark.parametrize(
@@ -149,11 +159,13 @@ async def test_adaptateur_dispatch_transmet_session_et_nouveau_chantier(
     service = service_superviseur(session_factory)
     monkeypatch.setattr(service, "_resolve_target", espion)
 
-    texte = await _appelle(service, "dispatch", {"project_id": "p1", "consigne": "x", **args})
+    texte = await _appelle(
+        service, "dispatch", {"project_id": "p1", "consigne": "x", **args}, UTILISATEUR
+    )
 
     assert texte == "Erreur : arret"
     assert recu == {
-        "user_id": "u1",
+        "user_id": UTILISATEUR,
         "project_id": "p1",
         "session_id": session_attendue,
         "nouveau_chantier": chantier_attendu,
@@ -167,7 +179,9 @@ async def test_adaptateur_allow_publish_refuse_une_session_vide(
     # Refusée avant d'ouvrir la base : la double de SessionService n'a pas
     # `set_publish_allowed`, ce test échouerait donc si la garde sautait.
     service = service_superviseur(session_factory)
-    texte = await _appelle(service, "allow_publish", {"session_id": " ", "autoriser": True})
+    texte = await _appelle(
+        service, "allow_publish", {"session_id": " ", "autoriser": True}, UTILISATEUR
+    )
     assert texte == "Erreur : session_id est obligatoire."
 
 
@@ -189,9 +203,11 @@ async def test_adaptateur_allow_publish_transmet_autoriser(
     service = service_superviseur(session_factory)
     monkeypatch.setattr(service._sessions, "set_publish_allowed", espion, raising=False)
 
-    texte = await _appelle(service, "allow_publish", {"session_id": "s1", "autoriser": autoriser})
+    texte = await _appelle(
+        service, "allow_publish", {"session_id": "s1", "autoriser": autoriser}, UTILISATEUR
+    )
 
-    assert recu == {"user_id": "u1", "session_id": "s1", "allowed": autoriser}
+    assert recu == {"user_id": UTILISATEUR, "session_id": "s1", "allowed": autoriser}
     assert texte.startswith(f"Publication {etat} pour la session s1.")
 
 
@@ -200,7 +216,7 @@ async def test_adaptateur_remember_transmet_le_fait(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     service = service_superviseur(session_factory)
-    texte = await _appelle(service, "remember", {"fait": "Toujours une PR."})
+    texte = await _appelle(service, "remember", {"fait": "Toujours une PR."}, UTILISATEUR)
     assert texte == "Noté : Toujours une PR."
 
 
