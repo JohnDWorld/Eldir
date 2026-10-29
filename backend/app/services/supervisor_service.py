@@ -71,6 +71,100 @@ DISALLOWED_TOOLS = [
 _CWD_DIRNAME = "_supervisor"
 
 
+# Les cinq outils décrits UNE fois. Les deux transports (MCP in-process pour
+# le superviseur, MCP HTTP pour un agent externe) lisent cette table, pour
+# qu'il n'existe jamais deux descriptions du même outil.
+SCHEMAS_OUTILS: dict[str, tuple[str, dict[str, Any]]] = {
+    "list_projects": (
+        "Liste les repos branchés sur Eldir. Sert à identifier de quel "
+        "projet John parle avant de dispatcher.",
+        {"type": "object", "properties": {}},
+    ),
+    "list_sessions": (
+        "Liste les sessions Claude existantes avec leur état et le compte "
+        "rendu de leur dernier passage. À consulter avant de dispatcher.",
+        {"type": "object", "properties": {}},
+    ),
+    "dispatch": (
+        "Transmet une consigne à une session projet et rend la main "
+        "immédiatement. Reprend la session indiquée, sinon la session "
+        "ouverte la plus récente du projet, sinon en démarre une. Tu "
+        "recevras un message automatique avec son compte rendu quand elle "
+        "aura terminé.",
+        {
+            "type": "object",
+            "properties": {
+                "project_id": {
+                    "type": "string",
+                    "description": "id du projet cible (cf. list_projects)",
+                },
+                "consigne": {
+                    "type": "string",
+                    "description": (
+                        "Consigne complète et auto-suffisante : la session "
+                        "enfant ne voit pas ta conversation avec John."
+                    ),
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": (
+                        "Optionnel : session précise à reprendre. Laisser "
+                        "vide pour laisser Eldir choisir."
+                    ),
+                },
+                "nouveau_chantier": {
+                    "type": "boolean",
+                    "description": (
+                        "Optionnel. true pour ouvrir une session neuve à "
+                        "côté des existantes, dans son propre worktree. "
+                        "Un chantier par sujet indépendant ; la même "
+                        "session pour la suite d'un travail en cours."
+                    ),
+                },
+            },
+            "required": ["project_id", "consigne"],
+        },
+    ),
+    "allow_publish": (
+        "Autorise une session à publier (commit, push, PR) ou lui retire "
+        "ce droit. À n'utiliser QUE si John le demande explicitement : "
+        "c'est sa porte de validation, pas la tienne.",
+        {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "session concernée (cf. list_sessions)",
+                },
+                "autoriser": {
+                    "type": "boolean",
+                    "description": "true pour autoriser, false pour retirer",
+                },
+            },
+            "required": ["session_id", "autoriser"],
+        },
+    ),
+    "remember": (
+        "Enregistre une préférence de travail durable de John (elle sera "
+        "dans ton prompt aux prochains démarrages). Uniquement pour ce qui "
+        "vaut pour les fois suivantes, jamais pour une demande ponctuelle.",
+        {
+            "type": "object",
+            "properties": {
+                "fait": {
+                    "type": "string",
+                    "description": (
+                        "Une phrase courte et impérative, ex : 'Sur Munin, "
+                        "toujours ouvrir une PR plutôt que commiter sur main.'"
+                    ),
+                }
+            },
+            "required": ["fait"],
+        },
+    ),
+}
+
+
 def _text(message: str) -> dict[str, Any]:
     """Réponse d'outil MCP au format attendu par le SDK."""
     return {"content": [{"type": "text", "text": message}]}
@@ -178,193 +272,148 @@ class SupervisorService:
         prefs = await system_prompt_service.resolve(db, SUPERVISOR_PREFS_SLUG)
         return f"{base.rstrip()}\n\n## Préférences de John\n\n{prefs.strip()}"
 
-    # ── outils exposés à Claude ─────────────────────────────────
+    # ── corps des outils, un seul par outil ─────────────────────
+    async def outil_list_projects(self, user_id: str) -> str:
+        async with self._factory() as db:
+            result = await db.execute(
+                select(Project).where(Project.user_id == user_id).order_by(Project.name.asc())
+            )
+            projects = list(result.scalars().all())
+        if not projects:
+            return "Aucun projet branché sur Eldir."
+        lines = [
+            f"- {p.name} (id={p.id}) · {p.provider}:{p.repo_full_name} · branche {p.default_branch}"
+            for p in projects
+        ]
+        return "\n".join(lines)
+
+    async def outil_list_sessions(self, user_id: str) -> str:
+        async with self._factory() as db:
+            result = await db.execute(
+                select(SessionRow, Project.name)
+                .join(Project, Project.id == SessionRow.project_id)
+                .where(
+                    SessionRow.user_id == user_id,
+                    SessionRow.is_system.is_(False),
+                )
+                .order_by(SessionRow.updated_at.desc())
+                .limit(20)
+            )
+            rows = list(result.all())
+        if not rows:
+            return "Aucune session projet ouverte."
+        blocks: list[str] = []
+        for session, project_name in rows:
+            live = "active" if self._manager.is_active(session.id) else "dormante"
+            cr = (session.summary or "pas encore de compte rendu").strip()
+            blocks.append(
+                f"### {project_name} · session {session.id}\n"
+                f"état: {session.state} ({live}) · branche: {session.branch}\n"
+                f"dernier passage:\n{cr}"
+            )
+        return "\n\n".join(blocks)
+
+    async def outil_dispatch(
+        self,
+        user_id: str,
+        *,
+        project_id: str,
+        consigne: str,
+        session_id: str | None = None,
+        nouveau_chantier: bool = False,
+    ) -> str:
+        project_id = project_id.strip()
+        consigne = consigne.strip()
+        if not project_id or not consigne:
+            return "Erreur : project_id et consigne sont obligatoires."
+        try:
+            target, project_name, created = await self._resolve_target(
+                user_id=user_id,
+                project_id=project_id,
+                session_id=(session_id or "").strip() or None,
+                nouveau_chantier=nouveau_chantier,
+            )
+        except NotFoundError as exc:
+            return f"Erreur : {exc.message}"
+
+        self._pending.add(target)
+        self._spawn(self._run_child(user_id, target, consigne))
+        origine = "nouvelle session" if created else "session reprise"
+        return (
+            f"Consigne transmise à {project_name} ({origine} {target}). "
+            "Elle travaille en tâche de fond, tu seras notifié à la fin de "
+            "son tour."
+        )
+
+    async def outil_allow_publish(self, user_id: str, *, session_id: str, autoriser: bool) -> str:
+        session_id = session_id.strip()
+        if not session_id:
+            return "Erreur : session_id est obligatoire."
+        try:
+            async with self._factory() as db:
+                await self._sessions.set_publish_allowed(
+                    db, user_id=user_id, session_id=session_id, allowed=autoriser
+                )
+                await db.commit()
+        except NotFoundError as exc:
+            return f"Erreur : {exc.message}"
+        etat = "autorisée" if autoriser else "de nouveau bloquée"
+        return (
+            f"Publication {etat} pour la session {session_id}. "
+            "Le push forcé reste refusé dans tous les cas."
+        )
+
+    async def outil_remember(self, user_id: str, *, fait: str) -> str:
+        # Les préférences sont celles de John, pas par utilisateur : le
+        # paramètre n'est là que pour garder la même forme que les autres.
+        return await self.remember_preference(fait)
+
+    # ── adaptation au SDK : aucune logique, que de la plomberie ──
     def _build_mcp_server(self, user_id: str) -> Any:
         from claude_agent_sdk import create_sdk_mcp_server, tool
 
-        @tool(
-            "list_projects",
-            "Liste les repos branchés sur Eldir. Sert à identifier de quel "
-            "projet John parle avant de dispatcher.",
-            {"type": "object", "properties": {}},
-        )
+        def declare(nom: str, appel: Any) -> Any:
+            description, schema = SCHEMAS_OUTILS[nom]
+            return tool(nom, description, schema)(appel)
+
         async def list_projects(_args: dict[str, Any]) -> dict[str, Any]:
-            async with self._factory() as db:
-                result = await db.execute(
-                    select(Project).where(Project.user_id == user_id).order_by(Project.name.asc())
-                )
-                projects = list(result.scalars().all())
-            if not projects:
-                return _text("Aucun projet branché sur Eldir.")
-            lines = [
-                f"- {p.name} (id={p.id}) · {p.provider}:{p.repo_full_name} "
-                f"· branche {p.default_branch}"
-                for p in projects
-            ]
-            return _text("\n".join(lines))
+            return _text(await self.outil_list_projects(user_id))
 
-        @tool(
-            "list_sessions",
-            "Liste les sessions Claude existantes avec leur état et le compte "
-            "rendu de leur dernier passage. À consulter avant de dispatcher.",
-            {"type": "object", "properties": {}},
-        )
         async def list_sessions(_args: dict[str, Any]) -> dict[str, Any]:
-            async with self._factory() as db:
-                result = await db.execute(
-                    select(SessionRow, Project.name)
-                    .join(Project, Project.id == SessionRow.project_id)
-                    .where(
-                        SessionRow.user_id == user_id,
-                        SessionRow.is_system.is_(False),
-                    )
-                    .order_by(SessionRow.updated_at.desc())
-                    .limit(20)
-                )
-                rows = list(result.all())
-            if not rows:
-                return _text("Aucune session projet ouverte.")
-            blocks: list[str] = []
-            for session, project_name in rows:
-                live = "active" if self._manager.is_active(session.id) else "dormante"
-                cr = (session.summary or "pas encore de compte rendu").strip()
-                blocks.append(
-                    f"### {project_name} · session {session.id}\n"
-                    f"état: {session.state} ({live}) · branche: {session.branch}\n"
-                    f"dernier passage:\n{cr}"
-                )
-            return _text("\n\n".join(blocks))
+            return _text(await self.outil_list_sessions(user_id))
 
-        @tool(
-            "dispatch",
-            "Transmet une consigne à une session projet et rend la main "
-            "immédiatement. Reprend la session indiquée, sinon la session "
-            "ouverte la plus récente du projet, sinon en démarre une. Tu "
-            "recevras un message automatique avec son compte rendu quand elle "
-            "aura terminé.",
-            {
-                "type": "object",
-                "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "id du projet cible (cf. list_projects)",
-                    },
-                    "consigne": {
-                        "type": "string",
-                        "description": (
-                            "Consigne complète et auto-suffisante : la session "
-                            "enfant ne voit pas ta conversation avec John."
-                        ),
-                    },
-                    "session_id": {
-                        "type": "string",
-                        "description": (
-                            "Optionnel : session précise à reprendre. Laisser "
-                            "vide pour laisser Eldir choisir."
-                        ),
-                    },
-                    "nouveau_chantier": {
-                        "type": "boolean",
-                        "description": (
-                            "Optionnel. true pour ouvrir une session neuve à "
-                            "côté des existantes, dans son propre worktree. "
-                            "Un chantier par sujet indépendant ; la même "
-                            "session pour la suite d'un travail en cours."
-                        ),
-                    },
-                },
-                "required": ["project_id", "consigne"],
-            },
-        )
         async def dispatch(args: dict[str, Any]) -> dict[str, Any]:
-            project_id = str(args.get("project_id") or "").strip()
-            consigne = str(args.get("consigne") or "").strip()
-            session_id = str(args.get("session_id") or "").strip() or None
-            if not project_id or not consigne:
-                return _text("Erreur : project_id et consigne sont obligatoires.")
-            try:
-                target, project_name, created = await self._resolve_target(
-                    user_id=user_id,
-                    project_id=project_id,
-                    session_id=session_id,
+            return _text(
+                await self.outil_dispatch(
+                    user_id,
+                    project_id=str(args.get("project_id") or ""),
+                    consigne=str(args.get("consigne") or ""),
+                    session_id=str(args.get("session_id") or "") or None,
                     nouveau_chantier=bool(args.get("nouveau_chantier")),
                 )
-            except NotFoundError as exc:
-                return _text(f"Erreur : {exc.message}")
-
-            self._pending.add(target)
-            self._spawn(self._run_child(user_id, target, consigne))
-            origine = "nouvelle session" if created else "session reprise"
-            return _text(
-                f"Consigne transmise à {project_name} ({origine} {target}). "
-                "Elle travaille en tâche de fond, tu seras notifié à la fin de "
-                "son tour."
             )
 
-        @tool(
-            "allow_publish",
-            "Autorise une session à publier (commit, push, PR) ou lui retire "
-            "ce droit. À n'utiliser QUE si John le demande explicitement : "
-            "c'est sa porte de validation, pas la tienne.",
-            {
-                "type": "object",
-                "properties": {
-                    "session_id": {
-                        "type": "string",
-                        "description": "session concernée (cf. list_sessions)",
-                    },
-                    "autoriser": {
-                        "type": "boolean",
-                        "description": "true pour autoriser, false pour retirer",
-                    },
-                },
-                "required": ["session_id", "autoriser"],
-            },
-        )
         async def allow_publish(args: dict[str, Any]) -> dict[str, Any]:
-            session_id = str(args.get("session_id") or "").strip()
-            allowed = bool(args.get("autoriser"))
-            if not session_id:
-                return _text("Erreur : session_id est obligatoire.")
-            try:
-                async with self._factory() as db:
-                    await self._sessions.set_publish_allowed(
-                        db, user_id=user_id, session_id=session_id, allowed=allowed
-                    )
-                    await db.commit()
-            except NotFoundError as exc:
-                return _text(f"Erreur : {exc.message}")
-            etat = "autorisée" if allowed else "de nouveau bloquée"
             return _text(
-                f"Publication {etat} pour la session {session_id}. "
-                "Le push forcé reste refusé dans tous les cas."
+                await self.outil_allow_publish(
+                    user_id,
+                    session_id=str(args.get("session_id") or ""),
+                    autoriser=bool(args.get("autoriser")),
+                )
             )
 
-        @tool(
-            "remember",
-            "Enregistre une préférence de travail durable de John (elle sera "
-            "dans ton prompt aux prochains démarrages). Uniquement pour ce qui "
-            "vaut pour les fois suivantes, jamais pour une demande ponctuelle.",
-            {
-                "type": "object",
-                "properties": {
-                    "fait": {
-                        "type": "string",
-                        "description": (
-                            "Une phrase courte et impérative, ex : 'Sur Munin, "
-                            "toujours ouvrir une PR plutôt que commiter sur main.'"
-                        ),
-                    }
-                },
-                "required": ["fait"],
-            },
-        )
         async def remember(args: dict[str, Any]) -> dict[str, Any]:
-            return _text(await self.remember_preference(str(args.get("fait") or "")))
+            return _text(await self.outil_remember(user_id, fait=str(args.get("fait") or "")))
 
         return create_sdk_mcp_server(
             name=_MCP_SERVER,
-            tools=[list_projects, list_sessions, dispatch, allow_publish, remember],
+            tools=[
+                declare("list_projects", list_projects),
+                declare("list_sessions", list_sessions),
+                declare("dispatch", dispatch),
+                declare("allow_publish", allow_publish),
+                declare("remember", remember),
+            ],
         )
 
     async def remember_preference(self, fait: str) -> str:
