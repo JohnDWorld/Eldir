@@ -300,6 +300,16 @@ async def test_les_outils_publies_sont_exactement_la_table(url_mcp: str, jeton_a
     assert all(o.outputSchema is None for o in outils)
 
 
+def test_le_schema_servi_est_une_copie_de_la_table() -> None:
+    """La table sert deux transports : FastMCP ne doit pas pouvoir la modifier en place."""
+    for nom, fonction in mcp_http.OUTILS.items():
+        _, schema = SCHEMAS_OUTILS[nom]
+        outil = mcp_http._outil(nom, fonction)
+        assert outil.parameters == schema
+        assert outil.parameters is not schema
+        assert outil.parameters["properties"] is not schema["properties"]
+
+
 def test_chaque_fonction_d_outil_accepte_les_parametres_que_la_table_annonce() -> None:
     """La table dit ce que l'agent peut envoyer, les annotations dit ce que FastMCP valide.
 

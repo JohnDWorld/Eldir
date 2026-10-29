@@ -57,6 +57,11 @@ def create_app() -> FastAPI:
     )
     # Un serveur MCP par application, pas un par module : son gestionnaire de
     # sessions ne tourne qu'une fois, et chaque `create_app()` rejoue le lifespan.
+    # Conséquence : rejouer le lifespan d'UNE MÊME application (un `with
+    # TestClient(app):` répété sur le même objet, un redémarrage en place) lève
+    # `RuntimeError: StreamableHTTPSessionManager .run() can only be called once
+    # per instance`. Il faut appeler `create_app()` de nouveau, comme le font les
+    # tests de `tests/integration/test_mcp_http.py`.
     mcp, mcp_app = construire_app_mcp()
     app.state.mcp = mcp
 

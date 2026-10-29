@@ -8,6 +8,7 @@ superviseur interne n'applique pas, donc deux Eldir qui divergent.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 
@@ -164,7 +165,9 @@ def _outil(nom: str, fonction: Callable[..., Awaitable[str]]) -> Tool:
     # `structured_output=False` : le superviseur interne rend du texte seul, la
     # surface HTTP ne doit pas y ajouter un `structuredContent` que l'autre n'a pas.
     outil = Tool.from_function(fonction, name=nom, description=description, structured_output=False)
-    outil.parameters = schema
+    # Une copie : l'objet de la table sert aussi au serveur in-process, et FastMCP
+    # tient `parameters` pour le sien.
+    outil.parameters = copy.deepcopy(schema)
     return outil
 
 
