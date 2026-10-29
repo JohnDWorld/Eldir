@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 
-import { formatCost, formatDayShort, formatTokens } from '@/lib/format';
+import { formatCost, formatDayCompact, formatTokens } from '@/lib/format';
 import { BarChart } from '@/components/eldir/bar-chart';
 import { apiClient } from '@/lib/api/client';
 import { useCostsDashboard } from '@/lib/api/queries';
@@ -110,7 +110,7 @@ export function CostsPage(): JSX.Element {
               caption="Coût par jour sur les sept derniers jours"
               points={data.daily.map((d) => ({
                 key: d.day,
-                label: formatDayShort(d.day),
+                label: formatDayCompact(d.day),
                 value: d.cost_usd,
                 display: formatCost(d.cost_usd),
               }))}
@@ -131,7 +131,7 @@ export function CostsPage(): JSX.Element {
               caption="Tokens consommés par jour sur les sept derniers jours"
               points={data.daily.map((d) => ({
                 key: d.day,
-                label: formatDayShort(d.day),
+                label: formatDayCompact(d.day),
                 value: d.input_tokens + d.output_tokens,
                 display: formatTokens(d.input_tokens + d.output_tokens),
               }))}

@@ -44,6 +44,15 @@ export function formatDayShort(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
+/**
+ * Date compacte pour un axe de graphique : « 23/10 ». Sept libellés sur une
+ * largeur de téléphone, « 23 oct. » se faisait tronquer en « 23 oc… ».
+ */
+export function formatDayCompact(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 /** Date et heure complètes, pour un `title` ou une fiche de détail. */
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR', {
