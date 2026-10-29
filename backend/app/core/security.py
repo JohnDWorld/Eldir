@@ -40,7 +40,14 @@ def create_access_token(
     )
 
 
-def decode_access_token(token: str) -> dict[str, Any]:
+def _decode_jwt(token: str) -> dict[str, Any]:
+    """Décodeur nu : vérifie la signature et l'expiration, rien d'autre.
+
+    Privé exprès. Il ne dit pas à quelle porte le jeton est destiné, donc le
+    brancher directement sur un transport ouvre cette porte à tous les types de
+    jeton (c'était le trou des jetons d'agent). Passer par `decode_session_token`
+    ou `decode_agent_token`, qui nomment la porte.
+    """
     settings = get_settings()
     try:
         return jwt.decode(
@@ -52,32 +59,44 @@ def decode_access_token(token: str) -> dict[str, Any]:
         raise AuthenticationError("Token invalide ou expiré.") from exc
 
 
-# Valeur du claim `kind` d'un jeton d'agent externe. Un jeton de connexion n'a
-# pas de `kind`. Ces trois définitions sont le seul endroit qui décide de ce
-# qu'est un jeton d'agent : toute porte d'entrée passe par l'une d'elles.
+# Valeur du claim `kind` d'un jeton d'agent externe. Un jeton de connexion n'en
+# porte aucun. Les deux fonctions ci-dessous sont, avec `_decode_jwt`, le seul
+# endroit qui décide à quelle porte un jeton est destiné.
 KIND_AGENT = "agent"
 
 
-def is_agent_payload(payload: dict[str, Any]) -> bool:
-    """Vrai si la charge d'un JWT décodé est celle d'un jeton d'agent."""
-    return payload.get("kind") == KIND_AGENT
-
-
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Décode un jeton de connexion (API REST, WebSocket) et refuse un jeton d'agent.
+    """Décode un jeton de connexion (API REST, WebSocket) et refuse tout autre.
 
-    Le jeton d'agent est signé par la même clé et porte un `sub` : sans ce refus,
-    il vaudrait dix ans de connexion complète, et la table de révocation, que ce
-    chemin ne consulte pas, ne protégerait rien. Il n'ouvre que la surface MCP,
-    qui passe par `agent_token_service.authentifier`.
+    Liste blanche : un jeton de connexion ne porte aucun `kind`, et tout jeton
+    qui en porte un est refusé, y compris un type futur. Le jeton d'agent est
+    signé par la même clé et porte un `sub` : sans ce refus, il vaudrait dix ans
+    de connexion complète, et la table de révocation, que ce chemin ne consulte
+    pas, ne protégerait rien. Il n'ouvre que la surface MCP.
 
-    Le message part tel quel en motif de fermeture WebSocket, limité à 123 octets.
+    Les messages partent tels quels en motif de fermeture WebSocket : 123 octets
+    au plus.
     """
-    payload = decode_access_token(token)
-    if is_agent_payload(payload):
+    payload = _decode_jwt(token)
+    kind = payload.get("kind")
+    if kind == KIND_AGENT:
         raise AuthenticationError(
             "Jeton d'agent : réservé à la surface MCP, il n'ouvre ni l'API ni le WebSocket."
         )
+    if kind is not None:
+        raise AuthenticationError("Ce jeton n'est pas un jeton de connexion.")
+    return payload
+
+
+def decode_agent_token(token: str) -> dict[str, Any]:
+    """Décode un jeton d'agent (surface MCP) et refuse tout autre.
+
+    La signature ne suffit pas : l'appelant doit encore vérifier le `jti` dans la
+    table, qui est la liste blanche de révocation (`agent_token_service`).
+    """
+    payload = _decode_jwt(token)
+    if payload.get("kind") != KIND_AGENT:
+        raise AuthenticationError("Ce jeton n'est pas un jeton d'agent.")
     return payload
 
 

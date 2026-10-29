@@ -9,12 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
-from app.core.security import (
-    KIND_AGENT,
-    create_access_token,
-    decode_access_token,
-    is_agent_payload,
-)
+from app.core.security import KIND_AGENT, create_access_token, decode_agent_token
 from app.db.models import AgentToken
 
 # Dix ans : un agent ne se reconnecte pas derrière un formulaire. La borne
@@ -65,9 +60,7 @@ async def revoquer(db: AsyncSession, *, user_id: str, token_id: str) -> None:
 
 async def authentifier(db: AsyncSession, *, jeton: str) -> tuple[str, str]:
     """Rend (user_id, libellé) ou lève. Met à jour la date de dernier usage."""
-    charge = decode_access_token(jeton)
-    if not is_agent_payload(charge):
-        raise AuthenticationError("Ce jeton n'est pas un jeton d'agent.")
+    charge = decode_agent_token(jeton)
     jti = charge.get("jti")
     sujet = charge.get("sub")
     if not isinstance(jti, str) or not isinstance(sujet, str):

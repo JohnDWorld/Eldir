@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
-from app.core.security import create_access_token, decode_access_token
+from app.core.security import create_access_token, decode_agent_token
 from app.db.models import AgentToken
 from app.services import agent_token_service as svc
 from sqlalchemy.exc import IntegrityError
@@ -45,7 +45,7 @@ async def test_un_jeton_vit_des_mois(db_session: AsyncSession) -> None:
     """Sans durée explicite, `create_access_token` retombe sur l'heure de la
     connexion et l'agent perdrait l'accès au bout d'une heure."""
     _, clair = await _emettre(db_session)
-    expire = datetime.fromtimestamp(decode_access_token(clair)["exp"], UTC)
+    expire = datetime.fromtimestamp(decode_agent_token(clair)["exp"], UTC)
     assert expire > datetime.now(UTC) + timedelta(days=300)
 
 
