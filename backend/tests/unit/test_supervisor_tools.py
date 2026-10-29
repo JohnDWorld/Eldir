@@ -275,6 +275,7 @@ def test_la_description_de_list_projects_annonce_qu_elle_sert_a_trier_ce_qui_dor
     """Sans ces mots, l'agent ne saurait pas que l'outil porte la date."""
     description = SCHEMAS_OUTILS["list_projects"][0]
     assert "dernière activité" in description
+    assert "attend un geste de John" in description
     assert "dorment" in description
 
 
@@ -360,7 +361,7 @@ async def test_list_projects_dit_qu_une_session_attend_un_geste(
     service = service_superviseur(session_factory)
 
     texte = await _appelle(service, "list_projects", {}, proprio)
-    assert texte.endswith("dernière activité : il y a 12 j · 1 session attend un geste de ta part")
+    assert texte.endswith("dernière activité : il y a 12 j · 1 session attend un geste de John")
 
 
 async def test_list_projects_ne_compte_que_ce_qui_attend_un_geste(
@@ -389,4 +390,4 @@ async def test_list_projects_ne_compte_que_ce_qui_attend_un_geste(
     service = service_superviseur(session_factory)
 
     texte = await _appelle(service, "list_projects", {}, proprio)
-    assert texte.endswith("· 2 sessions attendent un geste de ta part")
+    assert texte.endswith("· 2 sessions attendent un geste de John")

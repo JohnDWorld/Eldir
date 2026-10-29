@@ -334,9 +334,9 @@ class SupervisorService:
             dernier, attente = par_projet.get(p.id, (None, 0))
             suffixe = ""
             if attente == 1:
-                suffixe = " · 1 session attend un geste de ta part"
+                suffixe = " · 1 session attend un geste de John"
             elif attente:
-                suffixe = f" · {attente} sessions attendent un geste de ta part"
+                suffixe = f" · {attente} sessions attendent un geste de John"
             lines.append(
                 f"- {p.name} (id={p.id}) · {p.provider}:{p.repo_full_name} "
                 f"· branche {p.default_branch} · dernière activité : "
