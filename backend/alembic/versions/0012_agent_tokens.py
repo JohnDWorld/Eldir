@@ -45,13 +45,12 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        # L'unicité crée l'index de recherche par `jti` : pas d'index en double.
         sa.UniqueConstraint("jti", name="uq_agent_tokens_jti"),
     )
     op.create_index("ix_agent_tokens_user_id", "agent_tokens", ["user_id"])
-    op.create_index("ix_agent_tokens_jti", "agent_tokens", ["jti"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_agent_tokens_jti", table_name="agent_tokens")
     op.drop_index("ix_agent_tokens_user_id", table_name="agent_tokens")
     op.drop_table("agent_tokens")

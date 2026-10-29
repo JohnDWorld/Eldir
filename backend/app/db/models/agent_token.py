@@ -30,6 +30,8 @@ class AgentToken(UUIDPrimaryKey, TimestampMixin, Base):
     # Nom donné par John, affiché dans l'origine des messages dispatchés :
     # en relisant son historique il doit savoir lequel des cerveaux a parlé.
     label: Mapped[str] = mapped_column(String(80), nullable=False)
-    jti: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    # Pas d'`index=True` : la contrainte d'unicité du `__table_args__` crée déjà
+    # l'index qui sert la recherche par `jti`.
+    jti: Mapped[str] = mapped_column(String(36), nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
