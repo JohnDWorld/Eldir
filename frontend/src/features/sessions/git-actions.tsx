@@ -1,81 +1,17 @@
 /**
- * SessionGitActions - boutons Commit & Push / Open PR + dialogs.
+ * Dialogues git d'une session : commit (et push), ouverture de PR.
+ *
+ * Les boutons qui les ouvraient vivaient ici ; ils sont maintenant dans
+ * `SessionActions`, le menu de l'en-tête. Ce fichier ne porte plus que les
+ * formulaires.
  */
 
 import { useState } from 'react';
 
 import { ApiError } from '@/lib/api/client';
-import {
-  useCommitPush,
-  useOpenPR,
-  useSessionGitStatus,
-} from '@/lib/api/queries';
-import { cn } from '@/lib/utils';
+import { useCommitPush, useOpenPR } from '@/lib/api/queries';
 
-export function SessionGitActions({
-  sessionId,
-}: {
-  sessionId: string;
-}): JSX.Element {
-  const status = useSessionGitStatus(sessionId);
-  const [openWhich, setOpenWhich] = useState<'commit' | 'pr' | null>(null);
-
-  const dirty = Boolean(status.data?.has_changes);
-  const totalChanges =
-    (status.data?.modified ?? 0) +
-    (status.data?.added ?? 0) +
-    (status.data?.deleted ?? 0) +
-    (status.data?.untracked ?? 0);
-
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        {status.data && (
-          <span
-            className={cn(
-              'font-mono text-2xs uppercase tracking-caps',
-              dirty ? 'text-eldir-amber' : 'text-eldir-gray',
-            )}
-          >
-            {dirty ? `${totalChanges} modif${totalChanges > 1 ? 's' : ''}` : 'propre'}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => setOpenWhich('commit')}
-          disabled={!dirty}
-          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
-        >
-          commit & push
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpenWhich('pr')}
-          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
-        >
-          ouvrir une pr
-        </button>
-      </div>
-
-      {openWhich === 'commit' && (
-        <CommitDialog
-          sessionId={sessionId}
-          branch={status.data?.branch}
-          onClose={() => setOpenWhich(null)}
-        />
-      )}
-      {openWhich === 'pr' && (
-        <OpenPrDialog
-          sessionId={sessionId}
-          branch={status.data?.branch}
-          onClose={() => setOpenWhich(null)}
-        />
-      )}
-    </>
-  );
-}
-
-function CommitDialog({
+export function CommitDialog({
   sessionId,
   branch,
   onClose,
@@ -150,7 +86,7 @@ function CommitDialog({
   );
 }
 
-function OpenPrDialog({
+export function OpenPrDialog({
   sessionId,
   branch,
   onClose,

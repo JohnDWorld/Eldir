@@ -5,15 +5,17 @@
  * Layout mobile  : tabs CHAT | LIVE | META, full-width.
  */
 
-import { ChevronLeft, SendHorizontal, Wrench } from 'lucide-react';
+import { ChevronLeft, Lock, LockOpen, SendHorizontal, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { formatCost, formatDateTime, formatTokens } from '@/lib/format';
 import { Avatar } from '@/components/eldir/avatar';
 import { StatePill } from '@/components/eldir/state-pill';
 import { SESSION_STATE_LABEL } from '@/lib/constants';
 import { DiffPanel } from '@/features/sessions/diff-panel';
-import { SessionGitActions } from '@/features/sessions/git-actions';
+import { CommitDialog, OpenPrDialog } from '@/features/sessions/git-actions';
+import { SessionActions } from '@/features/sessions/session-actions';
 import { useSessionStream } from '@/hooks/use-session-stream';
 import {
   useDeleteSession,
@@ -23,6 +25,7 @@ import {
   useSession,
   useSessionCostTotals,
   useSessionEvents,
+  useSessionGitStatus,
   useSessions,
   useStopSession,
 } from '@/lib/api/queries';
@@ -41,8 +44,15 @@ export function SessionPage(): JSX.Element {
   const stopMut = useStopSession();
   const deleteMut = useDeleteSession();
   const publishPermission = useSetPublishPermission(sessionId);
+  const gitStatus = useSessionGitStatus(sessionId);
+  const changeCount =
+    (gitStatus.data?.modified ?? 0) +
+    (gitStatus.data?.added ?? 0) +
+    (gitStatus.data?.deleted ?? 0) +
+    (gitStatus.data?.untracked ?? 0);
   const navigate = useNavigate();
   const [rightTab, setRightTab] = useState<'live' | 'diff'>('live');
+  const [gitDialog, setGitDialog] = useState<'commit' | 'pr' | null>(null);
   // Sous `md`, les trois colonnes ne tiennent pas : on n'en montre qu'une,
   // choisie ici. Le rail réutilise `rightTab`, donc on le synchronise.
   const [mobileTab, setMobileTab] = useState<'chat' | 'diff' | 'live'>('chat');
@@ -157,48 +167,88 @@ export function SessionPage(): JSX.Element {
   return (
     <div className="flex h-full flex-col bg-eldir-paper">
       {/* Topbar */}
-      <header className="flex min-h-[42px] shrink-0 flex-wrap items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 py-1.5 md:h-[42px] md:flex-nowrap md:gap-3.5 md:px-4 md:py-0">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 md:h-[42px] md:gap-3.5 md:px-4">
         <Link
           to="/"
-          className="inline-flex min-h-11 items-center gap-0.5 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink md:min-h-0"
+          aria-label="Retour au pilotage"
+          className="inline-flex min-h-11 shrink-0 items-center gap-0.5 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink md:min-h-0"
         >
           <ChevronLeft size={14} aria-hidden="true" />
-          pilotage
+          <span className="hidden sm:inline">pilotage</span>
         </Link>
-        <span className="font-mono text-xs font-semibold text-eldir-ink">
-          / {session.data.id.slice(0, 8)}
-        </span>
+        {/* Le titre de l'écran, c'est le projet sur lequel l'agent travaille.
+            L'identifiant de session ne disait rien à personne. */}
+        <h1 className="min-w-0 truncate font-sans text-sm font-semibold text-eldir-ink">
+          {isSupervisor
+            ? 'Eldir'
+            : (projects.data?.find((p) => p.id === session.data?.project_id)?.name ??
+              'Session')}
+        </h1>
         <StatePill state={session.data.state} />
-        <span className="hidden font-mono text-[11px] text-eldir-gray md:inline">
-          {session.data.branch} · {session.data.model ?? 'modèle par défaut'}
+        <span className="hidden min-w-0 truncate font-mono text-[11px] text-eldir-gray lg:inline">
+          {session.data.branch}
         </span>
         <div className="flex-1" />
         {!isSystem && (
           <>
-            <PublishToggle
-              allowed={session.data.publish_allowed}
-              pending={publishPermission.isPending}
-              onToggle={(allowed) => publishPermission.mutate(allowed)}
-            />
-            <SessionGitActions sessionId={sessionId} />
+            {gitStatus.data?.has_changes && (
+              <span
+                className="font-mono text-2xs uppercase tracking-caps text-eldir-amber"
+                title="Modifications non commitées dans le worktree"
+              >
+                {changeCount} modif{changeCount > 1 ? 's' : ''}
+              </span>
+            )}
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 font-mono text-2xs uppercase tracking-caps',
+                session.data.publish_allowed ? 'text-eldir-gold' : 'text-eldir-gray',
+              )}
+              title={
+                session.data.publish_allowed
+                  ? 'Cette session peut commiter, pousser et ouvrir une PR.'
+                  : 'Commit, push et PR sont refusés pour cette session.'
+              }
+            >
+              {session.data.publish_allowed ? (
+                <LockOpen size={11} aria-hidden="true" />
+              ) : (
+                <Lock size={11} aria-hidden="true" />
+              )}
+              <span className="hidden sm:inline">
+                {session.data.publish_allowed ? 'publication ouverte' : 'publication fermée'}
+              </span>
+            </span>
           </>
         )}
-        <button
-          type="button"
-          onClick={() => stopMut.mutate(sessionId)}
-          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
-        >
-          arrêter
-        </button>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={deleteMut.isPending}
-          className="eldir-btn eldir-btn--danger eldir-btn--sm"
-        >
-          {deleteMut.isPending ? 'suppr…' : 'supprimer'}
-        </button>
+        <SessionActions
+          isSystem={isSystem}
+          publishAllowed={session.data.publish_allowed}
+          publishPending={publishPermission.isPending}
+          onTogglePublish={(allowed) => publishPermission.mutate(allowed)}
+          hasChanges={Boolean(gitStatus.data?.has_changes)}
+          onCommit={() => setGitDialog('commit')}
+          onOpenPr={() => setGitDialog('pr')}
+          onStop={() => stopMut.mutate(sessionId)}
+          onDelete={handleDelete}
+          deletePending={deleteMut.isPending}
+        />
       </header>
+
+      {gitDialog === 'commit' && (
+        <CommitDialog
+          sessionId={sessionId}
+          branch={gitStatus.data?.branch}
+          onClose={() => setGitDialog(null)}
+        />
+      )}
+      {gitDialog === 'pr' && (
+        <OpenPrDialog
+          sessionId={sessionId}
+          branch={gitStatus.data?.branch}
+          onClose={() => setGitDialog(null)}
+        />
+      )}
 
       {/* Sélecteur de panneau, mobile uniquement */}
       <div className="flex shrink-0 border-b border-eldir-gray-3 bg-eldir-cream-2 md:hidden">
@@ -348,7 +398,7 @@ export function SessionPage(): JSX.Element {
             <Kv k="état" v={SESSION_STATE_LABEL[session.data.state]} />
             <Kv k="modèle" v={session.data.model ?? '-'} />
             <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '-'} />
-            <Kv k="créée" v={new Date(session.data.created_at).toLocaleTimeString()} />
+            <Kv k="créée" v={formatDateTime(session.data.created_at)} />
           </div>
 
           <SessionCostPanel
@@ -502,43 +552,6 @@ function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
         {children}
       </div>
     </div>
-  );
-}
-
-/**
- * Porte de publication. Par défaut une session ne peut ni commiter ni pousser :
- * ses commandes git sont refusées au niveau du hook. Ce bouton est le seul
- * moyen d'ouvrir, avec l'outil `allow_publish` du superviseur quand John le lui
- * demande. Le push forcé reste refusé dans tous les cas.
- */
-function PublishToggle({
-  allowed,
-  pending,
-  onToggle,
-}: {
-  allowed: boolean;
-  pending: boolean;
-  onToggle: (allowed: boolean) => void;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={() => onToggle(!allowed)}
-      disabled={pending}
-      title={
-        allowed
-          ? 'Cette session peut commiter, pousser et ouvrir une PR. Clique pour refermer.'
-          : 'Publication refusée pour cette session. Clique pour l’autoriser.'
-      }
-      className={cn(
-        'min-h-11 rounded-eldir border px-3 py-1.5 font-mono text-xs uppercase tracking-caps disabled:opacity-50',
-        allowed
-          ? 'border-eldir-gold bg-eldir-gold/15 text-eldir-ink'
-          : 'border-eldir-gray-3 bg-eldir-paper text-eldir-gray hover:text-eldir-ink',
-      )}
-    >
-      {allowed ? 'publication ouverte' : 'publication bloquée'}
-    </button>
   );
 }
 
@@ -702,7 +715,9 @@ function SessionCostPanel({
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-base font-bold text-eldir-ink">${costUsd.toFixed(4)}</span>
+        <span className="font-mono text-base font-bold text-eldir-ink">
+          {formatCost(costUsd)}
+        </span>
         <span className="font-mono text-2xs text-eldir-gray">
           {numTurns} tour{numTurns > 1 ? 's' : ''}
         </span>
@@ -712,13 +727,6 @@ function SessionCostPanel({
       <Kv k="cache lu" v={`${formatTokens(cacheReadTokens)} (${cacheRatio}%)`} />
     </div>
   );
-}
-
-function formatTokens(n: number): string {
-  if (n === 0) return '0';
-  if (n < 1_000) return String(n);
-  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
 }
 
 function Kv({ k, v }: { k: string; v: string }): JSX.Element {
