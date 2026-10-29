@@ -40,37 +40,6 @@ SUPERVISOR_KIND = "supervisor"
 SUPERVISOR_PROMPT_SLUG = "supervisor"
 SUPERVISOR_PREFS_SLUG = "supervisor_prefs"
 
-_MCP_SERVER = "eldir"
-_TOOL_NAMES = (
-    "list_projects",
-    "list_sessions",
-    "dispatch",
-    "allow_publish",
-    "remember",
-)
-ALLOWED_TOOLS = [f"mcp__{_MCP_SERVER}__{name}" for name in _TOOL_NAMES]
-# Le superviseur ne touche ni au disque ni au réseau : il délègue, point.
-# `allowed_tools` seul ne suffit pas à retirer les outils intégrés quand la
-# session tourne en bypassPermissions, d'où la liste d'interdits.
-DISALLOWED_TOOLS = [
-    "Bash",
-    "BashOutput",
-    "KillShell",
-    "Read",
-    "Write",
-    "Edit",
-    "NotebookEdit",
-    "Glob",
-    "Grep",
-    "Task",
-    "WebFetch",
-    "WebSearch",
-]
-
-# Le worktree du superviseur n'est qu'un cwd vide : il ne code pas.
-_CWD_DIRNAME = "_supervisor"
-
-
 # Les cinq outils décrits UNE fois. Les deux transports (MCP in-process pour
 # le superviseur, MCP HTTP pour un agent externe) lisent cette table, pour
 # qu'il n'existe jamais deux descriptions du même outil.
@@ -163,6 +132,31 @@ SCHEMAS_OUTILS: dict[str, tuple[str, dict[str, Any]]] = {
         },
     ),
 }
+
+
+_MCP_SERVER = "eldir"
+_TOOL_NAMES = tuple(SCHEMAS_OUTILS)
+ALLOWED_TOOLS = [f"mcp__{_MCP_SERVER}__{name}" for name in _TOOL_NAMES]
+# Le superviseur ne touche ni au disque ni au réseau : il délègue, point.
+# `allowed_tools` seul ne suffit pas à retirer les outils intégrés quand la
+# session tourne en bypassPermissions, d'où la liste d'interdits.
+DISALLOWED_TOOLS = [
+    "Bash",
+    "BashOutput",
+    "KillShell",
+    "Read",
+    "Write",
+    "Edit",
+    "NotebookEdit",
+    "Glob",
+    "Grep",
+    "Task",
+    "WebFetch",
+    "WebSearch",
+]
+
+# Le worktree du superviseur n'est qu'un cwd vide : il ne code pas.
+_CWD_DIRNAME = "_supervisor"
 
 
 def _text(message: str) -> dict[str, Any]:
@@ -274,6 +268,12 @@ class SupervisorService:
 
     # ── corps des outils, un seul par outil ─────────────────────
     async def outil_list_projects(self, user_id: str) -> str:
+        """Liste les projets de l'utilisateur.
+
+        Returns:
+            Du texte pour l'agent. Les `outil_*` rendent une erreur métier en
+            texte au lieu de la lever.
+        """
         async with self._factory() as db:
             result = await db.execute(
                 select(Project).where(Project.user_id == user_id).order_by(Project.name.asc())
@@ -288,6 +288,11 @@ class SupervisorService:
         return "\n".join(lines)
 
     async def outil_list_sessions(self, user_id: str) -> str:
+        """Liste les sessions projet de l'utilisateur avec leur dernier compte rendu.
+
+        Returns:
+            Du texte pour l'agent.
+        """
         async with self._factory() as db:
             result = await db.execute(
                 select(SessionRow, Project.name)
@@ -322,6 +327,15 @@ class SupervisorService:
         session_id: str | None = None,
         nouveau_chantier: bool = False,
     ) -> str:
+        """Transmet une consigne à une session projet et rend la main aussitôt.
+
+        Sans `session_id`, reprend la session la plus récente du projet, ou en
+        ouvre une neuve si `nouveau_chantier` ou si aucune n'a démarré.
+
+        Returns:
+            Du texte pour l'agent. Un refus (champ vide, projet ou session
+            introuvable) est rendu en texte, pas levé.
+        """
         project_id = project_id.strip()
         consigne = consigne.strip()
         if not project_id or not consigne:
@@ -346,6 +360,12 @@ class SupervisorService:
         )
 
     async def outil_allow_publish(self, user_id: str, *, session_id: str, autoriser: bool) -> str:
+        """Autorise ou retire à une session le droit de publier (commit, push, PR).
+
+        Returns:
+            Du texte pour l'agent. Un refus (session vide ou introuvable) est
+            rendu en texte, pas levé.
+        """
         session_id = session_id.strip()
         if not session_id:
             return "Erreur : session_id est obligatoire."
@@ -364,6 +384,11 @@ class SupervisorService:
         )
 
     async def outil_remember(self, user_id: str, *, fait: str) -> str:
+        """Enregistre une préférence durable dans le prompt du superviseur.
+
+        Returns:
+            Du texte pour l'agent. Un fait vide est rendu en texte, pas levé.
+        """
         # Les préférences sont celles de John, pas par utilisateur : le
         # paramètre n'est là que pour garder la même forme que les autres.
         return await self.remember_preference(fait)
