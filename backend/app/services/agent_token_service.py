@@ -9,13 +9,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
-from app.core.security import create_access_token, decode_access_token
+from app.core.security import (
+    KIND_AGENT,
+    create_access_token,
+    decode_access_token,
+    is_agent_payload,
+)
 from app.db.models import AgentToken
 
 # Dix ans : un agent ne se reconnecte pas derrière un formulaire. La borne
 # n'est pas l'expiration, c'est la révocation.
 _DUREE_MINUTES = 10 * 365 * 24 * 60
-_KIND = "agent"
 _LABEL_MAX = 80  # taille de la colonne `agent_tokens.label`
 
 
@@ -37,7 +41,7 @@ async def emettre(db: AsyncSession, *, user_id: str, label: str) -> tuple[AgentT
     clair = create_access_token(
         user_id,
         expires_minutes=_DUREE_MINUTES,
-        extra_claims={"kind": _KIND, "jti": jti},
+        extra_claims={"kind": KIND_AGENT, "jti": jti},
     )
     return ligne, clair
 
@@ -62,7 +66,7 @@ async def revoquer(db: AsyncSession, *, user_id: str, token_id: str) -> None:
 async def authentifier(db: AsyncSession, *, jeton: str) -> tuple[str, str]:
     """Rend (user_id, libellé) ou lève. Met à jour la date de dernier usage."""
     charge = decode_access_token(jeton)
-    if charge.get("kind") != _KIND:
+    if not is_agent_payload(charge):
         raise AuthenticationError("Ce jeton n'est pas un jeton d'agent.")
     jti = charge.get("jti")
     sujet = charge.get("sub")

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AuthenticationError
-from app.core.security import decode_access_token
+from app.core.security import decode_session_token
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -43,11 +43,14 @@ async def get_redis() -> AsyncGenerator[Redis, None]:
 async def get_current_user_id(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
-    """Décode le JWT et retourne le `sub` (user id)."""
+    """Décode le JWT de connexion et retourne le `sub` (user id).
+
+    Refuse un jeton d'agent, qui n'ouvre que la surface MCP.
+    """
     if not authorization or not authorization.lower().startswith("bearer "):
         raise AuthenticationError("Header Authorization manquant ou invalide.")
     token = authorization.split(" ", 1)[1]
-    payload = decode_access_token(token)
+    payload = decode_session_token(token)
     sub = payload.get("sub")
     if not isinstance(sub, str):
         raise AuthenticationError("Token sans sujet valide.")

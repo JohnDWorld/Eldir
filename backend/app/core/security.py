@@ -52,6 +52,35 @@ def decode_access_token(token: str) -> dict[str, Any]:
         raise AuthenticationError("Token invalide ou expiré.") from exc
 
 
+# Valeur du claim `kind` d'un jeton d'agent externe. Un jeton de connexion n'a
+# pas de `kind`. Ces trois définitions sont le seul endroit qui décide de ce
+# qu'est un jeton d'agent : toute porte d'entrée passe par l'une d'elles.
+KIND_AGENT = "agent"
+
+
+def is_agent_payload(payload: dict[str, Any]) -> bool:
+    """Vrai si la charge d'un JWT décodé est celle d'un jeton d'agent."""
+    return payload.get("kind") == KIND_AGENT
+
+
+def decode_session_token(token: str) -> dict[str, Any]:
+    """Décode un jeton de connexion (API REST, WebSocket) et refuse un jeton d'agent.
+
+    Le jeton d'agent est signé par la même clé et porte un `sub` : sans ce refus,
+    il vaudrait dix ans de connexion complète, et la table de révocation, que ce
+    chemin ne consulte pas, ne protégerait rien. Il n'ouvre que la surface MCP,
+    qui passe par `agent_token_service.authentifier`.
+
+    Le message part tel quel en motif de fermeture WebSocket, limité à 123 octets.
+    """
+    payload = decode_access_token(token)
+    if is_agent_payload(payload):
+        raise AuthenticationError(
+            "Jeton d'agent : réservé à la surface MCP, il n'ouvre ni l'API ni le WebSocket."
+        )
+    return payload
+
+
 # ── Chiffrement symétrique (Fernet) pour credentials Git en DB ──
 def _fernet() -> Fernet:
     settings = get_settings()

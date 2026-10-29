@@ -7,9 +7,11 @@ from app.core.exceptions import AuthenticationError
 from app.core.security import (
     create_access_token,
     decode_access_token,
+    decode_session_token,
     decrypt_secret,
     encrypt_secret,
     hash_password,
+    is_agent_payload,
     verify_password,
 )
 
@@ -30,6 +32,25 @@ def test_jwt_roundtrip() -> None:
 def test_jwt_invalid_raises() -> None:
     with pytest.raises(AuthenticationError):
         decode_access_token("not-a-token")
+
+
+def test_decode_session_token_accepte_un_jeton_de_connexion() -> None:
+    payload = decode_session_token(create_access_token("user-123"))
+    assert payload["sub"] == "user-123"
+    assert not is_agent_payload(payload)
+
+
+def test_decode_session_token_refuse_un_jeton_d_agent_et_dit_pourquoi() -> None:
+    jeton = create_access_token("user-123", extra_claims={"kind": "agent", "jti": "j"})
+    with pytest.raises(AuthenticationError, match="Jeton d'agent") as exc:
+        decode_session_token(jeton)
+    # Le message sert de motif de fermeture WebSocket : 123 octets au plus.
+    assert len(exc.value.message.encode()) <= 123
+
+
+def test_decode_session_token_refuse_toujours_un_jeton_invalide() -> None:
+    with pytest.raises(AuthenticationError):
+        decode_session_token("not-a-token")
 
 
 def test_fernet_roundtrip() -> None:

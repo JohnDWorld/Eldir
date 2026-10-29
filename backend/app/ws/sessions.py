@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from app.core.exceptions import AuthenticationError
 from app.core.logging import get_logger
-from app.core.security import decode_access_token
+from app.core.security import decode_session_token
 from app.db.models import Session
 from app.db.session import async_session_factory
 from app.services.event_bus import EventBus
@@ -33,9 +33,10 @@ async def session_stream(
 ) -> None:
     # 1. Auth
     try:
-        payload = decode_access_token(token)
-    except AuthenticationError:
-        await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        payload = decode_session_token(token)
+    except AuthenticationError as exc:
+        # Le motif dit pourquoi : un jeton d'agent ne s'ouvre pas ici.
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason=exc.message)
         return
     user_id = payload.get("sub")
     if not isinstance(user_id, str):
