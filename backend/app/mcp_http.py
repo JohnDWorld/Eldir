@@ -132,8 +132,9 @@ async def allow_publish(session_id: str, autoriser: bool) -> str:
 
 
 async def remember(fait: str) -> str:
-    user_id, _ = agent_courant()
-    return await get_supervisor_service().outil_remember(user_id, fait=fait)
+    # Le libellé du jeton signe la préférence : elle entre dans le prompt de John.
+    user_id, libelle = agent_courant()
+    return await get_supervisor_service().outil_remember(user_id, fait=fait, libelle_agent=libelle)
 
 
 OUTILS: dict[str, Callable[..., Awaitable[str]]] = {
