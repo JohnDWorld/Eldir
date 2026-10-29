@@ -1156,7 +1156,7 @@ Et dans `outil_list_projects`, après la liste des projets :
         lines: list[str] = []
         for p in projects:
             dernier, attente = par_projet.get(p.id, (None, 0))
-            suffixe = f" · {attente} session attend un geste de ta part" if attente else ""
+            suffixe = f" · {attente} session attend un geste de John" if attente else ""
             lines.append(
                 f"- {p.name} (id={p.id}) · {p.provider}:{p.repo_full_name} "
                 f"· branche {p.default_branch} · dernière activité : "
