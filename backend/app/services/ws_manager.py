@@ -18,7 +18,7 @@ class WebSocketManager:
         self._connections: dict[str, set[WebSocket]] = defaultdict(set)
 
     async def connect(self, session_id: str, ws: WebSocket) -> None:
-        await ws.accept()
+        """Enregistre une connexion déjà acceptée (l'acceptation est faite par la porte)."""
         self._connections[session_id].add(ws)
         logger.info("ws.connect", session_id=session_id, total=len(self._connections[session_id]))
 

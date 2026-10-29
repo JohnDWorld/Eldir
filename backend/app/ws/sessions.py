@@ -1,8 +1,9 @@
 """WebSocket /ws/sessions/{session_id} - stream live des events.
 
 Auth via query param `?token=<jwt>` (les WS browser ne supportent pas les
-headers Authorization personnalisés sans hacks). Le token est validé avant
-de joindre le pubsub.
+headers Authorization personnalisés sans hacks). La connexion est acceptée
+puis le token validé avant de joindre le pubsub ; un refus ferme en 1008 avec
+un motif lisible.
 """
 
 from __future__ import annotations
@@ -31,6 +32,11 @@ async def session_stream(
     session_id: str,
     token: str = Query(..., description="JWT access token"),
 ) -> None:
+    # 0. Accepter d'abord : un `close` émis avant `accept` devient, côté serveur
+    #    ASGI, un refus HTTP 403 sans corps. Le client ne recevrait ni code ni
+    #    motif, et ne saurait pas pourquoi on lui ferme la porte.
+    await ws.accept()
+
     # 1. Auth
     try:
         payload = decode_session_token(token)
