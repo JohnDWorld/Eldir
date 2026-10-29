@@ -15,7 +15,7 @@ export interface SessionCardData {
   projectSlug: string;
   state: SessionState;
   summary: string | null;
-  duration: string;
+  age: string;
 }
 
 interface SessionCardProps {
@@ -49,7 +49,7 @@ export function SessionCard({ data, selected, onClick }: SessionCardProps): JSX.
       )}
       <div className="mt-2.5 flex items-center gap-1 font-mono text-2xs text-eldir-gray">
         <Clock size={11} aria-hidden="true" />
-        <span>{data.duration}</span>
+        <span>{data.age}</span>
       </div>
     </button>
   );

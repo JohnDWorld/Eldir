@@ -12,6 +12,7 @@ import { ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { formatAge, formatCost, formatTokens } from '@/lib/format';
 import { EventRow } from '@/components/eldir/event-row';
 import { GitMark } from '@/components/eldir/git-mark';
 import { LogsPanel, type LogLine, type LogTone } from '@/components/eldir/logs-panel';
@@ -122,7 +123,7 @@ export function OpsHomePage(): JSX.Element {
     },
     {
       label: 'Dépense',
-      value: spend7d > 0 ? `$${spend7d.toFixed(2)}` : '$0.00',
+      value: formatCost(spend7d),
       sub: '7 jours',
       ...(dailySpark.some((v) => v > 0) ? { spark: dailySpark } : {}),
     },
@@ -162,7 +163,7 @@ export function OpsHomePage(): JSX.Element {
         (s.project_id ? projectSlugById.get(s.project_id) : 'eldir') ?? 'inconnu',
       state: s.state,
       summary: s.summary ?? null,
-      duration: durationSince(s.created_at),
+      age: formatAge(s.created_at),
     }));
 
   return (
@@ -347,7 +348,7 @@ export function OpsHomePage(): JSX.Element {
                 </div>
               )}
               <div className="flex justify-between px-2.5 pt-1 font-mono text-2xs text-eldir-gray">
-                <span>${spend7d.toFixed(2)} sur 7 jours</span>
+                <span>{formatCost(spend7d)} sur 7 jours</span>
                 <span>{formatTokens(tokensSpark.reduce((a, b) => a + b, 0))} tokens</span>
               </div>
             </div>
@@ -416,22 +417,6 @@ function ProjectRailRow({
       </div>
     </Link>
   );
-}
-
-function formatTokens(n: number): string {
-  if (n === 0) return '0';
-  if (n < 1_000) return String(n);
-  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
-}
-
-function durationSince(iso: string): string {
-  const ms = Date.now() - +new Date(iso);
-  const m = Math.floor(ms / 60_000);
-  if (m < 60) return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return `${String(h).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
 }
 
 function sessionLogLines(
