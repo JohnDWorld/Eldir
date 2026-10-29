@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
@@ -55,8 +55,10 @@ def _decode_jwt(token: str) -> dict[str, Any]:
             settings.jwt_secret.get_secret_value(),
             algorithms=[settings.jwt_algorithm],
         )
+    except ExpiredSignatureError as exc:
+        raise AuthenticationError("Jeton expiré.") from exc
     except JWTError as exc:
-        raise AuthenticationError("Token invalide ou expiré.") from exc
+        raise AuthenticationError("Jeton invalide.") from exc
 
 
 # Valeur du claim `kind` d'un jeton d'agent externe. Un jeton de connexion n'en

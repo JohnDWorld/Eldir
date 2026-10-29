@@ -53,7 +53,7 @@ async def get_current_user_id(
     payload = decode_session_token(token)
     sub = payload.get("sub")
     if not isinstance(sub, str):
-        raise AuthenticationError("Token sans sujet valide.")
+        raise AuthenticationError("Jeton sans sujet valide.")
     return sub
 
 

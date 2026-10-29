@@ -45,7 +45,7 @@ async def session_stream(
         return
     user_id = payload.get("sub")
     if not isinstance(user_id, str):
-        await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason="Jeton sans sujet valide.")
         return
 
     # 2. Autorisation : la session appartient bien à cet user
@@ -54,14 +54,18 @@ async def session_stream(
             select(Session).where(Session.id == session_id, Session.user_id == user_id)
         )
         if result.scalar_one_or_none() is None:
-            await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+            # Même motif pour « n'existe pas » et « n'est pas à toi » : on ne
+            # renseigne pas sur l'existence d'une session qu'on ne possède pas.
+            await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason="Session introuvable.")
             return
 
     # 3. Branchement pubsub
     try:
         redis = get_redis_client()
     except RuntimeError:
-        await ws.close(code=status.WS_1011_INTERNAL_ERROR)
+        await ws.close(
+            code=status.WS_1011_INTERNAL_ERROR, reason="Le bus d'événements est indisponible."
+        )
         return
 
     bus = EventBus(redis)

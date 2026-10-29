@@ -32,7 +32,7 @@ def test_jwt_roundtrip() -> None:
 
 
 def test_jwt_invalid_raises() -> None:
-    with pytest.raises(AuthenticationError):
+    with pytest.raises(AuthenticationError, match="Jeton invalide"):
         decode_session_token("not-a-token")
 
 
@@ -79,9 +79,11 @@ def test_les_deux_decodeurs_verifient_signature_et_expiration(
     valide = create_access_token("user-123", extra_claims=extra)
     assert decoder(valide)["sub"] == "user-123"
     falsifie = valide[:-4] + ("AAAA" if not valide.endswith("AAAA") else "BBBB")
-    with pytest.raises(AuthenticationError):
+    with pytest.raises(AuthenticationError, match="Jeton invalide"):
         decoder(falsifie)
-    with pytest.raises(AuthenticationError):
+    # Deux causes distinctes, deux messages : John doit savoir s'il faut en
+    # réémettre un (expiré) ou chercher une erreur de copie (invalide).
+    with pytest.raises(AuthenticationError, match="Jeton expiré"):
         decoder(create_access_token("user-123", expires_minutes=-1, extra_claims=extra))
 
 
