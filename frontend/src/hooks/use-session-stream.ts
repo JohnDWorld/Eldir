@@ -3,7 +3,8 @@
  *
  * Auth via query param `?token=<jwt>` (les WS browser ne supportent pas les
  * headers Authorization).
- * Reconnexion automatique avec backoff exponentiel borné.
+ * Reconnexion automatique avec backoff exponentiel borné, remis à zéro à la
+ * première trame reçue (et non à l'ouverture : voir `onmessage`).
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -58,7 +59,6 @@ export function useSessionStream(
       ws.onopen = () => {
         if (cancelled) return;
         setState('open');
-        reconnectDelay.current = 1000;
         keepalive.current = window.setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('ping');
@@ -67,6 +67,12 @@ export function useSessionStream(
       };
 
       ws.onmessage = (e) => {
+        // Le délai ne revient à une seconde qu'ici, pas à l'ouverture : le
+        // serveur accepte AVANT d'authentifier (pour que le refus arrive avec
+        // un code et un motif), donc `onopen` part aussi pour un jeton qui va
+        // être refusé. Réinitialiser à l'ouverture collerait le délai à une
+        // seconde et ferait reboucler indéfiniment sur un jeton refusé.
+        reconnectDelay.current = 1000;
         try {
           const data = JSON.parse(e.data) as SessionEvent;
           setEvents((prev) => {
