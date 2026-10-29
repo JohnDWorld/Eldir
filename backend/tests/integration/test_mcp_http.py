@@ -40,6 +40,8 @@ from app.services.event_bus import EventBus
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
 from app.services.supervisor_service import (
+    PREFERENCE_LONGUEUR_MAX,
+    PREFERENCES_AGENT_MAX,
     SCHEMAS_OUTILS,
     SUPERVISOR_PREFS_SLUG,
     SupervisorService,
@@ -508,6 +510,31 @@ async def test_remember_attribue_a_son_auteur_ce_qui_vient_d_un_agent(
     assert [ligne for ligne in stocke.splitlines() if not ligne.startswith("- [agent « ")] == [
         "- Préfère les petits commits."
     ]
+
+
+async def test_les_bornes_de_remember_arrivent_a_l_agent_en_phrases_lisibles(
+    url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Un refus de borne est une réponse d'outil, pas une erreur technique."""
+    service = service_superviseur(session_factory)
+    monkeypatch.setattr(singletons, "_supervisor", service)
+    user_id, _, _, _ = await _monde(session_factory)
+    jeton = await _jeton(session_factory, user_id, label="eldir du village")
+
+    async with _agent(url_mcp, jeton) as session:
+        trop_long = await session.call_tool(
+            "remember", {"fait": "a" * (PREFERENCE_LONGUEUR_MAX + 1)}
+        )
+        for i in range(PREFERENCES_AGENT_MAX):
+            await service.remember_preference(f"Fait {i}.", libelle_agent="eldir du village")
+        plein = await session.call_tool("remember", {"fait": "Fait de trop."})
+
+    for refus, borne in ((trop_long, PREFERENCE_LONGUEUR_MAX), (plein, PREFERENCES_AGENT_MAX)):
+        assert not refus.isError
+        contenu = refus.content[0]
+        assert isinstance(contenu, mcp_types.TextContent)
+        assert contenu.text.startswith("Erreur : ")
+        assert str(borne) in contenu.text
 
 
 # ── Un seul comportement, deux transports ───────────────────────────────

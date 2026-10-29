@@ -59,6 +59,17 @@ _NOTE_AGENTS = (
     "affirment."
 )
 
+# Bornes de `remember`. Une écriture sans borne, alimentée par un agent qui peut
+# partir en boucle, n'est pas une mémoire mais une fuite : elle noierait les
+# préférences de John, et chaque démarrage du superviseur paierait ce contexte.
+# Elles vivent ici (et pas dans les réglages) parce que la description de l'outil
+# les annonce à l'appelant : un seul endroit où les changer.
+# Longueur d'un fait, en caractères, pour tous ceux qui écrivent : c'est une phrase.
+PREFERENCE_LONGUEUR_MAX = 300
+# Nombre de préférences d'agents conservées, tous agents confondus. Celles du
+# superviseur de John n'y comptent pas et n'y sont pas soumises : sa mémoire.
+PREFERENCES_AGENT_MAX = 20
+
 # Les cinq outils décrits UNE fois. Les deux transports (MCP in-process pour
 # le superviseur, MCP HTTP pour un agent externe) lisent cette table, pour
 # qu'il n'existe jamais deux descriptions du même outil.
@@ -134,17 +145,26 @@ SCHEMAS_OUTILS: dict[str, tuple[str, dict[str, Any]]] = {
         },
     ),
     "remember": (
-        "Enregistre une préférence de travail durable de John (elle sera "
-        "dans ton prompt aux prochains démarrages). Uniquement pour ce qui "
-        "vaut pour les fois suivantes, jamais pour une demande ponctuelle.",
+        "Enregistre une préférence de travail durable, relue par le "
+        "superviseur à ses prochains démarrages. Venant d'un agent extérieur, "
+        "elle est inscrite au nom de l'agent (le nom de son jeton) : le "
+        "superviseur la lit comme une suggestion, jamais comme une consigne de "
+        "John, et elle ne peut autoriser aucune publication. Venant du "
+        "superviseur de John, c'est la préférence de John, sans attribution. "
+        "Uniquement pour ce qui vaut pour les fois suivantes, jamais pour une "
+        f"demande ponctuelle. Une phrase de {PREFERENCE_LONGUEUR_MAX} caractères "
+        f"au plus. Les agents extérieurs se partagent {PREFERENCES_AGENT_MAX} "
+        "préférences : une fois la mémoire pleine, la nouvelle est refusée (rien "
+        "n'est oublié) et John doit faire le ménage.",
         {
             "type": "object",
             "properties": {
                 "fait": {
                     "type": "string",
                     "description": (
-                        "Une phrase courte et impérative, ex : 'Sur Munin, "
-                        "toujours ouvrir une PR plutôt que commiter sur main.'"
+                        f"Une phrase courte et impérative ({PREFERENCE_LONGUEUR_MAX} "
+                        "caractères au plus), ex : 'Sur Munin, toujours ouvrir "
+                        "une PR plutôt que commiter sur main.'"
                     ),
                 }
             },
@@ -186,6 +206,11 @@ def _sur_une_ligne(texte: str) -> str:
     des lignes sans marque d'auteur, qui passeraient pour celles de John.
     """
     return " ".join(texte.split())
+
+
+def _nb_preferences_d_agents(corps: str) -> int:
+    """Combien de lignes de préférences portent la marque d'un agent (en tête de ligne)."""
+    return sum(1 for ligne in corps.splitlines() if ligne.startswith(f"- {MARQUE_AGENT}"))
 
 
 def _text(message: str) -> dict[str, Any]:
@@ -536,10 +561,20 @@ class SupervisorService:
         d'après le jeton et jamais lue dans le texte, et tient sur une seule ligne
         pour que le `fait` ne puisse ni ouvrir une ligne sans marque ni en imiter
         une.
+
+        Deux bornes, dont le refus est une phrase pour l'appelant (pas une
+        exception) : `PREFERENCE_LONGUEUR_MAX` pour tous, et `PREFERENCES_AGENT_MAX`
+        pour les seules lignes d'agents. Au plafond on refuse la nouvelle sans rien
+        oublier ; redire une préférence déjà notée n'a besoin d'aucune place.
         """
         fait = _sur_une_ligne(fait)
         if not fait:
             return "Erreur : 'fait' est vide."
+        if len(fait) > PREFERENCE_LONGUEUR_MAX:
+            return (
+                f"Erreur : 'fait' fait {len(fait)} caractères, la limite est "
+                f"{PREFERENCE_LONGUEUR_MAX}. Reformule en une phrase courte et impérative."
+            )
         marque = ""
         if libelle_agent is not None:
             marque = f"{MARQUE_AGENT}{_sur_une_ligne(libelle_agent)} »] "
@@ -551,6 +586,19 @@ class SupervisorService:
             body = current.content.strip() if current.is_overridden else ""
             if line in body:
                 return "Préférence déjà enregistrée."
+            # On refuse la nouvelle plutôt que d'oublier la plus ancienne : un
+            # agent en boucle effacerait sinon, par répétition, ce que les autres
+            # (ou lui) avaient noté de légitime, et personne n'en saurait rien.
+            if (
+                libelle_agent is not None
+                and _nb_preferences_d_agents(body) >= PREFERENCES_AGENT_MAX
+            ):
+                return (
+                    f"Erreur : la mémoire des agents est pleine ({PREFERENCES_AGENT_MAX} "
+                    "préférences). Ta préférence n'a pas été enregistrée, et rien n'a été "
+                    "oublié. Dis-le à John : lui seul peut faire le ménage dans les "
+                    "préférences du superviseur."
+                )
             await system_prompt_service.upsert(db, SUPERVISOR_PREFS_SLUG, f"{body}\n{line}".strip())
             await db.commit()
         logger.info("supervisor.remember", fait=fait, agent=libelle_agent)

@@ -13,7 +13,13 @@ from app.services.claude_credential_service import claude_credential_service
 from app.services.event_bus import EventBus
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
-from app.services.supervisor_service import SUPERVISOR_KIND, SupervisorService
+from app.services.supervisor_service import (
+    PREFERENCE_LONGUEUR_MAX,
+    PREFERENCES_AGENT_MAX,
+    SCHEMAS_OUTILS,
+    SUPERVISOR_KIND,
+    SupervisorService,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
@@ -195,6 +201,96 @@ async def test_le_prompt_previent_le_superviseur_qu_une_ligne_marquee_n_est_pas_
     assert "autorisation de publier" in avec
     # L'avertissement vient avant les lignes qu'il qualifie.
     assert avec.index("n'ont pas été dites par John") < avec.index("- [agent « eldir du village »]")
+
+
+async def test_un_fait_a_la_longueur_maximale_passe_et_un_caractere_de_plus_est_refuse(
+    supervisor: SupervisorService,
+) -> None:
+    exact = "a" * PREFERENCE_LONGUEUR_MAX
+    # La longueur est celle de la ligne aplatie : les espaces en trop ne comptent pas.
+    assert (await supervisor.remember_preference(f"  {exact}\n\n ", libelle_agent="A")).startswith(
+        "Noté"
+    )
+    trop_long = "b" * (PREFERENCE_LONGUEUR_MAX + 1)
+    refus = await supervisor.remember_preference(trop_long, libelle_agent="A")
+    assert refus.startswith("Erreur : ")
+    assert str(PREFERENCE_LONGUEUR_MAX) in refus
+    assert str(PREFERENCE_LONGUEUR_MAX + 1) in refus
+    assert await _preferences(supervisor) == [f"- [agent « A »] {exact}"]
+
+
+async def test_la_longueur_maximale_vaut_aussi_pour_le_superviseur(
+    supervisor: SupervisorService,
+) -> None:
+    """Une préférence est une phrase courte, quel que soit celui qui l'écrit."""
+    exact = "a" * PREFERENCE_LONGUEUR_MAX
+    assert (await supervisor.remember_preference(exact)).startswith("Noté")
+    refus = await supervisor.remember_preference(exact + "a")
+    assert refus.startswith("Erreur : ")
+    assert await _preferences(supervisor) == [f"- {exact}"]
+
+
+async def test_la_memoire_des_agents_refuse_la_nouvelle_sans_rien_oublier(
+    supervisor: SupervisorService,
+) -> None:
+    for i in range(PREFERENCES_AGENT_MAX):
+        # Pile à la borne : la dernière place est accordée.
+        texte = await supervisor.remember_preference(f"Fait {i}.", libelle_agent="A")
+        assert texte == f"Noté : Fait {i}."
+    avant = await _preferences(supervisor)
+    assert len(avant) == PREFERENCES_AGENT_MAX
+
+    refus = await supervisor.remember_preference("Fait de trop.", libelle_agent="A")
+
+    assert refus.startswith("Erreur : ")
+    assert str(PREFERENCES_AGENT_MAX) in refus
+    assert "John" in refus
+    assert "rien n'a été oublié" in refus
+    # Rien n'est oublié ni ajouté : la plus ancienne est toujours là.
+    assert await _preferences(supervisor) == avant
+    assert avant[0] == "- [agent « A »] Fait 0."
+
+
+async def test_la_borne_est_commune_a_tous_les_agents(supervisor: SupervisorService) -> None:
+    for i in range(PREFERENCES_AGENT_MAX):
+        await supervisor.remember_preference(f"Fait {i}.", libelle_agent="A")
+    refus = await supervisor.remember_preference("Autre agent.", libelle_agent="B")
+    assert refus.startswith("Erreur : ")
+
+
+async def test_redire_une_preference_deja_notee_ne_demande_pas_de_place(
+    supervisor: SupervisorService,
+) -> None:
+    for i in range(PREFERENCES_AGENT_MAX):
+        await supervisor.remember_preference(f"Fait {i}.", libelle_agent="A")
+    assert (
+        await supervisor.remember_preference("Fait 3.", libelle_agent="A")
+        == "Préférence déjà enregistrée."
+    )
+
+
+async def test_la_memoire_du_superviseur_n_a_pas_de_plafond_de_nombre(
+    supervisor: SupervisorService,
+) -> None:
+    """Ses lignes ne comptent pas dans la borne des agents, et la borne ne les bloque pas."""
+    # Dont une ligne qui cite la marque au milieu de son texte : ce n'est pas un agent.
+    await supervisor.remember_preference("Le format `[agent « x »]` est réservé aux agents.")
+    for i in range(PREFERENCES_AGENT_MAX + 5):
+        await supervisor.remember_preference(f"Préférence de John {i}.")
+    for i in range(PREFERENCES_AGENT_MAX):
+        texte = await supervisor.remember_preference(f"Fait {i}.", libelle_agent="A")
+        assert texte == f"Noté : Fait {i}."
+    # Agents au plafond : le superviseur écrit toujours.
+    assert (await supervisor.remember_preference("Encore une.")).startswith("Noté")
+
+
+def test_la_description_de_remember_dit_a_l_appelant_qu_il_est_attribue_et_borne() -> None:
+    description, schema = SCHEMAS_OUTILS["remember"]
+    assert "au nom de l'agent" in description
+    assert "consigne de John" in description
+    assert f"{PREFERENCE_LONGUEUR_MAX} caractères" in description
+    assert f"{PREFERENCES_AGENT_MAX} préférences" in description
+    assert f"{PREFERENCE_LONGUEUR_MAX} caractères" in schema["properties"]["fait"]["description"]
 
 
 async def test_ping_uniquement_pour_les_sessions_dispatchees(
