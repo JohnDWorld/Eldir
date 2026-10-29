@@ -1,5 +1,6 @@
 """Modèles SQLAlchemy - import central pour Alembic et les services."""
 
+from app.db.models.agent_token import AgentToken
 from app.db.models.claude_credential import ClaudeCredential
 from app.db.models.git_credential import GitCredential
 from app.db.models.mission_template import (
@@ -16,6 +17,7 @@ from app.db.models.system_prompt import SystemPromptOverride
 from app.db.models.user import User
 
 __all__ = [
+    "AgentToken",
     "ClaudeCredential",
     "GitCredential",
     "MissionTemplate",
