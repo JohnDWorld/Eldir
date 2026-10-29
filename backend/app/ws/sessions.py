@@ -20,7 +20,6 @@ from app.db.models import Session
 from app.db.session import async_session_factory
 from app.services.event_bus import EventBus
 from app.services.singletons import get_redis_client
-from app.services.ws_manager import ws_manager
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -66,7 +65,7 @@ async def session_stream(
         return
 
     bus = EventBus(redis)
-    await ws_manager.connect(session_id, ws)
+    logger.info("ws.session.connect", session_id=session_id)
     relay_task = asyncio.create_task(_relay(bus, session_id, ws))
     try:
         # Keepalive : on lit les pings du client (sinon WebSocketDisconnect)
@@ -76,7 +75,6 @@ async def session_stream(
         logger.info("ws.session.disconnect", session_id=session_id)
     finally:
         relay_task.cancel()
-        ws_manager.disconnect(session_id, ws)
 
 
 async def _relay(bus: EventBus, session_id: str, ws: WebSocket) -> None:
