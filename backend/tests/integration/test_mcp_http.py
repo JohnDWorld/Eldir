@@ -510,7 +510,9 @@ def _superviseur_reel(factory: Fabrique) -> tuple[SupervisorService, SessionMana
     return service, manager
 
 
-async def _en_process(service: SupervisorService, user_id: str, nom: str, args: dict) -> str:
+async def _en_process_brut(
+    service: SupervisorService, user_id: str, nom: str, args: dict[str, Any]
+) -> mcp_types.CallToolResult:
     """Le même appel par le serveur MCP du superviseur interne, tel que le SDK le fait."""
     instance = service._build_mcp_server(user_id)["instance"]
     requete = mcp_types.CallToolRequest(
@@ -518,7 +520,17 @@ async def _en_process(service: SupervisorService, user_id: str, nom: str, args: 
         params=mcp_types.CallToolRequestParams(name=nom, arguments=args),
     )
     reponse = await instance.request_handlers[mcp_types.CallToolRequest](requete)
-    return str(reponse.root.content[0].text)
+    resultat: mcp_types.CallToolResult = reponse.root
+    return resultat
+
+
+async def _en_process(
+    service: SupervisorService, user_id: str, nom: str, args: dict[str, Any]
+) -> str:
+    resultat = await _en_process_brut(service, user_id, nom, args)
+    contenu = resultat.content[0]
+    assert isinstance(contenu, mcp_types.TextContent)
+    return contenu.text
 
 
 @pytest.mark.parametrize(
@@ -546,6 +558,81 @@ async def test_http_et_in_process_rendent_le_meme_texte(
 
     assert par_http == en_process
     assert par_http.strip()
+
+
+_VALEUR_VALIDE = {"string": "x", "boolean": True}
+# Des valeurs que le type JSON de la table refuse, et que la coercion de pydantic
+# accepterait pour la plupart (`"true"`, `1` pour un booléen, `null` pour un `str | None`).
+_VALEURS_INVALIDES = {
+    "string": [123, True, None, ["a"], {"a": 1}],
+    "boolean": ["true", "false", "yes", 1, 0, None],
+}
+
+
+def _arguments_valides(nom: str) -> dict[str, Any]:
+    _, schema = SCHEMAS_OUTILS[nom]
+    return {p: _VALEUR_VALIDE[schema["properties"][p]["type"]] for p in schema.get("required", [])}
+
+
+def _arguments_invalides(nom: str) -> list[tuple[str, dict[str, Any]]]:
+    """Chaque paramètre avec chaque valeur de mauvais type, et chaque obligatoire absent."""
+    _, schema = SCHEMAS_OUTILS[nom]
+    base = _arguments_valides(nom)
+    cas = [
+        (f"{param}={valeur!r}", {**base, param: valeur})
+        for param, spec in schema["properties"].items()
+        for valeur in _VALEURS_INVALIDES[spec["type"]]
+    ]
+    cas += [(f"sans {p}", {k: v for k, v in base.items() if k != p}) for p in base]
+    return cas
+
+
+@pytest.mark.parametrize(
+    "nom", [n for n, (_, schema) in SCHEMAS_OUTILS.items() if schema["properties"]]
+)
+async def test_http_et_in_process_refusent_les_memes_arguments(
+    url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch, nom: str
+) -> None:
+    """Un argument que le schéma refuse n'atteint le corps de l'outil par aucun transport.
+
+    Le serveur bas niveau de `mcp` valide contre la table avant le corps ; FastMCP
+    valide d'après les annotations, et pydantic coerce : `"true"` ouvrait la
+    publication par HTTP seulement. C'est l'argument de la porte qu'on compare.
+    """
+    service = service_superviseur(session_factory)
+    monkeypatch.setattr(singletons, "_supervisor", service)
+    atteints: list[str] = []
+
+    async def corps(*_: Any, **__: Any) -> str:
+        atteints.append(nom)
+        return "corps atteint"
+
+    for outil in SCHEMAS_OUTILS:
+        monkeypatch.setattr(service, f"outil_{outil}", corps)
+    user_id, _, _, jeton = await _monde(session_factory)
+
+    async with _agent(url_mcp, jeton) as session:
+        # Témoin : des arguments valides atteignent le corps des deux côtés, sinon
+        # « tout est refusé » passerait pour un accord.
+        valides = _arguments_valides(nom)
+        par_http = await session.call_tool(nom, valides)
+        en_process = await _en_process_brut(service, user_id, nom, valides)
+        assert not par_http.isError
+        assert not en_process.isError
+        assert atteints == [nom, nom]
+        atteints.clear()
+
+        divergences = []
+        for libelle, args in _arguments_invalides(nom):
+            par_http = await session.call_tool(nom, args)
+            en_process = await _en_process_brut(service, user_id, nom, args)
+            if not (par_http.isError and en_process.isError):
+                divergences.append(
+                    f"{libelle} : http isError={par_http.isError}, "
+                    f"in-process isError={en_process.isError}"
+                )
+    assert divergences == []
+    assert atteints == []
 
 
 # ── La porte de validation humaine ──────────────────────────────────────

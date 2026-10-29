@@ -14,6 +14,7 @@ from contextvars import ContextVar
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools import Tool
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import StrictBool
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -97,7 +98,11 @@ class GardeJeton:
 
 # ── Les cinq outils : le corps est celui du superviseur, rien d'autre ──
 # Les annotations servent à valider les arguments reçus ; ce que le modèle lit
-# (descriptions, schéma) vient de SCHEMAS_OUTILS, cf. `_outil`.
+# (descriptions, schéma) vient de SCHEMAS_OUTILS, cf. `_outil`. Elles sont
+# STRICTES pour les booléens : le serveur MCP in-process valide contre la table,
+# où `"true"` n'est pas un booléen, alors que pydantic coerce par défaut. Avec
+# `bool`, `{"autoriser": "true"}` ouvrait la publication par HTTP seulement. Un
+# `str` pydantic, lui, refuse déjà tout ce qui n'est pas une chaîne JSON.
 async def list_projects() -> str:
     user_id, _ = agent_courant()
     return await get_supervisor_service().outil_list_projects(user_id)
@@ -111,8 +116,9 @@ async def list_sessions() -> str:
 async def dispatch(
     project_id: str,
     consigne: str,
-    session_id: str | None = None,
-    nouveau_chantier: bool = False,
+    # `""` et non `None` : la table type `session_id` en `string`, elle refuse `null`.
+    session_id: str = "",
+    nouveau_chantier: StrictBool = False,
 ) -> str:
     user_id, _ = agent_courant()
     return await get_supervisor_service().outil_dispatch(
@@ -124,7 +130,7 @@ async def dispatch(
     )
 
 
-async def allow_publish(session_id: str, autoriser: bool) -> str:
+async def allow_publish(session_id: str, autoriser: StrictBool) -> str:
     user_id, _ = agent_courant()
     return await get_supervisor_service().outil_allow_publish(
         user_id, session_id=session_id, autoriser=autoriser
