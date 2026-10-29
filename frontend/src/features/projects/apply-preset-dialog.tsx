@@ -68,7 +68,7 @@ export function ApplyPresetDialog({
               <p className="px-4 py-4 font-mono text-xs text-eldir-gray">chargement…</p>
             )}
             {presets.isError && (
-              <p className="px-4 py-4 font-mono text-xs text-eldir-red">
+              <p className="px-4 py-4 font-mono text-xs text-eldir-red-text">
                 {presets.error.message}
               </p>
             )}
@@ -117,7 +117,7 @@ export function ApplyPresetDialog({
             </span>
           </label>
           {error && (
-            <span className="font-mono text-xs text-eldir-red">{error}</span>
+            <span className="font-mono text-xs text-eldir-red-text">{error}</span>
           )}
           <div className="flex gap-2">
             <button

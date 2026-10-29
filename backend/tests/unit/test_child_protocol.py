@@ -6,8 +6,8 @@ superviseur relit du vide ; si le refus casse, un agent publie sans validation.
 
 from __future__ import annotations
 
+from app.core.child_report import extract_cr, state_after_turn
 from app.services.session_manager import _denies_publish, _publish_denial, _remote_denial
-from app.services.session_service import extract_cr
 
 
 def test_extract_cr_prend_le_dernier_bloc() -> None:
@@ -131,3 +131,23 @@ def test_le_refus_de_publier_reste_prioritaire_sur_la_machine() -> None:
         _publish_denial("Bash", {"command": "git push origin main"}, publish_allowed=False)
         is not None
     )
+
+
+# ── État de fin de tour ─────────────────────────────────────────
+def test_un_blocage_met_la_session_en_bloquee() -> None:
+    """Sans ça, `blocked` n'était émis nulle part et le compteur du dashboard
+    restait à zéro même quand un agent était à l'arrêt."""
+    cr = "FAIT: rien\nBLOCAGE: npm install échoue, le registre refuse le token.\nPRET: non"
+    assert state_after_turn(cr) == "blocked"
+
+
+def test_un_travail_pret_attend_john() -> None:
+    cr = "FAIT: endpoint ajouté\nFICHIERS: app/api/health.py\nPRET: oui"
+    assert state_after_turn(cr) == "waiting_input"
+
+
+def test_un_tour_ordinaire_laisse_la_session_au_repos() -> None:
+    assert state_after_turn(None) == "idle"
+    assert state_after_turn("FAIT: lecture du repo\nPRET: non") == "idle"
+    # `BLOCAGE:` sans contenu ne bloque personne.
+    assert state_after_turn("FAIT: x\nBLOCAGE:\nPRET: non") == "idle"

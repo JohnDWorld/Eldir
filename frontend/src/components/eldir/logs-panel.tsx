@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 
 export type LogTone = 'orange' | 'gold' | 'amber' | 'green' | 'red' | 'gray' | 'cream';
 
+// Fond toujours sombre : ce sont les accents clairs qui conviennent ici, pas
+// leurs variantes foncées faites pour le papier.
 const TONE_CLASS: Record<LogTone, string> = {
   orange: 'text-eldir-orange',
   gold: 'text-eldir-gold',

@@ -5,15 +5,24 @@
  * Layout mobile  : tabs CHAT | LIVE | META, full-width.
  */
 
-import { ChevronLeft, SendHorizontal, Wrench } from 'lucide-react';
+import {
+  ChevronLeft,
+  Lock,
+  LockOpen,
+  SendHorizontal,
+  TriangleAlert,
+  Wrench,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { formatCost, formatDateTime, formatTokens } from '@/lib/format';
 import { Avatar } from '@/components/eldir/avatar';
 import { StatePill } from '@/components/eldir/state-pill';
 import { SESSION_STATE_LABEL } from '@/lib/constants';
 import { DiffPanel } from '@/features/sessions/diff-panel';
-import { SessionGitActions } from '@/features/sessions/git-actions';
+import { CommitDialog, OpenPrDialog } from '@/features/sessions/git-actions';
+import { SessionActions } from '@/features/sessions/session-actions';
 import { useSessionStream } from '@/hooks/use-session-stream';
 import {
   useDeleteSession,
@@ -23,6 +32,7 @@ import {
   useSession,
   useSessionCostTotals,
   useSessionEvents,
+  useSessionGitStatus,
   useSessions,
   useStopSession,
 } from '@/lib/api/queries';
@@ -41,8 +51,15 @@ export function SessionPage(): JSX.Element {
   const stopMut = useStopSession();
   const deleteMut = useDeleteSession();
   const publishPermission = useSetPublishPermission(sessionId);
+  const gitStatus = useSessionGitStatus(sessionId);
+  const changeCount =
+    (gitStatus.data?.modified ?? 0) +
+    (gitStatus.data?.added ?? 0) +
+    (gitStatus.data?.deleted ?? 0) +
+    (gitStatus.data?.untracked ?? 0);
   const navigate = useNavigate();
   const [rightTab, setRightTab] = useState<'live' | 'diff'>('live');
+  const [gitDialog, setGitDialog] = useState<'commit' | 'pr' | null>(null);
   // Sous `md`, les trois colonnes ne tiennent pas : on n'en montre qu'une,
   // choisie ici. Le rail réutilise `rightTab`, donc on le synchronise.
   const [mobileTab, setMobileTab] = useState<'chat' | 'diff' | 'live'>('chat');
@@ -143,7 +160,7 @@ export function SessionPage(): JSX.Element {
   if (session.isError || !session.data) {
     return (
       <main className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="font-sans text-sm text-eldir-red">
+        <p className="font-sans text-sm text-eldir-red-text">
           {session.error?.message ?? 'Cette session est introuvable.'}
         </p>
         <Link to="/" className="eldir-btn eldir-btn--secondary eldir-btn--sm">
@@ -157,48 +174,88 @@ export function SessionPage(): JSX.Element {
   return (
     <div className="flex h-full flex-col bg-eldir-paper">
       {/* Topbar */}
-      <header className="flex min-h-[42px] shrink-0 flex-wrap items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 py-1.5 md:h-[42px] md:flex-nowrap md:gap-3.5 md:px-4 md:py-0">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 md:h-[42px] md:gap-3.5 md:px-4">
         <Link
           to="/"
-          className="inline-flex min-h-11 items-center gap-0.5 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink md:min-h-0"
+          aria-label="Retour au pilotage"
+          className="-ml-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-0.5 rounded-eldir font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink sm:min-w-0 sm:px-1 md:min-h-0"
         >
           <ChevronLeft size={14} aria-hidden="true" />
-          pilotage
+          <span className="hidden sm:inline">pilotage</span>
         </Link>
-        <span className="font-mono text-xs font-semibold text-eldir-ink">
-          / {session.data.id.slice(0, 8)}
-        </span>
+        {/* Le titre de l'écran, c'est le projet sur lequel l'agent travaille.
+            L'identifiant de session ne disait rien à personne. */}
+        <h1 className="min-w-0 truncate font-sans text-sm font-semibold text-eldir-ink">
+          {isSupervisor
+            ? 'Eldir'
+            : (projects.data?.find((p) => p.id === session.data?.project_id)?.name ??
+              'Session')}
+        </h1>
         <StatePill state={session.data.state} />
-        <span className="hidden font-mono text-[11px] text-eldir-gray md:inline">
-          {session.data.branch} · {session.data.model ?? 'modèle par défaut'}
+        <span className="hidden min-w-0 truncate font-mono text-[11px] text-eldir-gray lg:inline">
+          {session.data.branch}
         </span>
         <div className="flex-1" />
         {!isSystem && (
           <>
-            <PublishToggle
-              allowed={session.data.publish_allowed}
-              pending={publishPermission.isPending}
-              onToggle={(allowed) => publishPermission.mutate(allowed)}
-            />
-            <SessionGitActions sessionId={sessionId} />
+            {gitStatus.data?.has_changes && (
+              <span
+                className="font-mono text-2xs uppercase tracking-caps text-eldir-amber-text"
+                title="Modifications non commitées dans le worktree"
+              >
+                {changeCount} modif{changeCount > 1 ? 's' : ''}
+              </span>
+            )}
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 font-mono text-2xs uppercase tracking-caps',
+                session.data.publish_allowed ? 'text-eldir-gold-text' : 'text-eldir-gray',
+              )}
+              title={
+                session.data.publish_allowed
+                  ? 'L’agent peut commiter, pousser et ouvrir une PR lui-même.'
+                  : 'Les commandes git de l’agent sont refusées. Toi, tu publies quand tu veux.'
+              }
+            >
+              {session.data.publish_allowed ? (
+                <LockOpen size={11} aria-hidden="true" />
+              ) : (
+                <Lock size={11} aria-hidden="true" />
+              )}
+              <span className="hidden sm:inline">
+                {session.data.publish_allowed ? 'agent : publie' : 'agent : ne publie pas'}
+              </span>
+            </span>
           </>
         )}
-        <button
-          type="button"
-          onClick={() => stopMut.mutate(sessionId)}
-          className="eldir-btn eldir-btn--secondary eldir-btn--sm"
-        >
-          arrêter
-        </button>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={deleteMut.isPending}
-          className="eldir-btn eldir-btn--danger eldir-btn--sm"
-        >
-          {deleteMut.isPending ? 'suppr…' : 'supprimer'}
-        </button>
+        <SessionActions
+          isSystem={isSystem}
+          publishAllowed={session.data.publish_allowed}
+          publishPending={publishPermission.isPending}
+          onTogglePublish={(allowed) => publishPermission.mutate(allowed)}
+          hasChanges={Boolean(gitStatus.data?.has_changes)}
+          onCommit={() => setGitDialog('commit')}
+          onOpenPr={() => setGitDialog('pr')}
+          onStop={() => stopMut.mutate(sessionId)}
+          onDelete={handleDelete}
+          deletePending={deleteMut.isPending}
+        />
       </header>
+
+      {gitDialog === 'commit' && (
+        <CommitDialog
+          sessionId={sessionId}
+          branch={gitStatus.data?.branch}
+          onClose={() => setGitDialog(null)}
+        />
+      )}
+      {gitDialog === 'pr' && (
+        <OpenPrDialog
+          sessionId={sessionId}
+          branch={gitStatus.data?.branch}
+          onClose={() => setGitDialog(null)}
+        />
+      )}
 
       {/* Sélecteur de panneau, mobile uniquement */}
       <div className="flex shrink-0 border-b border-eldir-gray-3 bg-eldir-cream-2 md:hidden">
@@ -277,7 +334,7 @@ export function SessionPage(): JSX.Element {
         >
           <ChatStream events={events} />
           {error && (
-            <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red">
+            <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red-text">
               {error}
             </div>
           )}
@@ -287,7 +344,7 @@ export function SessionPage(): JSX.Element {
                 sur une ligne. Sinon le bouton, plus haut que le texte, créait
                 un vide au-dessus qui ressemblait à un saut de ligne. */}
             <div className="flex items-end gap-2 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3">
-              <span className="self-start py-3 font-mono text-xs leading-5 text-eldir-orange">
+              <span className="self-start py-3 font-mono text-xs leading-5 text-eldir-orange-text">
                 ›
               </span>
               <textarea
@@ -347,8 +404,7 @@ export function SessionPage(): JSX.Element {
             <Kv k="branche" v={session.data.branch} />
             <Kv k="état" v={SESSION_STATE_LABEL[session.data.state]} />
             <Kv k="modèle" v={session.data.model ?? '-'} />
-            <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '-'} />
-            <Kv k="créée" v={new Date(session.data.created_at).toLocaleTimeString()} />
+            <Kv k="créée" v={formatDateTime(session.data.created_at)} />
           </div>
 
           <SessionCostPanel
@@ -424,14 +480,16 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
     if (el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
   }, [events.length]);
 
-  // Filtre : on affiche text + tool_use + stop + user_message. Deux marqueurs
-  // de fin d'affilée (fin de tour puis arrêt de la session) n'en font qu'un.
+  // Les erreurs étaient filtrées : un tour qui plantait ne laissait aucune
+  // trace dans le fil, la session repassait « au repos », et on pouvait croire
+  // le travail terminé. Elles s'affichent maintenant comme le reste.
   const visible = events
     .filter(
       (e) =>
         e.type === 'text' ||
         e.type === 'tool_use' ||
         e.type === 'stop' ||
+        e.type === 'error' ||
         e.type === 'user_message',
     )
     .filter((e, i, all) => !(e.type === 'stop' && all[i - 1]?.type === 'stop'));
@@ -468,6 +526,13 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
         if (e.type === 'text') {
           return <ClaudeBubble key={e.key}>{String(e.data.text ?? '')}</ClaudeBubble>;
         }
+        if (e.type === 'error') {
+          return (
+            <TurnError key={e.key}>
+              {String(e.data.message ?? 'Erreur inconnue.')}
+            </TurnError>
+          );
+        }
         if (e.type === 'tool_use') {
           return (
             <ToolRow
@@ -494,51 +559,36 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
   );
 }
 
-function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
+/** Un tour qui a échoué. Visible dans le fil, pas seulement dans la console. */
+function TurnError({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <div className="rounded-eldir border border-eldir-orange/35 bg-eldir-orange/5 px-3 py-2">
-      <div className="eldir-caps mb-1 text-eldir-orange">Eldir · automatique</div>
+    <div
+      role="alert"
+      className="rounded-eldir border border-eldir-red/50 bg-eldir-red/5 px-3 py-2"
+    >
+      <div className="eldir-caps mb-1 flex items-center gap-1.5 text-eldir-red-text">
+        <TriangleAlert size={12} aria-hidden="true" />
+        Tour interrompu
+      </div>
       <div className="whitespace-pre-wrap break-words font-sans text-sm text-eldir-ink-2">
         {children}
       </div>
+      <p className="mt-1.5 font-sans text-xs text-eldir-gray">
+        Le travail déjà fait reste dans le worktree. Relance une consigne pour
+        reprendre là où l’agent s’est arrêté.
+      </p>
     </div>
   );
 }
 
-/**
- * Porte de publication. Par défaut une session ne peut ni commiter ni pousser :
- * ses commandes git sont refusées au niveau du hook. Ce bouton est le seul
- * moyen d'ouvrir, avec l'outil `allow_publish` du superviseur quand John le lui
- * demande. Le push forcé reste refusé dans tous les cas.
- */
-function PublishToggle({
-  allowed,
-  pending,
-  onToggle,
-}: {
-  allowed: boolean;
-  pending: boolean;
-  onToggle: (allowed: boolean) => void;
-}): JSX.Element {
+function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <button
-      type="button"
-      onClick={() => onToggle(!allowed)}
-      disabled={pending}
-      title={
-        allowed
-          ? 'Cette session peut commiter, pousser et ouvrir une PR. Clique pour refermer.'
-          : 'Publication refusée pour cette session. Clique pour l’autoriser.'
-      }
-      className={cn(
-        'min-h-11 rounded-eldir border px-3 py-1.5 font-mono text-xs uppercase tracking-caps disabled:opacity-50',
-        allowed
-          ? 'border-eldir-gold bg-eldir-gold/15 text-eldir-ink'
-          : 'border-eldir-gray-3 bg-eldir-paper text-eldir-gray hover:text-eldir-ink',
-      )}
-    >
-      {allowed ? 'publication ouverte' : 'publication bloquée'}
-    </button>
+    <div className="rounded-eldir border border-eldir-orange/35 bg-eldir-orange/5 px-3 py-2">
+      <div className="eldir-caps mb-1 text-eldir-orange-text">Eldir · automatique</div>
+      <div className="whitespace-pre-wrap break-words font-sans text-sm text-eldir-ink-2">
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -624,7 +674,7 @@ function ClaudeBubble({ children }: { children: string }): JSX.Element {
 function ToolRow({ name, arg }: { name: string; arg: string }): JSX.Element {
   return (
     <div className="flex min-w-0 max-w-full items-center gap-2 rounded-eldir border border-dashed border-eldir-gray-2 px-2.5 py-1.5 font-mono text-2xs text-eldir-gray">
-      <Wrench size={11} aria-hidden="true" className="shrink-0 text-eldir-gold" />
+      <Wrench size={11} aria-hidden="true" className="shrink-0 text-eldir-gold-text" />
       <span className="shrink-0 text-eldir-ink">{name}</span>
       {arg && <span className="min-w-0 flex-1 truncate opacity-70">({arg})</span>}
     </div>
@@ -635,6 +685,7 @@ function LogLine({ event }: { event: NormalizedEvent }): JSX.Element {
   const time = new Date(event.timestamp).toLocaleTimeString('fr-FR', {
     hour12: false,
   });
+  // Console sombre : accents clairs.
   const tone: Record<string, string> = {
     text: 'text-eldir-console-fg',
     tool_use: 'text-eldir-gold',
@@ -696,13 +747,15 @@ function SessionCostPanel({
       <div className="flex items-center justify-between">
         <span className="eldir-caps">Coût · session</span>
         {overBudget && (
-          <span className="font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-red">
+          <span className="font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-red-text">
             budget dépassé
           </span>
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-base font-bold text-eldir-ink">${costUsd.toFixed(4)}</span>
+        <span className="font-mono text-base font-bold text-eldir-ink">
+          {formatCost(costUsd)}
+        </span>
         <span className="font-mono text-2xs text-eldir-gray">
           {numTurns} tour{numTurns > 1 ? 's' : ''}
         </span>
@@ -712,13 +765,6 @@ function SessionCostPanel({
       <Kv k="cache lu" v={`${formatTokens(cacheReadTokens)} (${cacheRatio}%)`} />
     </div>
   );
-}
-
-function formatTokens(n: number): string {
-  if (n === 0) return '0';
-  if (n < 1_000) return String(n);
-  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
 }
 
 function Kv({ k, v }: { k: string; v: string }): JSX.Element {

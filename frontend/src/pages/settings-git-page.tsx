@@ -29,7 +29,7 @@ const HELPERS: Record<Provider, JSX.Element> = {
         href="https://github.com/settings/tokens?type=beta"
         target="_blank"
         rel="noreferrer"
-        className="text-eldir-orange underline"
+        className="text-eldir-orange-text underline"
       >
         github.com/settings/tokens
       </a>
@@ -90,8 +90,8 @@ export function SettingsGitPage(): JSX.Element {
         <div
           className={
             oauthBanner.kind === 'success'
-              ? 'rounded-eldir border border-eldir-green bg-eldir-green/10 px-4 py-3 font-mono text-xs text-eldir-green'
-              : 'rounded-eldir border border-eldir-red bg-eldir-red/10 px-4 py-3 font-mono text-xs text-eldir-red'
+              ? 'rounded-eldir border border-eldir-green bg-eldir-green/10 px-4 py-3 font-mono text-xs text-eldir-green-text'
+              : 'rounded-eldir border border-eldir-red bg-eldir-red/10 px-4 py-3 font-mono text-xs text-eldir-red-text'
           }
         >
           {oauthBanner.message}
@@ -146,7 +146,7 @@ function GitHubOauthSection(): JSX.Element | null {
             href="https://github.com/settings/applications/new"
             target="_blank"
             rel="noreferrer"
-            className="text-eldir-orange underline"
+            className="text-eldir-orange-text underline"
           >
             OAuth App GitHub
           </a>{' '}
@@ -181,7 +181,7 @@ function GitHubOauthSection(): JSX.Element | null {
         d'être persisté. Remplace tout PAT GitHub précédemment configuré.
       </p>
       {error && (
-        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
           {error}
         </div>
       )}
@@ -318,12 +318,12 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
           />
         </label>
         {error && (
-          <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+          <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
             {error}
           </div>
         )}
         {success && (
-          <div className="rounded-eldir border border-eldir-green bg-eldir-green/10 px-3 py-2 font-mono text-xs text-eldir-green">
+          <div className="rounded-eldir border border-eldir-green bg-eldir-green/10 px-3 py-2 font-mono text-xs text-eldir-green-text">
             Token enregistré.
           </div>
         )}

@@ -119,7 +119,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }): JSX.Elem
         </div>
 
         {error && (
-          <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red">
+          <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red-text">
             {error}
           </div>
         )}

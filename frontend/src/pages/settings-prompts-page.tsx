@@ -47,7 +47,7 @@ export function SettingsPromptsPage(): JSX.Element {
         <p className="font-mono text-sm text-eldir-gray">Chargement…</p>
       )}
       {prompts.isError && (
-        <p className="font-mono text-sm text-eldir-red">
+        <p className="font-mono text-sm text-eldir-red-text">
           Impossible de charger les prompts.
         </p>
       )}
@@ -79,7 +79,7 @@ export function SettingsPromptsPage(): JSX.Element {
                     {p.title}
                   </span>
                   {p.is_overridden && (
-                    <span className="rounded-eldir bg-eldir-orange/20 px-1.5 py-0.5 font-mono text-2xs uppercase tracking-caps text-eldir-orange">
+                    <span className="rounded-eldir bg-eldir-orange/20 px-1.5 py-0.5 font-mono text-2xs uppercase tracking-caps text-eldir-orange-text">
                       édité
                     </span>
                   )}
@@ -170,7 +170,7 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
               className={cn(
                 'rounded-eldir px-2 py-0.5 uppercase tracking-caps',
                 prompt.is_overridden
-                  ? 'bg-eldir-orange/20 text-eldir-orange'
+                  ? 'bg-eldir-orange/20 text-eldir-orange-text'
                   : 'bg-eldir-gray-3 text-eldir-gray',
               )}
             >
@@ -180,12 +180,15 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
         </div>
       </header>
 
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        spellCheck={false}
-        className="min-h-[400px] w-full resize-y rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:ring-1 focus:ring-eldir-orange"
-      />
+      <label className="block">
+        <span className="eldir-caps mb-1 block">Contenu du prompt</span>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          spellCheck={false}
+          className="min-h-[400px] w-full resize-y rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:ring-1 focus:ring-eldir-orange"
+        />
+      </label>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="font-mono text-2xs text-eldir-gray">

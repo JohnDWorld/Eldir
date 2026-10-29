@@ -33,6 +33,12 @@ const config: Config = {
           amber: 'hsl(var(--eldir-amber) / <alpha-value>)',
           red: 'hsl(var(--eldir-red) / <alpha-value>)',
           blue: 'hsl(var(--eldir-blue) / <alpha-value>)',
+          'orange-text': 'hsl(var(--eldir-orange-text) / <alpha-value>)',
+          'gold-text': 'hsl(var(--eldir-gold-text) / <alpha-value>)',
+          'amber-text': 'hsl(var(--eldir-amber-text) / <alpha-value>)',
+          'green-text': 'hsl(var(--eldir-green-text) / <alpha-value>)',
+          'red-text': 'hsl(var(--eldir-red-text) / <alpha-value>)',
+          'blue-text': 'hsl(var(--eldir-blue-text) / <alpha-value>)',
           console: 'hsl(var(--eldir-console) / <alpha-value>)',
           'console-fg': 'hsl(var(--eldir-console-fg) / <alpha-value>)',
           'on-orange': 'hsl(var(--eldir-on-orange) / <alpha-value>)',
@@ -78,7 +84,7 @@ const config: Config = {
         // Interligne à 1,35 et plus à 1 : en français, les capitales portent
         // des accents (É, À, È). Avec un interligne de 1 et un `truncate`, ils
         // étaient rognés au-dessus de la lettre (« DEPENSE », « A TOI »).
-        '2xs': ['9px', { lineHeight: '1.35' }],
+        '2xs': ['10px', { lineHeight: '1.35' }],
         xxs: ['10px', { lineHeight: '1.35' }],
       },
       borderRadius: {

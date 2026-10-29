@@ -30,11 +30,11 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  A: 'text-eldir-green',
-  M: 'text-eldir-orange',
-  D: 'text-eldir-red',
-  R: 'text-eldir-gold',
-  C: 'text-eldir-gold',
+  A: 'text-eldir-green-text',
+  M: 'text-eldir-orange-text',
+  D: 'text-eldir-red-text',
+  R: 'text-eldir-gold-text',
+  C: 'text-eldir-gold-text',
 };
 
 export function DiffPanel({ sessionId }: DiffPanelProps): JSX.Element {
@@ -65,7 +65,7 @@ export function DiffPanel({ sessionId }: DiffPanelProps): JSX.Element {
         <p className="px-3 py-4 font-mono text-2xs text-eldir-gray">chargement…</p>
       )}
       {diff.isError && (
-        <p className="px-3 py-4 font-mono text-2xs text-eldir-red">
+        <p className="px-3 py-4 font-mono text-2xs text-eldir-red-text">
           {diff.error.message}
         </p>
       )}
@@ -130,11 +130,11 @@ function FileRow({
         </span>
         <span className="shrink-0 font-mono text-2xs">
           {file.additions > 0 && (
-            <span className="text-eldir-green">+{file.additions}</span>
+            <span className="text-eldir-green-text">+{file.additions}</span>
           )}
           {file.additions > 0 && file.deletions > 0 && ' '}
           {file.deletions > 0 && (
-            <span className="text-eldir-red">-{file.deletions}</span>
+            <span className="text-eldir-red-text">-{file.deletions}</span>
           )}
         </span>
       </button>
@@ -156,7 +156,7 @@ function PatchView({
         <p className="px-3 py-3 text-eldir-console-fg/55">chargement…</p>
       )}
       {patch.isError && (
-        <p className="px-3 py-3 text-eldir-red">{patch.error.message}</p>
+        <p className="px-3 py-3 text-eldir-red-text">{patch.error.message}</p>
       )}
       {patch.data && (
         <pre className="whitespace-pre-wrap break-words px-3 py-2">

@@ -2,11 +2,13 @@
  * ProjectsPage - liste des projets Eldir + bouton "Ajouter depuis un repo".
  */
 
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Check,
   Circle,
   FolderGit2,
   Loader2,
+  MoreHorizontal,
   Plus,
   RefreshCw,
   Sparkles,
@@ -38,6 +40,9 @@ import type { Provider } from '@/lib/constants';
 import { PROVIDERS } from '@/lib/constants';
 import type { ProjectRead } from '@/lib/types/api';
 import { cn } from '@/lib/utils';
+
+const MENU_ITEM =
+  'flex min-h-11 w-full cursor-pointer select-none items-center gap-2.5 px-3 font-sans text-sm text-eldir-ink-2 outline-none transition-colors data-[highlighted]:bg-eldir-cream data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45';
 
 export function ProjectsPage(): JSX.Element {
   const projects = useProjects();
@@ -120,44 +125,10 @@ export function ProjectsPage(): JSX.Element {
             copie isolée de l&apos;un d&apos;eux.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {nbProjets > 0 && (
-            <>
-              <button
-                type="button"
-                onClick={handleSyncAll}
-                disabled={syncAll.isPending}
-                className="eldir-btn eldir-btn--secondary"
-                title="Fetch et fast-forward de tous les repos clonés"
-              >
-                <RefreshCw
-                  size={14}
-                  aria-hidden="true"
-                  className={syncAll.isPending ? 'animate-spin' : undefined}
-                />
-                {syncAll.isPending ? 'synchro…' : 'tout synchroniser'}
-              </button>
-              <button
-                type="button"
-                onClick={handleGenerateMissing}
-                disabled={generateMissing.isPending || batch.data?.running === true}
-                className="eldir-btn eldir-btn--secondary"
-                title="Génère et applique le Mission Template des repos qui n'en ont pas"
-              >
-                <Sparkles size={14} aria-hidden="true" className="text-eldir-gold" />
-                {batch.data?.running ? 'génération…' : 'templates manquants'}
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => setNewRepoOpen(true)}
-            className="eldir-btn eldir-btn--secondary"
-            title="Crée un repo vide chez ton provider, puis le clone ici"
-          >
-            <Plus size={14} aria-hidden="true" />
-            créer un repo
-          </button>
+        {/* Une seule action en clair, le reste dans un menu : les quatre
+            boutons alignés poussaient la liste des projets hors du premier
+            écran sur mobile, alors que trois d'entre eux servent rarement. */}
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={() => setAddOpen(true)}
@@ -167,11 +138,78 @@ export function ProjectsPage(): JSX.Element {
             <Plus size={14} aria-hidden="true" />
             ajouter un repo
           </button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                aria-label="Autres actions sur les projets"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-eldir border border-eldir-gray-3 text-eldir-gray transition-colors hover:bg-eldir-cream hover:text-eldir-ink"
+              >
+                <MoreHorizontal size={18} aria-hidden="true" />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={8}
+                className="z-50 w-72 overflow-hidden rounded-eldir border border-eldir-gray-3 bg-eldir-paper shadow-lg"
+              >
+                <DropdownMenu.Item
+                  onSelect={() => setNewRepoOpen(true)}
+                  className={MENU_ITEM}
+                >
+                  <Plus size={16} aria-hidden="true" className="shrink-0" />
+                  <span className="min-w-0">
+                    Créer un repo
+                    <span className="mt-0.5 block font-sans text-xs text-eldir-gray">
+                      Crée un repo vide chez ton provider, puis le clone ici.
+                    </span>
+                  </span>
+                </DropdownMenu.Item>
+                {nbProjets > 0 && (
+                  <>
+                    <DropdownMenu.Separator className="h-px bg-eldir-gray-3" />
+                    <DropdownMenu.Item
+                      onSelect={handleSyncAll}
+                      disabled={syncAll.isPending}
+                      className={MENU_ITEM}
+                    >
+                      <RefreshCw
+                        size={16}
+                        aria-hidden="true"
+                        className={cn('shrink-0', syncAll.isPending && 'animate-spin')}
+                      />
+                      <span className="min-w-0">
+                        {syncAll.isPending ? 'Synchronisation…' : 'Tout synchroniser'}
+                        <span className="mt-0.5 block font-sans text-xs text-eldir-gray">
+                          Récupère les derniers commits de chaque repo cloné.
+                        </span>
+                      </span>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onSelect={handleGenerateMissing}
+                      disabled={generateMissing.isPending || batch.data?.running === true}
+                      className={MENU_ITEM}
+                    >
+                      <Sparkles size={16} aria-hidden="true" className="shrink-0" />
+                      <span className="min-w-0">
+                        {batch.data?.running ? 'Génération en cours…' : 'Templates manquants'}
+                        <span className="mt-0.5 block font-sans text-xs text-eldir-gray">
+                          Un tour Claude par repo sans template, facturé comme
+                          une session.
+                        </span>
+                      </span>
+                    </DropdownMenu.Item>
+                  </>
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </header>
 
       {batchError && (
-        <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+        <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
           {batchError}
         </div>
       )}
@@ -217,7 +255,7 @@ export function ProjectsPage(): JSX.Element {
           </ul>
         ) : projects.isError ? (
           <div className="flex flex-col items-start gap-3 px-4 py-6">
-            <p className="font-sans text-sm text-eldir-red">
+            <p className="font-sans text-sm text-eldir-red-text">
               Impossible de charger les projets : {projects.error.message}
             </p>
             <button
@@ -236,7 +274,7 @@ export function ProjectsPage(): JSX.Element {
             </h2>
             <p className="max-w-md font-sans text-sm text-eldir-ink-2">
               Connecte GitHub ou Forgejo dans{' '}
-              <Link to="/settings/git" className="text-eldir-orange underline underline-offset-2">
+              <Link to="/settings/git" className="text-eldir-orange-text underline underline-offset-2">
                 Réglages › Identifiants Git
               </Link>
               , puis ajoute un repo existant ou crées-en un nouveau.
@@ -312,7 +350,7 @@ function TemplateBadge({ filled }: { filled: boolean }): JSX.Element {
       className={cn(
         'inline-flex shrink-0 items-center gap-1 rounded-eldir border px-1.5 py-0.5 font-mono text-2xs uppercase tracking-caps',
         filled
-          ? 'border-eldir-green text-eldir-green'
+          ? 'border-eldir-green text-eldir-green-text'
           : 'border-eldir-gold bg-eldir-gold/10 text-eldir-ink-2',
       )}
     >
@@ -339,12 +377,12 @@ function SyncReport({ items }: { items: RepoSyncItem[] }): JSX.Element {
       {(bouges.length > 0 || rates.length > 0) && (
         <ul className="mt-2 flex flex-col gap-1">
           {bouges.map((i) => (
-            <li key={i.project_id} className="font-mono text-2xs text-eldir-green">
+            <li key={i.project_id} className="font-mono text-2xs text-eldir-green-text">
               ↓ {i.project_name} · {i.pulled} commit(s) récupéré(s)
             </li>
           ))}
           {rates.map((i) => (
-            <li key={i.project_id} className="font-mono text-2xs text-eldir-red">
+            <li key={i.project_id} className="font-mono text-2xs text-eldir-red-text">
               <X
                 size={11}
                 strokeWidth={2.5}
@@ -371,9 +409,9 @@ function TemplateBatchReport({
   const finis = items.filter((i) => i.state === 'done' || i.state === 'error');
   const tone: Record<TemplateBatchItem['state'], string> = {
     pending: 'text-eldir-gray',
-    running: 'text-eldir-orange',
-    done: 'text-eldir-green',
-    error: 'text-eldir-red',
+    running: 'text-eldir-orange-text',
+    done: 'text-eldir-green-text',
+    error: 'text-eldir-red-text',
   };
   const mark: Record<TemplateBatchItem['state'], JSX.Element> = {
     pending: <Circle size={9} aria-hidden="true" />,
@@ -406,7 +444,7 @@ function TemplateBatchReport({
             {i.session_id && i.state !== 'pending' && (
               <Link
                 to={`/sessions/${i.session_id}`}
-                className="ml-2 text-eldir-orange hover:underline"
+                className="ml-2 text-eldir-orange-text hover:underline"
               >
                 voir la session →
               </Link>
@@ -456,9 +494,8 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
             </div>
             {/* Deux données, deux blocs qui passent à la ligne entre eux :
                 `break-all` coupait « branch » en plein milieu sur mobile. */}
-            <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-xs text-eldir-gray">
-              <span className="break-all">slug {project.slug}</span>
-              <span>branche {project.default_branch}</span>
+            <div className="mt-0.5 font-mono text-xs text-eldir-gray">
+              branche {project.default_branch}
             </div>
           </div>
         </div>
@@ -503,7 +540,7 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
         <div
           className={cn(
             'mt-1 font-mono text-[11px]',
-            syncFeedback.kind === 'success' ? 'text-eldir-gray' : 'text-eldir-red',
+            syncFeedback.kind === 'success' ? 'text-eldir-gray' : 'text-eldir-red-text',
           )}
         >
           {syncFeedback.text}
@@ -684,7 +721,7 @@ function AddProjectDialog({
             </p>
           )}
           {repos.isError && (
-            <p className="py-6 text-center font-mono text-xs text-eldir-red">
+            <p className="py-6 text-center font-mono text-xs text-eldir-red-text">
               {repos.error.message}
             </p>
           )}
@@ -727,7 +764,7 @@ function AddProjectDialog({
                         </div>
                       )}
                       {failure && (
-                        <div className="mt-1 font-mono text-[11px] text-eldir-red">
+                        <div className="mt-1 font-mono text-[11px] text-eldir-red-text">
                           {failure.message}
                         </div>
                       )}
@@ -745,7 +782,7 @@ function AddProjectDialog({
               ? `clonage ${progress.done}/${progress.total}…`
               : `${selected.size} sélectionné${selected.size > 1 ? 's' : ''}`}
             {failures.length > 0 && !submitting && (
-              <span className="ml-2 text-eldir-red">
+              <span className="ml-2 text-eldir-red-text">
                 ({failures.length} échec{failures.length > 1 ? 's' : ''})
               </span>
             )}

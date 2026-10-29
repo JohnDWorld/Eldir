@@ -98,7 +98,7 @@ export function SettingsClaudePage(): JSX.Element {
               href="https://platform.claude.com"
               target="_blank"
               rel="noreferrer"
-              className="text-eldir-orange underline"
+              className="text-eldir-orange-text underline"
             >
               platform.claude.com
             </a>
@@ -169,7 +169,7 @@ function CredentialRow({
             type="button"
             onClick={onDelete}
             disabled={deleting}
-            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-red hover:bg-eldir-red/10 disabled:opacity-50"
+            className="min-h-11 rounded-eldir border border-eldir-gray-3 px-3 font-mono text-xs uppercase tracking-caps text-eldir-red-text hover:bg-eldir-red/10 disabled:opacity-50"
           >
             supprimer
           </button>
@@ -182,7 +182,7 @@ function CredentialRow({
             'rounded-eldir border px-3 py-2 font-mono text-[11px] leading-relaxed',
             verdict.ok
               ? 'border-eldir-gray-3 bg-eldir-cream text-eldir-ink'
-              : 'border-eldir-red/40 bg-eldir-red/5 text-eldir-red',
+              : 'border-eldir-red/40 bg-eldir-red/5 text-eldir-red-text',
           )}
         >
           <div className="font-semibold uppercase tracking-caps">
@@ -259,12 +259,12 @@ function CredentialForm({
           />
         </label>
         {error && (
-          <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+          <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
             {error}
           </div>
         )}
         {success && (
-          <div className="rounded-eldir border border-eldir-green bg-eldir-green/10 px-3 py-2 font-mono text-xs text-eldir-green">
+          <div className="rounded-eldir border border-eldir-green bg-eldir-green/10 px-3 py-2 font-mono text-xs text-eldir-green-text">
             Credential enregistré.
           </div>
         )}

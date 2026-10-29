@@ -102,7 +102,7 @@ export function TemplateHistory({ projectId }: TemplateHistoryProps): JSX.Elemen
       )}
 
       {error && (
-        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
           {error}
         </div>
       )}

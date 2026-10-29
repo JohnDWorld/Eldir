@@ -7,7 +7,8 @@
 
 import { useState } from 'react';
 
-import { Spark } from '@/components/eldir/spark';
+import { formatCost, formatDayCompact, formatTokens } from '@/lib/format';
+import { BarChart } from '@/components/eldir/bar-chart';
 import { apiClient } from '@/lib/api/client';
 import { useCostsDashboard } from '@/lib/api/queries';
 import type { CostTotalsRead } from '@/lib/types/api';
@@ -52,7 +53,7 @@ export function CostsPage(): JSX.Element {
   if (dashboard.isError || !dashboard.data) {
     return (
       <main className="mx-auto flex max-w-5xl flex-col items-start gap-3 p-4 md:p-8">
-        <p className="font-sans text-sm text-eldir-red">
+        <p className="font-sans text-sm text-eldir-red-text">
           Impossible de charger les coûts
           {dashboard.error ? ` : ${dashboard.error.message}` : '.'}
         </p>
@@ -102,55 +103,49 @@ export function CostsPage(): JSX.Element {
       </section>
 
       <section>
-        <div className="eldir-caps mb-2">Coût par jour (7 derniers jours)</div>
+        <h2 className="eldir-caps mb-2">Coût par jour (7 derniers jours)</h2>
         <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-4">
           {dailyCosts.some((c) => c > 0) ? (
-            <>
-              <Spark
-                data={dailyCosts}
-                width={720}
-                height={80}
-                fill="hsl(var(--eldir-orange) / 0.15)"
-              />
-              <div className="mt-3 grid grid-cols-7 gap-1 font-mono text-2xs text-eldir-gray">
-                {data.daily.map((d) => (
-                  <div key={d.day} className="text-center">
-                    <div className="font-semibold text-eldir-ink">
-                      ${d.cost_usd.toFixed(2)}
-                    </div>
-                    <div>{d.day.slice(5)}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="font-mono text-sm text-eldir-gray">
-              Aucun coût enregistré pour les 7 derniers jours.
-            </p>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <div className="eldir-caps mb-2">Tokens par jour</div>
-        <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-4">
-          {dailyTokens.some((t) => t > 0) ? (
-            <Spark
-              data={dailyTokens}
-              width={720}
-              height={60}
-              fill="hsl(var(--eldir-gold) / 0.15)"
+            <BarChart
+              caption="Coût par jour sur les sept derniers jours"
+              points={data.daily.map((d) => ({
+                key: d.day,
+                label: formatDayCompact(d.day),
+                value: d.cost_usd,
+                display: formatCost(d.cost_usd),
+              }))}
             />
           ) : (
-            <p className="font-mono text-sm text-eldir-gray">
-              Aucun token consommé pour les 7 derniers jours.
+            <p className="font-sans text-sm text-eldir-gray">
+              Aucun coût enregistré sur les sept derniers jours.
             </p>
           )}
         </div>
       </section>
 
       <section>
-        <div className="eldir-caps mb-2">Répartition par projet (30j)</div>
+        <h2 className="eldir-caps mb-2">Tokens par jour (7 derniers jours)</h2>
+        <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-4">
+          {dailyTokens.some((t) => t > 0) ? (
+            <BarChart
+              caption="Tokens consommés par jour sur les sept derniers jours"
+              points={data.daily.map((d) => ({
+                key: d.day,
+                label: formatDayCompact(d.day),
+                value: d.input_tokens + d.output_tokens,
+                display: formatTokens(d.input_tokens + d.output_tokens),
+              }))}
+            />
+          ) : (
+            <p className="font-sans text-sm text-eldir-gray">
+              Aucun token consommé sur les sept derniers jours.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="eldir-caps mb-2">Répartition par projet (30 jours)</h2>
         <div className="overflow-x-auto rounded-eldir border border-eldir-gray-3 bg-eldir-cream">
           {data.by_project.length === 0 ? (
             <p className="p-4 font-mono text-sm text-eldir-gray">
@@ -182,7 +177,7 @@ export function CostsPage(): JSX.Element {
                       {formatTokens(p.output_tokens)}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-eldir-ink">
-                      ${p.cost_usd.toFixed(4)}
+                      {formatCost(p.cost_usd)}
                     </td>
                   </tr>
                 ))}
@@ -215,7 +210,7 @@ function KpiCard({
       <div className="eldir-caps">{label}</div>
       <div className="mt-2 flex items-baseline gap-2">
         <span className="font-mono text-2xl font-bold text-eldir-ink">
-          ${totals.cost_usd.toFixed(2)}
+          {formatCost(totals.cost_usd)}
         </span>
         <span className="font-mono text-2xs text-eldir-gray">
           {totals.num_turns} tour{totals.num_turns > 1 ? 's' : ''}
@@ -241,17 +236,10 @@ function KpiCard({
         {totalTokens > 0 && (
           <>
             <dt>Part du cache</dt>
-            <dd className="text-right text-eldir-orange">{cacheRatio}%</dd>
+            <dd className="text-right text-eldir-orange-text">{cacheRatio}%</dd>
           </>
         )}
       </dl>
     </div>
   );
-}
-
-function formatTokens(n: number): string {
-  if (n === 0) return '0';
-  if (n < 1_000) return String(n);
-  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
 }

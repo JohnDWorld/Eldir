@@ -243,7 +243,7 @@ function ChooseModelStep({
           Tu pourras tout reviewer et éditer avant d'appliquer.
         </p>
         <div className="rounded-eldir border border-eldir-orange/30 bg-eldir-orange/5 p-3 text-xs text-eldir-ink-2">
-          <strong className="font-semibold text-eldir-orange">
+          <strong className="font-semibold text-eldir-orange-text">
             💡 Haiku suffit largement.
           </strong>{' '}
           Eldir embarque ses propres instructions pour le générateur (cf.
@@ -336,7 +336,7 @@ function GeneratingStep({
           to={`/sessions/${sessionId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-mono text-2xs uppercase tracking-caps text-eldir-orange hover:underline"
+          className="font-mono text-2xs uppercase tracking-caps text-eldir-orange-text hover:underline"
         >
           voir la session live →
         </Link>
@@ -379,7 +379,7 @@ function ReviewStep({
                 to={`/sessions/${sessionId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono text-2xs uppercase tracking-caps text-eldir-orange hover:underline"
+                className="font-mono text-2xs uppercase tracking-caps text-eldir-orange-text hover:underline"
               >
                 voir la session →
               </Link>
@@ -400,7 +400,7 @@ function ReviewStep({
           <span>Écraser le template existant (sinon : merge)</span>
         </label>
         {error && (
-          <span className="font-mono text-xs text-eldir-red">{error}</span>
+          <span className="font-mono text-xs text-eldir-red-text">{error}</span>
         )}
         <div className="flex gap-2">
           <button
@@ -443,7 +443,7 @@ function ErrorStep({
   return (
     <>
       <div className="flex flex-col gap-4 px-4 py-6">
-        <div className="rounded-eldir border border-eldir-red/40 bg-eldir-red/5 p-3 text-sm text-eldir-red">
+        <div className="rounded-eldir border border-eldir-red/40 bg-eldir-red/5 p-3 text-sm text-eldir-red-text">
           {error}
         </div>
         <p className="text-xs text-eldir-ink-2">

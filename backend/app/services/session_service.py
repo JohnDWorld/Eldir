@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,6 +18,7 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.child_report import extract_cr
 from app.core.config import get_settings
 from app.core.constants import (
     EVENT_TYPE_STATE,
@@ -43,23 +43,9 @@ from app.services.git_providers import make_provider
 from app.services.session_manager import SessionManager
 from app.services.worktree_service import worktree_service
 
+
 # ── Compte rendu de fin de tour (protocole enfant) ──────────────
 # La session enfant termine son tour par un bloc <cr>...</cr>. On le
-# recopie dans `sessions.summary` en écrasant le précédent : le superviseur
-# ne lit que le dernier passage, ce qui garde sa relecture à coût constant.
-_CR_RE: re.Pattern[str] = re.compile(r"<cr>(.*?)</cr>", re.DOTALL | re.IGNORECASE)
-_CR_MAX_CHARS = 4_000
-
-
-def extract_cr(text: str) -> str | None:
-    """Renvoie le contenu du dernier bloc <cr> d'un texte, ou None."""
-    matches = _CR_RE.findall(text)
-    if not matches:
-        return None
-    cr = matches[-1].strip()
-    return cr[:_CR_MAX_CHARS] if cr else None
-
-
 @dataclass(slots=True, frozen=True)
 class CommitPushResult:
     branch: str
