@@ -43,6 +43,7 @@ from app.core.constants import (
 from app.core.exceptions import (
     SessionLimitError,
     SessionNotFoundError,
+    SessionQueueFullError,
     SessionStartTimeoutError,
 )
 from app.core.logging import get_logger
@@ -247,6 +248,28 @@ class ActiveSession:
     last_cr: str | None = None
     # Alias SSH que cette session peut atteindre, ou None.
     remote_host: str | None = None
+    # Messages acceptés et pas encore traités. La file elle-même vit dans
+    # `message_lock` ; ce compteur ne fait que la borner.
+    en_attente: int = 0
+
+    def reserver_place(self, *, plafond: int) -> None:
+        """Prend une place dans la file, ou refuse en le disant.
+
+        Le refus doit être lisible par un agent : il lit cette phrase et doit
+        comprendre quoi faire, là où un 500 ne lui apprend rien.
+        """
+        if self.en_attente >= plafond:
+            raise SessionQueueFullError(
+                f"{self.en_attente} messages déjà en attente sur cette session "
+                f"(plafond {plafond}). Attends son compte rendu avant d'en "
+                "envoyer un autre."
+            )
+        self.en_attente += 1
+
+    def rendre_place(self) -> None:
+        """Rend une place. Jamais sous zéro : un double appel ne doit pas
+        faire passer le plafond pour plus large qu'il n'est."""
+        self.en_attente = max(0, self.en_attente - 1)
 
 
 class SessionManager:

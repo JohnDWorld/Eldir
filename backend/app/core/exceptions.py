@@ -63,6 +63,19 @@ class SessionLimitError(EldirError):
     code = "session_limit_reached"
 
 
+class SessionQueueFullError(EldirError):
+    """Trop de messages déjà en attente sur cette session.
+
+    Le verrou de session sérialise les tours, donc un message de plus attend
+    au lieu de se perdre. Mais une file sans borne alimentée par un processus
+    automatique n'est pas une file, c'est une fuite : un agent parti en boucle
+    y empilerait des centaines de consignes que personne ne relira.
+    """
+
+    status_code = 429
+    code = "session_queue_full"
+
+
 class SessionStartTimeoutError(EldirError):
     """Le CLI Claude n'a pas terminé son initialisation dans le délai imparti."""
 
