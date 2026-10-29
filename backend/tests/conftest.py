@@ -86,3 +86,27 @@ async def client(
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def jeton_agent(session_factory: async_sessionmaker[AsyncSession]) -> str:
+    """Un jeton d'agent valide, en clair. Son propriétaire n'existe pas en base."""
+    from app.services import agent_token_service
+
+    async with session_factory() as db:
+        _, clair = await agent_token_service.emettre(db, user_id="u-test", label="agent de test")
+        await db.commit()
+    return clair
+
+
+@pytest.fixture
+async def jeton_agent_revoque(session_factory: async_sessionmaker[AsyncSession]) -> str:
+    """Un jeton d'agent émis puis révoqué, en clair."""
+    from app.services import agent_token_service
+
+    async with session_factory() as db:
+        ligne, clair = await agent_token_service.emettre(db, user_id="u-test", label="agent coupé")
+        await db.commit()
+        await agent_token_service.revoquer(db, user_id="u-test", token_id=ligne.id)
+        await db.commit()
+    return clair

@@ -1,0 +1,614 @@
+"""La surface MCP HTTP, bout en bout, contre un vrai serveur.
+
+Même outils, mêmes descriptions, même refus de publication que le superviseur
+interne : la seule différence est le transport.
+
+Chaque test parle à un vrai serveur uvicorn (lifespan compris) avec un vrai
+client HTTP, ou avec le client MCP du paquet `mcp` quand il s'agit d'appeler des
+outils. Un transport ASGI en mémoire ne jouerait ni le lifespan, ni le `Host`
+d'une vraie connexion : il validerait une surface qu'aucun agent n'atteint.
+Seuls la base de test et le superviseur (ses doubles de session) sont
+substitués, jamais le transport.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import inspect
+import json
+import sys
+import types
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any, get_args
+from unittest.mock import AsyncMock
+
+import httpx
+import pytest
+import uvicorn
+from app import mcp_http
+from app.core.config import get_settings
+from app.core.exceptions import AuthenticationError
+from app.core.security import create_access_token
+from app.db.models import AgentToken, Project, User
+from app.db.models import Session as SessionRow
+from app.main import create_app
+from app.services import agent_token_service, singletons
+from app.services.event_bus import EventBus
+from app.services.session_manager import SessionManager
+from app.services.session_service import SessionService
+from app.services.supervisor_service import SCHEMAS_OUTILS, SupervisorService
+from mcp import ClientSession
+from mcp import types as mcp_types
+from mcp.client.streamable_http import streamable_http_client
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from tests.unit.conftest_supervisor import pose_projet_et_session, service_superviseur
+
+_LISTE = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+_ENTETES = {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream",
+}
+
+Fabrique = async_sessionmaker[AsyncSession]
+
+
+# ── Le serveur et ses clients ───────────────────────────────────────────
+@asynccontextmanager
+async def _serveur() -> AsyncIterator[str]:
+    """Lance l'application sous uvicorn, lifespan compris, et rend l'URL de /api/mcp/."""
+    config = uvicorn.Config(
+        create_app(), host="127.0.0.1", port=0, lifespan="on", log_level="warning"
+    )
+    serveur = uvicorn.Server(config)
+    tache = asyncio.create_task(serveur.serve())
+    try:
+        async with asyncio.timeout(10):
+            # uvicorn n'expose que ce drapeau pour dire qu'il écoute.
+            while not serveur.started and not tache.done():  # noqa: ASYNC110
+                await asyncio.sleep(0.01)
+        assert serveur.started, "le serveur n'a pas démarré (lifespan en échec ?)"
+        port = serveur.servers[0].sockets[0].getsockname()[1]
+        yield f"http://127.0.0.1:{port}/api/mcp/"
+    finally:
+        serveur.should_exit = True
+        await tache
+
+
+@pytest.fixture(autouse=True)
+def base_de_test(monkeypatch: pytest.MonkeyPatch, session_factory: Fabrique) -> None:
+    """La garde lit la base par le factory du module : on lui donne celle du test."""
+    monkeypatch.setattr(mcp_http, "async_session_factory", session_factory)
+
+
+@pytest.fixture
+async def url_mcp() -> AsyncIterator[str]:
+    async with _serveur() as url:
+        yield url
+
+
+async def _post(
+    url: str, jeton: str | None = None, *, entetes: dict[str, str] | None = None
+) -> httpx.Response:
+    envoyes = dict(_ENTETES)
+    if jeton is not None:
+        envoyes["Authorization"] = f"Bearer {jeton}"
+    envoyes.update(entetes or {})
+    async with httpx.AsyncClient() as client:
+        return await client.post(url, json=_LISTE, headers=envoyes)
+
+
+def _charge(reponse: httpx.Response) -> dict[str, Any]:
+    """Le transport répond en SSE : la charge JSON-RPC vit sur la ligne `data:`."""
+    for ligne in reponse.text.splitlines():
+        if ligne.startswith("data: "):
+            charge: dict[str, Any] = json.loads(ligne[6:])
+            return charge
+    raise AssertionError(f"aucune charge SSE dans : {reponse.text[:200]}")
+
+
+@asynccontextmanager
+async def _agent(url: str, jeton: str) -> AsyncIterator[ClientSession]:
+    """Un vrai client MCP, tel qu'un agent extérieur se connecterait."""
+    async with (
+        httpx.AsyncClient(
+            headers={"Authorization": f"Bearer {jeton}"}, timeout=httpx.Timeout(10)
+        ) as http,
+        streamable_http_client(url, http_client=http) as (lecture, ecriture, _),
+        ClientSession(lecture, ecriture) as session,
+    ):
+        await session.initialize()
+        yield session
+
+
+async def _appelle(url: str, jeton: str, nom: str, args: dict[str, Any] | None = None) -> str:
+    async with _agent(url, jeton) as session:
+        resultat = await session.call_tool(nom, args or {})
+    contenu = resultat.content[0]
+    assert isinstance(contenu, mcp_types.TextContent)
+    return contenu.text
+
+
+# ── Les données ─────────────────────────────────────────────────────────
+async def _utilisateur(factory: Fabrique, email: str) -> str:
+    async with factory() as db:
+        user = User(email=email, hashed_password="x")
+        db.add(user)
+        await db.commit()
+        return user.id
+
+
+async def _jeton(factory: Fabrique, user_id: str, label: str = "agent du village") -> str:
+    async with factory() as db:
+        _, clair = await agent_token_service.emettre(db, user_id=user_id, label=label)
+        await db.commit()
+    return clair
+
+
+async def _projet(factory: Fabrique, user_id: str, nom: str) -> str:
+    async with factory() as db:
+        projet = Project(
+            user_id=user_id,
+            name=nom,
+            slug=nom.lower(),
+            provider="github",
+            repo_full_name=f"exemple/{nom.lower()}",
+            default_branch="main",
+            workspace_path=f"/tmp/{nom.lower()}",
+        )
+        db.add(projet)
+        await db.commit()
+        return projet.id
+
+
+async def _monde(factory: Fabrique) -> tuple[str, str, str, str]:
+    """Un utilisateur (projet Munin, une session) et son jeton d'agent.
+
+    La session a trois jours : `list_projects` dit son âge à la minute près, et
+    une session toute neuve ferait basculer le texte si une minute change entre
+    deux appels du même test.
+    """
+    async with factory() as db:
+        user_id, project_id, session_id = await pose_projet_et_session(db)
+        trois_jours = datetime.now(UTC) - timedelta(days=3, hours=2)
+        await db.execute(
+            update(SessionRow).where(SessionRow.id == session_id).values(updated_at=trois_jours)
+        )
+        await db.commit()
+    return user_id, project_id, session_id, await _jeton(factory, user_id)
+
+
+# ── La garde du jeton ───────────────────────────────────────────────────
+async def test_sans_jeton_la_porte_est_fermee(url_mcp: str) -> None:
+    r = await _post(url_mcp)
+    assert r.status_code == 401
+    assert r.json()["code"] == "unauthenticated"
+    assert r.headers["www-authenticate"] == "Bearer"
+
+
+@pytest.mark.parametrize("valeur", ["Basic {jeton}", "Bearer"])
+async def test_un_header_qui_n_est_pas_un_bearer_complet_est_refuse(
+    url_mcp: str, jeton_agent: str, valeur: str
+) -> None:
+    r = await _post(url_mcp, entetes={"Authorization": valeur.format(jeton=jeton_agent)})
+    assert r.status_code == 401
+    assert r.json()["message"] == "Header Authorization manquant ou mal formé."
+
+
+async def test_un_jeton_illisible_est_refuse(url_mcp: str) -> None:
+    r = await _post(url_mcp, "pas-un-jeton")
+    assert r.status_code == 401
+    assert r.json()["message"] == "Jeton invalide."
+
+
+async def test_un_jeton_de_connexion_n_ouvre_pas_la_surface_mcp(
+    url_mcp: str, session_factory: Fabrique
+) -> None:
+    """Même clé, même `sub` : seule la porte distingue un jeton de connexion d'un jeton d'agent."""
+    user_id = await _utilisateur(session_factory, "utilisateur@exemple.lan")
+    r = await _post(url_mcp, create_access_token(user_id))
+    assert r.status_code == 401
+    assert r.json()["message"] == "Ce jeton n'est pas un jeton d'agent."
+
+
+async def test_un_jeton_revoque_ne_passe_plus(url_mcp: str, jeton_agent_revoque: str) -> None:
+    r = await _post(url_mcp, jeton_agent_revoque)
+    assert r.status_code == 401
+    assert r.json()["message"] == "Jeton d'agent révoqué."
+
+
+async def test_la_revocation_coupe_l_agent_a_la_requete_suivante(
+    url_mcp: str, session_factory: Fabrique
+) -> None:
+    """Rien n'est gardé en mémoire d'une requête à l'autre : couper un agent est immédiat."""
+    user_id = await _utilisateur(session_factory, "utilisateur@exemple.lan")
+    jeton = await _jeton(session_factory, user_id)
+    assert (await _post(url_mcp, jeton)).status_code == 200
+    async with session_factory() as db:
+        ligne = (await db.execute(select(AgentToken))).scalar_one()
+        await agent_token_service.revoquer(db, user_id=user_id, token_id=ligne.id)
+        await db.commit()
+    assert (await _post(url_mcp, jeton)).status_code == 401
+
+
+async def test_un_jeton_valide_ouvre_la_surface_et_date_son_dernier_usage(
+    url_mcp: str, session_factory: Fabrique, jeton_agent: str
+) -> None:
+    async with session_factory() as db:
+        assert (await db.execute(select(AgentToken))).scalar_one().last_used_at is None
+
+    r = await _post(url_mcp, jeton_agent)
+
+    assert r.status_code == 200
+    # La date doit survivre à la requête : la garde ouvre sa propre session de
+    # base, et sans commit de sa part l'écriture de `authentifier` est perdue.
+    async with session_factory() as db:
+        assert (await db.execute(select(AgentToken))).scalar_one().last_used_at is not None
+
+
+async def test_la_garde_ne_journalise_jamais_le_jeton(
+    monkeypatch: pytest.MonkeyPatch,
+    url_mcp: str,
+    session_factory: Fabrique,
+    jeton_agent: str,
+    jeton_agent_revoque: str,
+) -> None:
+    """Un refus se journalise (John doit voir qui frappe), mais jamais avec ce qu'on a présenté."""
+    journal: list[tuple[str, dict[str, Any]]] = []
+
+    class JournalEspion:
+        def info(self, evenement: str, **champs: Any) -> None:
+            journal.append((evenement, champs))
+
+        warning = error = debug = info
+
+    monkeypatch.setattr(mcp_http, "logger", JournalEspion())
+    user_id = await _utilisateur(session_factory, "utilisateur@exemple.lan")
+    presentes = [jeton_agent, jeton_agent_revoque, create_access_token(user_id), "pas-un-jeton"]
+
+    for jeton in presentes:
+        await _post(url_mcp, jeton)
+
+    # Trois refus sur quatre jetons : le journal n'est pas muet.
+    assert [evenement for evenement, _ in journal] == ["mcp.refus"] * 3
+    tout = json.dumps(journal, default=str)
+    for jeton in presentes:
+        assert jeton not in tout
+
+
+def test_un_outil_appele_hors_de_la_garde_n_agit_au_nom_de_personne() -> None:
+    with pytest.raises(AuthenticationError):
+        mcp_http.agent_courant()
+
+
+# ── Ce que le modèle lit ────────────────────────────────────────────────
+async def test_les_outils_publies_sont_exactement_la_table(url_mcp: str, jeton_agent: str) -> None:
+    """Descriptions ET schémas, paramètre par paramètre : comme le serveur in-process."""
+    async with _agent(url_mcp, jeton_agent) as session:
+        outils = (await session.list_tools()).tools
+    assert {o.name: (o.description, o.inputSchema) for o in outils} == SCHEMAS_OUTILS
+    # Le superviseur interne rend du texte seul : pas de contenu structuré en plus.
+    assert all(o.outputSchema is None for o in outils)
+
+
+def test_chaque_fonction_d_outil_accepte_les_parametres_que_la_table_annonce() -> None:
+    """La table dit ce que l'agent peut envoyer, les annotations dit ce que FastMCP valide.
+
+    Un paramètre ajouté à la table seule serait annoncé puis jeté en silence.
+    """
+    assert set(mcp_http.OUTILS) == set(SCHEMAS_OUTILS)
+    types_json = {"string": str, "boolean": bool}
+    for nom, fonction in mcp_http.OUTILS.items():
+        _, schema = SCHEMAS_OUTILS[nom]
+        parametres = inspect.signature(fonction, eval_str=True).parameters
+        assert set(parametres) == set(schema["properties"]), nom
+        obligatoires = {n for n, p in parametres.items() if p.default is inspect.Parameter.empty}
+        assert obligatoires == set(schema.get("required", [])), nom
+        for param, spec in schema["properties"].items():
+            attendu = types_json[spec["type"]]
+            annotation = parametres[param].annotation
+            assert annotation is attendu or attendu in get_args(annotation), (nom, param)
+
+
+# ── Protection du Host ──────────────────────────────────────────────────
+async def test_avec_des_hotes_declares_un_host_inconnu_est_refuse_en_421(
+    monkeypatch: pytest.MonkeyPatch, jeton_agent: str
+) -> None:
+    monkeypatch.setattr(get_settings(), "mcp_allowed_hosts", "eldir.exemple.lan")
+    async with _serveur() as url:
+        # Le Host de cette requête est celui de la connexion : 127.0.0.1:<port>.
+        inconnu = await _post(url, jeton_agent)
+        declare = await _post(url, jeton_agent, entetes={"Host": "eldir.exemple.lan"})
+    assert inconnu.status_code == 421
+    assert declare.status_code == 200
+
+
+def test_les_hotes_se_declarent_separes_par_des_virgules() -> None:
+    reglages = get_settings().model_copy(
+        update={"mcp_allowed_hosts": " a.exemple.lan , b.exemple.lan:* ,, "}
+    )
+    assert reglages.mcp_hosts == ["a.exemple.lan", "b.exemple.lan:*"]
+    assert reglages.model_copy(update={"mcp_allowed_hosts": ""}).mcp_hosts == []
+
+
+# ── Au nom de qui l'on agit ─────────────────────────────────────────────
+async def test_chaque_agent_ne_voit_que_les_projets_de_son_porteur(
+    session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deux porteurs appellent en même temps : aucun ne lit l'identité de l'autre."""
+    monkeypatch.setattr(singletons, "_supervisor", service_superviseur(session_factory))
+    # Les deux requêtes ont passé la garde avant que l'une lise son identité :
+    # une identité tenue dans un global y serait celle du dernier arrivé, pour
+    # les deux. Le serveur démarre après ce remplacement, qui n'est lu qu'à la
+    # construction de l'application.
+    en_vol = asyncio.Barrier(2)
+    reel = mcp_http.OUTILS["list_projects"]
+
+    async def une_fois_les_deux_gardes_passees() -> str:
+        await en_vol.wait()
+        return await reel()
+
+    monkeypatch.setitem(mcp_http.OUTILS, "list_projects", une_fois_les_deux_gardes_passees)
+    _, _, _, jeton_munin = await _monde(session_factory)
+    autre = await _utilisateur(session_factory, "autre@exemple.lan")
+    await _projet(session_factory, autre, "Hugin")
+    jeton_hugin = await _jeton(session_factory, autre)
+
+    async with _serveur() as url, asyncio.timeout(15):
+        chez_munin, chez_hugin = await asyncio.gather(
+            _appelle(url, jeton_munin, "list_projects"),
+            _appelle(url, jeton_hugin, "list_projects"),
+        )
+
+    assert "Munin" in chez_munin
+    assert "Hugin" not in chez_munin
+    assert "Hugin" in chez_hugin
+    assert "Munin" not in chez_hugin
+
+
+async def test_un_agent_ne_dispatche_pas_chez_un_autre_porteur(
+    url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = service_superviseur(session_factory)
+    monkeypatch.setattr(singletons, "_supervisor", service)
+    appels: list[tuple[str, str, str]] = []
+
+    async def espion(user_id: str, session_id: str, consigne: str) -> None:
+        appels.append((user_id, session_id, consigne))
+
+    monkeypatch.setattr(service, "_run_child", espion)
+    _, projet_de_munin, _, _ = await _monde(session_factory)
+    autre = await _utilisateur(session_factory, "autre@exemple.lan")
+    jeton_autre = await _jeton(session_factory, autre)
+
+    texte = await _appelle(
+        url_mcp, jeton_autre, "dispatch", {"project_id": projet_de_munin, "consigne": "x"}
+    )
+
+    assert texte == f"Erreur : Projet {projet_de_munin} introuvable."
+    assert appels == []
+
+
+async def test_dispatch_transmet_session_chantier_et_consigne_au_service(
+    url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = service_superviseur(session_factory)
+    monkeypatch.setattr(singletons, "_supervisor", service)
+    appels: list[tuple[str, str, str]] = []
+    recu = asyncio.Event()
+
+    async def espion(user_id: str, session_id: str, consigne: str) -> None:
+        appels.append((user_id, session_id, consigne))
+        recu.set()
+
+    monkeypatch.setattr(service, "_run_child", espion)
+    user_id, project_id, session_id, jeton = await _monde(session_factory)
+
+    # Sans précision : la session la plus récente du projet est reprise.
+    texte = await _appelle(
+        url_mcp, jeton, "dispatch", {"project_id": project_id, "consigne": "Ajoute un test"}
+    )
+    async with asyncio.timeout(5):
+        await recu.wait()
+    assert texte.startswith(f"Consigne transmise à Munin (session reprise {session_id}).")
+    assert appels == [(user_id, session_id, "Ajoute un test")]
+
+    # `nouveau_chantier` ouvre une session neuve, à côté.
+    recu.clear()
+    texte = await _appelle(
+        url_mcp,
+        jeton,
+        "dispatch",
+        {"project_id": project_id, "consigne": "Autre sujet", "nouveau_chantier": True},
+    )
+    async with asyncio.timeout(5):
+        await recu.wait()
+    assert "nouvelle session" in texte
+    assert appels[1][0] == user_id
+    assert appels[1][1] != session_id
+    assert appels[1][2] == "Autre sujet"
+
+    # Une session nommée est reprise telle quelle.
+    recu.clear()
+    texte = await _appelle(
+        url_mcp,
+        jeton,
+        "dispatch",
+        {"project_id": project_id, "consigne": "Suite", "session_id": session_id},
+    )
+    async with asyncio.timeout(5):
+        await recu.wait()
+    assert f"session reprise {session_id}" in texte
+    assert appels[2] == (user_id, session_id, "Suite")
+
+
+async def test_remember_enregistre_la_preference(
+    url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(singletons, "_supervisor", service_superviseur(session_factory))
+    _, _, _, jeton = await _monde(session_factory)
+    texte = await _appelle(url_mcp, jeton, "remember", {"fait": "Toujours ouvrir une PR."})
+    assert texte == "Noté : Toujours ouvrir une PR."
+    assert await _appelle(url_mcp, jeton, "remember", {"fait": "Toujours ouvrir une PR."}) == (
+        "Préférence déjà enregistrée."
+    )
+
+
+# ── Un seul comportement, deux transports ───────────────────────────────
+def _superviseur_reel(factory: Fabrique) -> tuple[SupervisorService, SessionManager]:
+    """Le vrai SessionManager et le vrai SessionService, seul le bus Redis est factice."""
+    manager = SessionManager(event_bus=EventBus(redis=AsyncMock()))
+    service = SupervisorService(
+        manager=manager, sessions=SessionService(manager=manager), session_factory=factory
+    )
+    return service, manager
+
+
+async def _en_process(service: SupervisorService, user_id: str, nom: str, args: dict) -> str:
+    """Le même appel par le serveur MCP du superviseur interne, tel que le SDK le fait."""
+    instance = service._build_mcp_server(user_id)["instance"]
+    requete = mcp_types.CallToolRequest(
+        method="tools/call",
+        params=mcp_types.CallToolRequestParams(name=nom, arguments=args),
+    )
+    reponse = await instance.request_handlers[mcp_types.CallToolRequest](requete)
+    return str(reponse.root.content[0].text)
+
+
+@pytest.mark.parametrize(
+    ("nom", "args"),
+    [
+        ("list_projects", {}),
+        ("list_sessions", {}),
+        ("dispatch", {"project_id": "projet-inconnu", "consigne": "x"}),
+        ("allow_publish", {"session_id": "session-inconnue", "autoriser": True}),
+    ],
+)
+async def test_http_et_in_process_rendent_le_meme_texte(
+    url_mcp: str,
+    session_factory: Fabrique,
+    monkeypatch: pytest.MonkeyPatch,
+    nom: str,
+    args: dict[str, Any],
+) -> None:
+    service, _ = _superviseur_reel(session_factory)
+    monkeypatch.setattr(singletons, "_supervisor", service)
+    user_id, _, _, jeton = await _monde(session_factory)
+
+    par_http = await _appelle(url_mcp, jeton, nom, args)
+    en_process = await _en_process(service, user_id, nom, args)
+
+    assert par_http == en_process
+    assert par_http.strip()
+
+
+# ── La porte de validation humaine ──────────────────────────────────────
+def _sdk_factice(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Remplace `claude_agent_sdk` et garde les options de chaque session démarrée.
+
+    On n'y change rien d'autre : le hook `PreToolUse` que le vrai SessionManager
+    fabrique est celui qu'on interroge ensuite.
+    """
+    options_recues: list[dict[str, Any]] = []
+
+    class Options:
+        def __init__(self, **kwargs: Any) -> None:
+            options_recues.append(kwargs)
+
+    class Client:
+        def __init__(self, options: Options) -> None:
+            self.options = options
+
+        async def connect(self) -> None: ...
+
+        async def disconnect(self) -> None: ...
+
+    class HookMatcher:
+        def __init__(self, hooks: list[Any]) -> None:
+            self.hooks = hooks
+
+    module = types.ModuleType("claude_agent_sdk")
+    module.ClaudeAgentOptions = Options  # type: ignore[attr-defined]
+    module.ClaudeSDKClient = Client  # type: ignore[attr-defined]
+    module.HookMatcher = HookMatcher  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "claude_agent_sdk", module)
+    return options_recues
+
+
+async def _refus(hook: Any, commande: str) -> bool:
+    """True si le hook `PreToolUse` de la session refuse cette commande Bash."""
+    reponse = await hook({"tool_name": "Bash", "tool_input": {"command": commande}}, "tu-1", None)
+    decision = reponse.get("hookSpecificOutput", {}).get("permissionDecision")
+    return bool(decision == "deny")
+
+
+_PUBLIER = ["git commit -m 'x'", "git push origin feat/x", "gh pr create --fill"]
+
+
+async def test_la_surface_http_ne_degage_pas_la_publication(
+    url_mcp: str,
+    session_factory: Fabrique,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Commit, push et PR restent refusés à l'enfant quel que soit le transport.
+
+    Le hook est le vrai (SessionManager réel, seul le SDK est factice), la
+    permission passe par le vrai `allow_publish` servi en HTTP. Le test ouvre
+    la porte à la fin : sans cette preuve, un hook qui refuserait tout, tout le
+    temps, passerait pour un hook qui garde.
+    """
+    options = _sdk_factice(monkeypatch)
+    service, manager = _superviseur_reel(session_factory)
+    monkeypatch.setattr(singletons, "_supervisor", service)
+    proprietaire, project_id, session_id, jeton_proprietaire = await _monde(session_factory)
+    etranger = await _utilisateur(session_factory, "autre@exemple.lan")
+    jeton_etranger = await _jeton(session_factory, etranger)
+    # La session est posée sans rien préciser sur la publication, comme le fait
+    # `create_and_start` : c'est le défaut du modèle qui la ferme, et il est lu ici.
+    async with session_factory() as db:
+        publication_par_defaut = (await db.get_one(SessionRow, session_id)).publish_allowed
+    assert publication_par_defaut is False
+    await manager.start(
+        session_id=session_id,
+        project_id=project_id,
+        user_id=proprietaire,
+        cwd=str(tmp_path),
+        publish_allowed=publication_par_defaut,
+    )
+    hook = options[-1]["hooks"]["PreToolUse"][0].hooks[0]
+
+    # Par défaut, une session enfant ne publie pas.
+    for commande in _PUBLIER:
+        assert await _refus(hook, commande), commande
+    assert not await _refus(hook, "git status"), "le hook ne doit pas tout refuser"
+
+    # L'agent d'un autre porteur ne peut pas lui ouvrir la porte.
+    texte = await _appelle(
+        url_mcp, jeton_etranger, "allow_publish", {"session_id": session_id, "autoriser": True}
+    )
+    assert texte == f"Erreur : Session {session_id} introuvable."
+    for commande in _PUBLIER:
+        assert await _refus(hook, commande), commande
+
+    # Le propriétaire la rouvre sur demande explicite : la porte tourne, et le
+    # push forcé reste refusé même ouverte.
+    texte = await _appelle(
+        url_mcp, jeton_proprietaire, "allow_publish", {"session_id": session_id, "autoriser": True}
+    )
+    assert texte.startswith(f"Publication autorisée pour la session {session_id}.")
+    for commande in _PUBLIER:
+        assert not await _refus(hook, commande), commande
+    assert await _refus(hook, "git push --force origin feat/x")
+
+    # Et il la referme.
+    texte = await _appelle(
+        url_mcp, jeton_proprietaire, "allow_publish", {"session_id": session_id, "autoriser": False}
+    )
+    assert texte.startswith(f"Publication de nouveau bloquée pour la session {session_id}.")
+    for commande in _PUBLIER:
+        assert await _refus(hook, commande), commande

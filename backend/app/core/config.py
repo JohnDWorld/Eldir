@@ -124,6 +124,15 @@ class Settings(BaseSettings):
     # boucle y empilerait des centaines de consignes que personne ne relira.
     session_queue_max: int = 5
 
+    # ── Surface d'agent externe (MCP sur HTTP) ──────────────────
+    # Hôtes autorisés à joindre /api/mcp/, séparés par des virgules, port
+    # compris ou en `hote:*` (ex "eldir.exemple.lan,127.0.0.1:8000"). Vide =
+    # protection anti-DNS-rebinding désactivée : le jeton d'agent est la garde,
+    # et aucun cookie n'est en jeu sur cette surface, donc rien à rejouer
+    # depuis un navigateur. À renseigner si l'endpoint est exposé au-delà du
+    # VPN : un `Host` hors liste est alors refusé en 421.
+    mcp_allowed_hosts: str = ""
+
     @property
     def is_dev(self) -> bool:
         return self.app_env == "dev"
@@ -131,6 +140,10 @@ class Settings(BaseSettings):
     @property
     def is_test(self) -> bool:
         return self.app_env == "test"
+
+    @property
+    def mcp_hosts(self) -> list[str]:
+        return [h.strip() for h in self.mcp_allowed_hosts.split(",") if h.strip()]
 
     @property
     def ollama_enabled(self) -> bool:
