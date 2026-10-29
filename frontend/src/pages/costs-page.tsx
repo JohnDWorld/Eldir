@@ -53,7 +53,7 @@ export function CostsPage(): JSX.Element {
   if (dashboard.isError || !dashboard.data) {
     return (
       <main className="mx-auto flex max-w-5xl flex-col items-start gap-3 p-4 md:p-8">
-        <p className="font-sans text-sm text-eldir-red">
+        <p className="font-sans text-sm text-eldir-red-text">
           Impossible de charger les coûts
           {dashboard.error ? ` : ${dashboard.error.message}` : '.'}
         </p>
@@ -236,7 +236,7 @@ function KpiCard({
         {totalTokens > 0 && (
           <>
             <dt>Part du cache</dt>
-            <dd className="text-right text-eldir-orange">{cacheRatio}%</dd>
+            <dd className="text-right text-eldir-orange-text">{cacheRatio}%</dd>
           </>
         )}
       </dl>

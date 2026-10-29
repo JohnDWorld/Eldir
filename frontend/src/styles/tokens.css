@@ -31,6 +31,20 @@
     --eldir-red: 7 44% 50%;
     --eldir-blue: 210 26% 48%;
 
+    /* ── Accents en couleur de texte ───────────────────────
+       Les accents ci-dessus sont faits pour des aplats, des bordures et des
+       pastilles. Posés comme couleur de texte sur fond clair, ils tombaient
+       entre 1,8 et 3,9 pour 1, très en dessous du seuil de 4,5 : « 2 modifs »
+       en ambre tenait 1,87, les liens orange 2,75, le bouton « supprimer »
+       3,91. Ces variantes plus foncées, même teinte, passent partout (≥ 4,5
+       sur paper, cream et cream-2). */
+    --eldir-orange-text: 15 55% 42%;
+    --eldir-gold-text: 34 45% 36%;
+    --eldir-amber-text: 34 60% 34%;
+    --eldir-green-text: 118 30% 32%;
+    --eldir-red-text: 7 55% 40%;
+    --eldir-blue-text: 210 40% 40%;
+
     /* ── Rôles qui ne suivent pas simplement ink/paper ─────── */
     /* Consoles (logs, diff, blocs de code) : toujours sombres, dans les
        deux thèmes. Avant, elles utilisaient `ink` comme fond : en thème
@@ -92,6 +106,15 @@
     --eldir-amber: 37 72% 62%;
     --eldir-red: 7 62% 64%;
     --eldir-blue: 210 40% 66%;
+
+    /* En sombre, les accents sont déjà éclaircis pour ce fond : la variante
+       texte vaut l'accent lui-même. */
+    --eldir-orange-text: var(--eldir-orange);
+    --eldir-gold-text: var(--eldir-gold);
+    --eldir-amber-text: var(--eldir-amber);
+    --eldir-green-text: var(--eldir-green);
+    --eldir-red-text: var(--eldir-red);
+    --eldir-blue-text: var(--eldir-blue);
 
     --eldir-console: 30 8% 5%;
     --eldir-console-fg: 40 22% 88%;

@@ -8,7 +8,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 
-import { Tile } from '@/components/eldir/tile';
+import { Tile, type TileTone } from '@/components/eldir/tile';
 
 interface OpsShellProps {
   telemetry?: readonly TelemetryItem[];
@@ -18,6 +18,7 @@ interface OpsShellProps {
 export interface TelemetryItem {
   label: string;
   value: ReactNode;
+  tone?: TileTone;
   sub?: ReactNode;
   spark?: readonly number[];
 }
@@ -38,6 +39,7 @@ export function OpsShell({ telemetry, children }: OpsShellProps): JSX.Element {
               key={t.label}
               label={t.label}
               value={t.value}
+              {...(t.tone ? { tone: t.tone } : {})}
               {...(t.sub !== undefined ? { sub: t.sub } : {})}
               {...(t.spark ? { spark: t.spark } : {})}
             />

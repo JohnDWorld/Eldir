@@ -36,7 +36,7 @@ export function SupervisorPage(): JSX.Element {
     <main className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
       {error ? (
         <>
-          <p className="font-mono text-xs text-eldir-red">{error}</p>
+          <p className="font-mono text-xs text-eldir-red-text">{error}</p>
           <p className="max-w-sm font-sans text-sm text-eldir-gray">
             Eldir a besoin d&apos;un identifiant Claude actif. Configure-le dans
             Réglages › Identifiants Claude, puis reviens.

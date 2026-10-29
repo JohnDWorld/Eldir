@@ -90,7 +90,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
           className={
             'rounded-eldir border px-2 py-1 font-mono text-2xs uppercase tracking-caps ' +
             (connected
-              ? 'border-eldir-green bg-eldir-green/10 text-eldir-green'
+              ? 'border-eldir-green bg-eldir-green/10 text-eldir-green-text'
               : data?.configured
                 ? 'border-eldir-gold bg-eldir-gold/10 text-eldir-ink'
                 : 'border-eldir-gray-3 text-eldir-gray')
@@ -169,7 +169,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
       )}
 
       {error && (
-        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-2xs text-eldir-red">
+        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-2xs text-eldir-red-text">
           {error}
         </div>
       )}

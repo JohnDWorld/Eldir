@@ -41,10 +41,10 @@ export function AppTopbar({ rightInfo }: AppTopbarProps): JSX.Element {
       <NavLink
         to="/"
         end
-        className="shrink-0 font-mono text-[13px] font-bold tracking-wider text-eldir-ink"
+        className="inline-flex min-h-11 shrink-0 items-center font-mono text-[13px] font-bold tracking-wider text-eldir-ink"
       >
         {APP_NAME.toUpperCase()}
-        <span className="text-eldir-orange">·</span>CTL
+        <span className="text-eldir-orange-text">·</span>CTL
       </NavLink>
 
       {/* Mobile : le fil d'ariane remplace les onglets absents. */}
@@ -82,7 +82,7 @@ export function AppTopbar({ rightInfo }: AppTopbarProps): JSX.Element {
         <NavLink
           to="/"
           end
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-eldir border border-eldir-orange/60 bg-eldir-orange/10 px-2 py-1 font-mono text-2xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-orange/20"
+          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-eldir border border-eldir-orange/60 bg-eldir-orange/10 px-2 font-mono text-2xs uppercase tracking-caps text-eldir-ink hover:bg-eldir-orange/20 md:min-h-8"
           aria-label={`${activeCount} session(s) active(s)`}
         >
           <span className="relative inline-flex h-1.5 w-1.5">

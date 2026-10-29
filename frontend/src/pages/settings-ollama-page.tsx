@@ -131,7 +131,7 @@ export function SettingsOllamaPage(): JSX.Element {
                 href="https://github.com/JohnDWorld/Eldir/blob/main/docs/ollama-integration.md"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-eldir-orange hover:underline"
+                className="text-eldir-orange-text hover:underline"
               >
                 voir la doc d'installation →
               </a>
@@ -238,7 +238,7 @@ export function SettingsOllamaPage(): JSX.Element {
           </div>
 
           {error && (
-            <p className="mt-3 font-mono text-xs text-eldir-red">{error}</p>
+            <p className="mt-3 font-mono text-xs text-eldir-red-text">{error}</p>
           )}
 
           {output !== null && (

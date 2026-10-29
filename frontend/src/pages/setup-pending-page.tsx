@@ -35,7 +35,7 @@ export function SetupPendingPage(): JSX.Element {
           <button
             type="button"
             onClick={() => status.refetch()}
-            className="text-eldir-orange hover:underline"
+            className="text-eldir-orange-text hover:underline"
           >
             re-vérifier
           </button>

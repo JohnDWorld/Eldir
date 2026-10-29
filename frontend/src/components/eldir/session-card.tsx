@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 
 export interface SessionCardData {
   id: string;
-  projectSlug: string;
+  projectName: string;
   state: SessionState;
   summary: string | null;
   age: string;
@@ -35,8 +35,8 @@ export function SessionCard({ data, selected, onClick }: SessionCardProps): JSX.
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate font-mono text-xs font-semibold text-eldir-ink">
-          {data.projectSlug} <span className="text-eldir-gray">/ {data.id}</span>
+        <span className="min-w-0 truncate font-sans text-sm font-semibold text-eldir-ink">
+          {data.projectName}
         </span>
         <span className="shrink-0">
           <StatePill state={data.state} />

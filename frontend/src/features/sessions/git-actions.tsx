@@ -231,7 +231,7 @@ function DialogShell({
 
 function ErrorBox({ text }: { text: string }): JSX.Element {
   return (
-    <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+    <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
       {text}
     </div>
   );
@@ -239,7 +239,7 @@ function ErrorBox({ text }: { text: string }): JSX.Element {
 
 function SuccessBox({ text }: { text: string }): JSX.Element {
   return (
-    <div className="rounded-eldir border border-eldir-green bg-eldir-green/10 px-3 py-2 font-mono text-xs text-eldir-green">
+    <div className="rounded-eldir border border-eldir-green bg-eldir-green/10 px-3 py-2 font-mono text-xs text-eldir-green-text">
       {text}
     </div>
   );

@@ -105,7 +105,7 @@ export function ToolchainPanel({
             </div>
           )}
           {data?.detail && (
-            <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-2xs text-eldir-red">
+            <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-2xs text-eldir-red-text">
               {data.detail}
             </div>
           )}
@@ -120,7 +120,7 @@ export function ToolchainPanel({
       )}
 
       {error && (
-        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-2xs text-eldir-red">
+        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-2xs text-eldir-red-text">
           {error}
         </div>
       )}
@@ -156,7 +156,7 @@ export function ToolchainPanel({
           <button
             type="button"
             onClick={() => setLogOpen((v) => !v)}
-            className="min-h-11 font-mono text-2xs uppercase tracking-caps text-eldir-orange hover:underline"
+            className="min-h-11 font-mono text-2xs uppercase tracking-caps text-eldir-orange-text hover:underline"
           >
             {logOpen ? 'masquer le log' : 'voir le log'}
           </button>
@@ -175,9 +175,9 @@ export function ToolchainPanel({
 function StatusPill({ status }: { status: string }): JSX.Element {
   const styles: Record<string, string> = {
     absent: 'border-eldir-gray-3 text-eldir-gray',
-    installing: 'border-eldir-orange text-eldir-orange animate-pulse',
-    installed: 'border-eldir-green text-eldir-green',
-    error: 'border-eldir-red text-eldir-red',
+    installing: 'border-eldir-orange text-eldir-orange-text animate-pulse',
+    installed: 'border-eldir-green text-eldir-green-text',
+    error: 'border-eldir-red text-eldir-red-text',
   };
   const labels: Record<string, string> = {
     absent: 'non installé',

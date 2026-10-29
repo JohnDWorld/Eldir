@@ -24,6 +24,12 @@
     caret-color: hsl(var(--eldir-orange));
     -webkit-tap-highlight-color: transparent;
   }
+  /* Tailwind laisse le gris bleuté du navigateur (#9ca3af), hors palette et
+     à 2,3:1 sur nos fonds clairs. */
+  ::placeholder {
+    color: hsl(var(--eldir-gray));
+    opacity: 1;
+  }
   ::selection {
     background: hsl(var(--eldir-orange) / 0.22);
     color: hsl(var(--eldir-ink));
@@ -114,7 +120,7 @@
   /* Destructif mais discret : rouge au texte, pas de bloc plein. Il ne doit
      jamais peser autant que l'action principale posée juste à côté. */
   .eldir-btn--danger {
-    @apply text-eldir-red hover:bg-eldir-red/10 active:bg-eldir-red/15;
+    @apply text-eldir-red-text hover:bg-eldir-red/10 active:bg-eldir-red/15;
   }
   .eldir-btn--sm {
     @apply px-3;

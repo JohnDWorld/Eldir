@@ -5,7 +5,14 @@
  * Layout mobile  : tabs CHAT | LIVE | META, full-width.
  */
 
-import { ChevronLeft, Lock, LockOpen, SendHorizontal, Wrench } from 'lucide-react';
+import {
+  ChevronLeft,
+  Lock,
+  LockOpen,
+  SendHorizontal,
+  TriangleAlert,
+  Wrench,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -153,7 +160,7 @@ export function SessionPage(): JSX.Element {
   if (session.isError || !session.data) {
     return (
       <main className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="font-sans text-sm text-eldir-red">
+        <p className="font-sans text-sm text-eldir-red-text">
           {session.error?.message ?? 'Cette session est introuvable.'}
         </p>
         <Link to="/" className="eldir-btn eldir-btn--secondary eldir-btn--sm">
@@ -171,7 +178,7 @@ export function SessionPage(): JSX.Element {
         <Link
           to="/"
           aria-label="Retour au pilotage"
-          className="inline-flex min-h-11 shrink-0 items-center gap-0.5 font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink md:min-h-0"
+          className="-ml-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-0.5 rounded-eldir font-mono text-xs uppercase tracking-caps text-eldir-gray hover:text-eldir-ink sm:min-w-0 sm:px-1 md:min-h-0"
         >
           <ChevronLeft size={14} aria-hidden="true" />
           <span className="hidden sm:inline">pilotage</span>
@@ -193,7 +200,7 @@ export function SessionPage(): JSX.Element {
           <>
             {gitStatus.data?.has_changes && (
               <span
-                className="font-mono text-2xs uppercase tracking-caps text-eldir-amber"
+                className="font-mono text-2xs uppercase tracking-caps text-eldir-amber-text"
                 title="Modifications non commitées dans le worktree"
               >
                 {changeCount} modif{changeCount > 1 ? 's' : ''}
@@ -202,12 +209,12 @@ export function SessionPage(): JSX.Element {
             <span
               className={cn(
                 'inline-flex items-center gap-1 font-mono text-2xs uppercase tracking-caps',
-                session.data.publish_allowed ? 'text-eldir-gold' : 'text-eldir-gray',
+                session.data.publish_allowed ? 'text-eldir-gold-text' : 'text-eldir-gray',
               )}
               title={
                 session.data.publish_allowed
-                  ? 'Cette session peut commiter, pousser et ouvrir une PR.'
-                  : 'Commit, push et PR sont refusés pour cette session.'
+                  ? 'L’agent peut commiter, pousser et ouvrir une PR lui-même.'
+                  : 'Les commandes git de l’agent sont refusées. Toi, tu publies quand tu veux.'
               }
             >
               {session.data.publish_allowed ? (
@@ -216,7 +223,7 @@ export function SessionPage(): JSX.Element {
                 <Lock size={11} aria-hidden="true" />
               )}
               <span className="hidden sm:inline">
-                {session.data.publish_allowed ? 'publication ouverte' : 'publication fermée'}
+                {session.data.publish_allowed ? 'agent : publie' : 'agent : ne publie pas'}
               </span>
             </span>
           </>
@@ -327,7 +334,7 @@ export function SessionPage(): JSX.Element {
         >
           <ChatStream events={events} />
           {error && (
-            <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red">
+            <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red-text">
               {error}
             </div>
           )}
@@ -337,7 +344,7 @@ export function SessionPage(): JSX.Element {
                 sur une ligne. Sinon le bouton, plus haut que le texte, créait
                 un vide au-dessus qui ressemblait à un saut de ligne. */}
             <div className="flex items-end gap-2 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3">
-              <span className="self-start py-3 font-mono text-xs leading-5 text-eldir-orange">
+              <span className="self-start py-3 font-mono text-xs leading-5 text-eldir-orange-text">
                 ›
               </span>
               <textarea
@@ -397,7 +404,6 @@ export function SessionPage(): JSX.Element {
             <Kv k="branche" v={session.data.branch} />
             <Kv k="état" v={SESSION_STATE_LABEL[session.data.state]} />
             <Kv k="modèle" v={session.data.model ?? '-'} />
-            <Kv k="sdk_id" v={session.data.sdk_session_id?.slice(0, 12) ?? '-'} />
             <Kv k="créée" v={formatDateTime(session.data.created_at)} />
           </div>
 
@@ -474,14 +480,16 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
     if (el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
   }, [events.length]);
 
-  // Filtre : on affiche text + tool_use + stop + user_message. Deux marqueurs
-  // de fin d'affilée (fin de tour puis arrêt de la session) n'en font qu'un.
+  // Les erreurs étaient filtrées : un tour qui plantait ne laissait aucune
+  // trace dans le fil, la session repassait « au repos », et on pouvait croire
+  // le travail terminé. Elles s'affichent maintenant comme le reste.
   const visible = events
     .filter(
       (e) =>
         e.type === 'text' ||
         e.type === 'tool_use' ||
         e.type === 'stop' ||
+        e.type === 'error' ||
         e.type === 'user_message',
     )
     .filter((e, i, all) => !(e.type === 'stop' && all[i - 1]?.type === 'stop'));
@@ -518,6 +526,13 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
         if (e.type === 'text') {
           return <ClaudeBubble key={e.key}>{String(e.data.text ?? '')}</ClaudeBubble>;
         }
+        if (e.type === 'error') {
+          return (
+            <TurnError key={e.key}>
+              {String(e.data.message ?? 'Erreur inconnue.')}
+            </TurnError>
+          );
+        }
         if (e.type === 'tool_use') {
           return (
             <ToolRow
@@ -544,10 +559,32 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
   );
 }
 
+/** Un tour qui a échoué. Visible dans le fil, pas seulement dans la console. */
+function TurnError({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <div
+      role="alert"
+      className="rounded-eldir border border-eldir-red/50 bg-eldir-red/5 px-3 py-2"
+    >
+      <div className="eldir-caps mb-1 flex items-center gap-1.5 text-eldir-red-text">
+        <TriangleAlert size={12} aria-hidden="true" />
+        Tour interrompu
+      </div>
+      <div className="whitespace-pre-wrap break-words font-sans text-sm text-eldir-ink-2">
+        {children}
+      </div>
+      <p className="mt-1.5 font-sans text-xs text-eldir-gray">
+        Le travail déjà fait reste dans le worktree. Relance une consigne pour
+        reprendre là où l’agent s’est arrêté.
+      </p>
+    </div>
+  );
+}
+
 function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div className="rounded-eldir border border-eldir-orange/35 bg-eldir-orange/5 px-3 py-2">
-      <div className="eldir-caps mb-1 text-eldir-orange">Eldir · automatique</div>
+      <div className="eldir-caps mb-1 text-eldir-orange-text">Eldir · automatique</div>
       <div className="whitespace-pre-wrap break-words font-sans text-sm text-eldir-ink-2">
         {children}
       </div>
@@ -637,7 +674,7 @@ function ClaudeBubble({ children }: { children: string }): JSX.Element {
 function ToolRow({ name, arg }: { name: string; arg: string }): JSX.Element {
   return (
     <div className="flex min-w-0 max-w-full items-center gap-2 rounded-eldir border border-dashed border-eldir-gray-2 px-2.5 py-1.5 font-mono text-2xs text-eldir-gray">
-      <Wrench size={11} aria-hidden="true" className="shrink-0 text-eldir-gold" />
+      <Wrench size={11} aria-hidden="true" className="shrink-0 text-eldir-gold-text" />
       <span className="shrink-0 text-eldir-ink">{name}</span>
       {arg && <span className="min-w-0 flex-1 truncate opacity-70">({arg})</span>}
     </div>
@@ -648,6 +685,7 @@ function LogLine({ event }: { event: NormalizedEvent }): JSX.Element {
   const time = new Date(event.timestamp).toLocaleTimeString('fr-FR', {
     hour12: false,
   });
+  // Console sombre : accents clairs.
   const tone: Record<string, string> = {
     text: 'text-eldir-console-fg',
     tool_use: 'text-eldir-gold',
@@ -709,7 +747,7 @@ function SessionCostPanel({
       <div className="flex items-center justify-between">
         <span className="eldir-caps">Coût · session</span>
         {overBudget && (
-          <span className="font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-red">
+          <span className="font-mono text-2xs font-semibold uppercase tracking-caps text-eldir-red-text">
             budget dépassé
           </span>
         )}

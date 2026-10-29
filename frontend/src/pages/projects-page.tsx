@@ -144,7 +144,7 @@ export function ProjectsPage(): JSX.Element {
                 className="eldir-btn eldir-btn--secondary"
                 title="Génère et applique le Mission Template des repos qui n'en ont pas"
               >
-                <Sparkles size={14} aria-hidden="true" className="text-eldir-gold" />
+                <Sparkles size={14} aria-hidden="true" className="text-eldir-gold-text" />
                 {batch.data?.running ? 'génération…' : 'templates manquants'}
               </button>
             </>
@@ -171,7 +171,7 @@ export function ProjectsPage(): JSX.Element {
       </header>
 
       {batchError && (
-        <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+        <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
           {batchError}
         </div>
       )}
@@ -217,7 +217,7 @@ export function ProjectsPage(): JSX.Element {
           </ul>
         ) : projects.isError ? (
           <div className="flex flex-col items-start gap-3 px-4 py-6">
-            <p className="font-sans text-sm text-eldir-red">
+            <p className="font-sans text-sm text-eldir-red-text">
               Impossible de charger les projets : {projects.error.message}
             </p>
             <button
@@ -236,7 +236,7 @@ export function ProjectsPage(): JSX.Element {
             </h2>
             <p className="max-w-md font-sans text-sm text-eldir-ink-2">
               Connecte GitHub ou Forgejo dans{' '}
-              <Link to="/settings/git" className="text-eldir-orange underline underline-offset-2">
+              <Link to="/settings/git" className="text-eldir-orange-text underline underline-offset-2">
                 Réglages › Identifiants Git
               </Link>
               , puis ajoute un repo existant ou crées-en un nouveau.
@@ -312,7 +312,7 @@ function TemplateBadge({ filled }: { filled: boolean }): JSX.Element {
       className={cn(
         'inline-flex shrink-0 items-center gap-1 rounded-eldir border px-1.5 py-0.5 font-mono text-2xs uppercase tracking-caps',
         filled
-          ? 'border-eldir-green text-eldir-green'
+          ? 'border-eldir-green text-eldir-green-text'
           : 'border-eldir-gold bg-eldir-gold/10 text-eldir-ink-2',
       )}
     >
@@ -339,12 +339,12 @@ function SyncReport({ items }: { items: RepoSyncItem[] }): JSX.Element {
       {(bouges.length > 0 || rates.length > 0) && (
         <ul className="mt-2 flex flex-col gap-1">
           {bouges.map((i) => (
-            <li key={i.project_id} className="font-mono text-2xs text-eldir-green">
+            <li key={i.project_id} className="font-mono text-2xs text-eldir-green-text">
               ↓ {i.project_name} · {i.pulled} commit(s) récupéré(s)
             </li>
           ))}
           {rates.map((i) => (
-            <li key={i.project_id} className="font-mono text-2xs text-eldir-red">
+            <li key={i.project_id} className="font-mono text-2xs text-eldir-red-text">
               <X
                 size={11}
                 strokeWidth={2.5}
@@ -371,9 +371,9 @@ function TemplateBatchReport({
   const finis = items.filter((i) => i.state === 'done' || i.state === 'error');
   const tone: Record<TemplateBatchItem['state'], string> = {
     pending: 'text-eldir-gray',
-    running: 'text-eldir-orange',
-    done: 'text-eldir-green',
-    error: 'text-eldir-red',
+    running: 'text-eldir-orange-text',
+    done: 'text-eldir-green-text',
+    error: 'text-eldir-red-text',
   };
   const mark: Record<TemplateBatchItem['state'], JSX.Element> = {
     pending: <Circle size={9} aria-hidden="true" />,
@@ -406,7 +406,7 @@ function TemplateBatchReport({
             {i.session_id && i.state !== 'pending' && (
               <Link
                 to={`/sessions/${i.session_id}`}
-                className="ml-2 text-eldir-orange hover:underline"
+                className="ml-2 text-eldir-orange-text hover:underline"
               >
                 voir la session →
               </Link>
@@ -503,7 +503,7 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
         <div
           className={cn(
             'mt-1 font-mono text-[11px]',
-            syncFeedback.kind === 'success' ? 'text-eldir-gray' : 'text-eldir-red',
+            syncFeedback.kind === 'success' ? 'text-eldir-gray' : 'text-eldir-red-text',
           )}
         >
           {syncFeedback.text}
@@ -684,7 +684,7 @@ function AddProjectDialog({
             </p>
           )}
           {repos.isError && (
-            <p className="py-6 text-center font-mono text-xs text-eldir-red">
+            <p className="py-6 text-center font-mono text-xs text-eldir-red-text">
               {repos.error.message}
             </p>
           )}
@@ -727,7 +727,7 @@ function AddProjectDialog({
                         </div>
                       )}
                       {failure && (
-                        <div className="mt-1 font-mono text-[11px] text-eldir-red">
+                        <div className="mt-1 font-mono text-[11px] text-eldir-red-text">
                           {failure.message}
                         </div>
                       )}
@@ -745,7 +745,7 @@ function AddProjectDialog({
               ? `clonage ${progress.done}/${progress.total}…`
               : `${selected.size} sélectionné${selected.size > 1 ? 's' : ''}`}
             {failures.length > 0 && !submitting && (
-              <span className="ml-2 text-eldir-red">
+              <span className="ml-2 text-eldir-red-text">
                 ({failures.length} échec{failures.length > 1 ? 's' : ''})
               </span>
             )}

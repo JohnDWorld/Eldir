@@ -54,9 +54,9 @@ export function LoginPage(): JSX.Element {
         <header className="mb-6 text-center">
           <div className="font-mono text-base font-bold tracking-wider">
             {APP_NAME.toUpperCase()}
-            <span className="text-eldir-orange">·</span>CTL
+            <span className="text-eldir-orange-text">·</span>CTL
           </div>
-          <div className="eldir-caps mt-1">Connexion</div>
+          <h1 className="eldir-caps mt-1">Connexion</h1>
         </header>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -85,7 +85,7 @@ export function LoginPage(): JSX.Element {
           </label>
 
           {error && (
-            <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red">
+            <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
               {error}
             </div>
           )}

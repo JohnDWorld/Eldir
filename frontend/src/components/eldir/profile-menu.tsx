@@ -72,7 +72,7 @@ export function ProfileMenu({
                   strokeWidth={1.75}
                   className={cn(
                     'h-4 w-4 shrink-0',
-                    active ? 'text-eldir-orange' : 'text-eldir-gray',
+                    active ? 'text-eldir-orange-text' : 'text-eldir-gray',
                   )}
                 />
                 {item.label}
@@ -93,7 +93,7 @@ export function ProfileMenu({
               logout();
               navigate('/login');
             }}
-            className="flex min-h-11 cursor-pointer select-none items-center gap-2.5 px-3 font-sans text-sm text-eldir-red outline-none transition-colors data-[highlighted]:bg-eldir-red/10"
+            className="flex min-h-11 cursor-pointer select-none items-center gap-2.5 px-3 font-sans text-sm text-eldir-red-text outline-none transition-colors data-[highlighted]:bg-eldir-red/10"
           >
             <LogOut aria-hidden strokeWidth={1.75} className="h-4 w-4 shrink-0" />
             Se déconnecter

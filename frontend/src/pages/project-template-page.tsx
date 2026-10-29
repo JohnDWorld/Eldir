@@ -173,7 +173,7 @@ export function ProjectTemplatePage(): JSX.Element {
             n'affectent pas les sessions déjà ouvertes.
           </p>
           {template.data?.source_preset && (
-            <p className="mt-2 font-mono text-2xs uppercase tracking-caps text-eldir-gold">
+            <p className="mt-2 font-mono text-2xs uppercase tracking-caps text-eldir-gold-text">
               basé sur le preset · {template.data.source_preset}
             </p>
           )}
@@ -315,8 +315,8 @@ export function ProjectTemplatePage(): JSX.Element {
             className={
               'mt-4 rounded-eldir border px-3 py-2 font-mono text-xs ' +
               (feedback.kind === 'success'
-                ? 'border-eldir-green bg-eldir-green/10 text-eldir-green'
-                : 'border-eldir-red bg-eldir-red/10 text-eldir-red')
+                ? 'border-eldir-green bg-eldir-green/10 text-eldir-green-text'
+                : 'border-eldir-red bg-eldir-red/10 text-eldir-red-text')
             }
           >
             {feedback.text}

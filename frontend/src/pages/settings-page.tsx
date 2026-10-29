@@ -64,7 +64,7 @@ function SettingsRow({ to, title, description, icon }: SettingsRowProps): JSX.El
         <ChevronRight
           size={16}
           aria-hidden="true"
-          className="shrink-0 text-eldir-gray transition-colors group-hover:text-eldir-orange"
+          className="shrink-0 text-eldir-gray transition-colors group-hover:text-eldir-orange-text"
         />
       </Link>
     </li>
@@ -216,13 +216,13 @@ function NotificationsRow(): JSX.Element {
       </div>
       <div className="shrink-0">
         {permission === 'granted' && (
-          <span className="inline-flex items-center gap-1 font-mono text-2xs uppercase tracking-caps text-eldir-green">
+          <span className="inline-flex items-center gap-1 font-mono text-2xs uppercase tracking-caps text-eldir-green-text">
             <Check size={12} strokeWidth={2.5} aria-hidden="true" />
             activées
           </span>
         )}
         {permission === 'denied' && (
-          <span className="font-mono text-2xs uppercase tracking-caps text-eldir-red">
+          <span className="font-mono text-2xs uppercase tracking-caps text-eldir-red-text">
             refusées
           </span>
         )}

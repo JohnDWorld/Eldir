@@ -23,7 +23,7 @@ export function EventRow({ entry }: { entry: EventEntry }): JSX.Element {
       <span
         className={cn(
           'w-6 truncate',
-          isSystem ? 'text-eldir-gray' : 'text-eldir-orange',
+          isSystem ? 'text-eldir-gray' : 'text-eldir-orange-text',
         )}
       >
         {entry.source}
