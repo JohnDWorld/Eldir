@@ -65,9 +65,12 @@ async def send_message(
     user_id: CurrentUserId,
     db: DbDep,
 ) -> dict[str, str]:
-    # Long-poll style : on bloque jusqu'à fin du tour (le client peut aussi
-    # écouter via WS pour le streaming pendant ce temps).
-    await get_session_service().send_message(
+    # On accepte et on rend la main : le tour part en tâche de fond et son
+    # avancement se suit par WebSocket. Avant, la route attendait la fin du
+    # tour, donc l'interface verrouillait le champ de saisie pendant des
+    # minutes, alors qu'écrire à un agent qui travaille est le geste qui le
+    # débloque. Une file pleine remonte ici en 429.
+    await get_session_service().send_message_en_fond(
         db,
         user_id=user_id,
         session_id=session_id,

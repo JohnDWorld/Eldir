@@ -483,8 +483,22 @@ class SessionManager:
         await self._publish_state(session_id, SESSION_STATE_IDLE)
         return active
 
+    def reserver_place_file(self, session_id: str) -> None:
+        """Prend une place dans la file de la session, ou lève.
+
+        Appelée depuis la requête HTTP, avant de lancer le tour en fond : un
+        refus de file pleine doit remonter en 429 à l'appelant. Réservée dans
+        la tâche de fond, l'exception mourrait là où personne ne la lit.
+        """
+        self.get(session_id).reserver_place(plafond=get_settings().session_queue_max)
+
     async def send_message(
-        self, session_id: str, content: str, *, origin: str = MESSAGE_ORIGIN_USER
+        self,
+        session_id: str,
+        content: str,
+        *,
+        origin: str = MESSAGE_ORIGIN_USER,
+        place_reservee: bool = False,
     ) -> None:
         """Envoie un message à la session.
 
@@ -498,19 +512,24 @@ class SessionManager:
         if active.client is None:
             raise SessionNotFoundError(f"Session {session_id} sans client SDK actif.")
 
-        # Une seule réception en cours à la fois par session.
-        async with active.message_lock:
-            # Trace le message utilisateur (WS + DB) AVANT d'interroger
-            # Claude, pour que l'historique soit lisible même si la session
-            # est rechargée en cours de réponse.
-            await self._publish(
-                session_id, EVENT_TYPE_USER_MESSAGE, {"text": content, "origin": origin}
-            )
-            await self._publish_state(session_id, SESSION_STATE_THINKING)
-            active.last_cr = None
-            await active.client.query(content)
-            await self._consume_response(active)
-            await self._publish_state(session_id, state_after_turn(active.last_cr))
+        if not place_reservee:
+            active.reserver_place(plafond=get_settings().session_queue_max)
+        try:
+            # Une seule réception en cours à la fois par session.
+            async with active.message_lock:
+                # Trace le message utilisateur (WS + DB) AVANT d'interroger
+                # Claude, pour que l'historique soit lisible même si la session
+                # est rechargée en cours de réponse.
+                await self._publish(
+                    session_id, EVENT_TYPE_USER_MESSAGE, {"text": content, "origin": origin}
+                )
+                await self._publish_state(session_id, SESSION_STATE_THINKING)
+                active.last_cr = None
+                await active.client.query(content)
+                await self._consume_response(active)
+                await self._publish_state(session_id, state_after_turn(active.last_cr))
+        finally:
+            active.rendre_place()
 
     def set_publish_allowed(self, session_id: str, allowed: bool) -> None:
         """Autorise (ou retire) la publication pour une session active.

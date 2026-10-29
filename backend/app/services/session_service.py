@@ -10,7 +10,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -69,6 +71,15 @@ class SessionService:
     def __init__(self, manager: SessionManager) -> None:
         self._manager = manager
         self._session_factory: async_sessionmaker[AsyncSession] | None = None
+        # Tours lancés hors requête. On garde la référence : sans elle, le
+        # ramasse-miettes peut emporter la tâche avant la fin du tour, et le
+        # message disparaît sans trace.
+        self._tasks: set[asyncio.Task[None]] = set()
+
+    def _spawn(self, coro: Coroutine[Any, Any, None]) -> None:
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     def attach_session_factory(self, factory: async_sessionmaker[AsyncSession]) -> None:
         """Le manager a besoin du factory pour persister depuis les callbacks hors-requête."""
@@ -317,6 +328,33 @@ class SessionService:
         if not self._manager.is_active(session_id):
             await self.resume(db, user_id=user_id, session_id=session_id)
         await self._manager.send_message(session_id, content)
+
+    async def send_message_en_fond(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: str,
+        session_id: str,
+        content: str,
+    ) -> None:
+        """Accepte le message, lance le tour, et rend la main.
+
+        Un tour peut durer des minutes. L'attendre dans la requête HTTP
+        condamnait l'interface à verrouiller le champ de saisie pendant tout
+        ce temps, alors qu'écrire à un agent qui travaille est précisément le
+        geste qui le débloque.
+
+        Le contrôle d'accès et la reprise restent synchrones : ils doivent
+        pouvoir refuser tout de suite. Seul le tour part en tâche de fond, et
+        son avancement se suit par WebSocket.
+        """
+        await self.get(db, session_id, user_id)
+        if not self._manager.is_active(session_id):
+            await self.resume(db, user_id=user_id, session_id=session_id)
+        # Réserve la place DANS la requête : un refus de file pleine doit
+        # remonter en 429 à l'appelant, pas mourir dans une tâche de fond.
+        self._manager.reserver_place_file(session_id)
+        self._spawn(self._manager.send_message(session_id, content, place_reservee=True))
 
     async def stop(self, db: AsyncSession, *, user_id: str, session_id: str) -> None:
         await self.get(db, session_id, user_id)

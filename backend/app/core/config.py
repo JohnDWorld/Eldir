@@ -117,6 +117,13 @@ class Settings(BaseSettings):
     daily_token_budget: int = 1_000_000
     daily_cost_cap_usd: float = 8.0
 
+    # ── File d'attente par session ──────────────────────────────
+    # On peut écrire à une session qui travaille : le message attend la fin du
+    # tour. Ce plafond ne protège pas un budget (la politique maison est
+    # l'alerte, jamais le blocage), il protège une file : un agent parti en
+    # boucle y empilerait des centaines de consignes que personne ne relira.
+    session_queue_max: int = 5
+
     @property
     def is_dev(self) -> bool:
         return self.app_env == "dev"
