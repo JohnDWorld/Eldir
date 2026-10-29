@@ -281,11 +281,18 @@ def test_la_description_de_list_projects_annonce_qu_elle_sert_a_trier_ce_qui_dor
 @pytest.mark.parametrize(
     ("age", "attendu"),
     [
+        (timedelta(seconds=30), "à l'instant"),
+        (timedelta(minutes=-5), "à l'instant"),  # horloge en avance : jamais d'âge négatif
+        (timedelta(minutes=1), "il y a 1 min"),
+        (timedelta(minutes=35), "il y a 35 min"),
+        (timedelta(minutes=59, seconds=30), "il y a 59 min"),
+        (timedelta(minutes=60), "il y a 1 h"),
+        (timedelta(hours=3), "il y a 3 h"),
+        (timedelta(hours=23, minutes=30), "il y a 23 h"),
+        (timedelta(hours=24), "hier"),
+        (timedelta(hours=47, minutes=30), "hier"),
+        (timedelta(hours=48), "il y a 2 j"),
         (timedelta(days=12), "il y a 12 j"),
-        (timedelta(days=1, hours=2), "il y a 1 j"),
-        (timedelta(hours=5), "il y a 5 h"),
-        (timedelta(hours=1, minutes=30), "il y a 1 h"),
-        (timedelta(minutes=3), "à l'instant"),
     ],
 )
 async def test_list_projects_dit_depuis_quand_un_projet_dort(

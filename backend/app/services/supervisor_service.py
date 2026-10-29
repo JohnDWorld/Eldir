@@ -174,18 +174,25 @@ def _text(message: str) -> dict[str, Any]:
 
 def _anciennete(moment: datetime | None) -> str:
     """Ancienneté lisible. Un agent raisonne sur « il y a 12 jours », pas sur
-    un horodatage ISO qu'il devrait soustraire de tête."""
+    un horodatage ISO qu'il devrait soustraire de tête.
+
+    Mêmes paliers que `formatAge` (frontend/src/lib/format.ts) : l'agent et
+    l'interface doivent dire le même âge de la même session. À garder alignés.
+    """
     if moment is None:
         return "jamais travaillé"
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=UTC)
-    delta = datetime.now(UTC) - moment
-    if delta.days >= 1:
-        return f"il y a {delta.days} j"
-    heures = delta.seconds // 3600
-    if heures >= 1:
+    minutes = int((datetime.now(UTC) - moment).total_seconds() // 60)
+    if minutes < 1:
+        return "à l'instant"
+    if minutes < 60:
+        return f"il y a {minutes} min"
+    heures = minutes // 60
+    if heures < 24:
         return f"il y a {heures} h"
-    return "à l'instant"
+    jours = heures // 24
+    return "hier" if jours == 1 else f"il y a {jours} j"
 
 
 class SupervisorService:
