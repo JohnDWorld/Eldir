@@ -30,7 +30,9 @@ _FERMETURE_POLITIQUE = 1008
 
 async def _utilisateur(factory: async_sessionmaker[AsyncSession]) -> str:
     async with factory() as db:
-        user = User(email="john@example.com", hashed_password=hash_password("motdepasse-solide"))
+        user = User(
+            email="utilisateur@exemple.lan", hashed_password=hash_password("motdepasse-solide")
+        )
         db.add(user)
         await db.commit()
         return user.id
