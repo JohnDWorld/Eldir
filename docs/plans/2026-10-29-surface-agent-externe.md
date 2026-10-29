@@ -18,6 +18,17 @@
 - **Le dépôt est public.** Aucun secret, aucune adresse de machine, aucun nom d'hôte personnel, aucune adresse e-mail dans un fichier commité. Les exemples de doc utilisent `eldir.exemple.lan` ou `127.0.0.1`.
 - **Trois lots, trois branches** : `feat/sessions-paralleles-et-file` (tâches 1-2), `feat/surface-agent-externe` (tâches 3-10), `docs/finition-publique` (tâches 11-13).
 - **Portes de qualité**, qui doivent passer avant chaque commit : backend `uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest -q`, frontend `npm run lint && npx tsc --noEmit && npm test && npm run build`.
+- **Un jeton d'agent ne vaut QUE sur la surface MCP.** Corrigé en tâche 5 après
+  un trou que ce plan ne voyait pas : `get_current_user_id` et le WebSocket
+  acceptaient tout JWT signé et en prenaient le `sub`, donc un jeton d'agent
+  valait dix ans d'accès complet, non révocable par ce chemin. Depuis,
+  `core/security.py` est le seul endroit qui décide : `decode_session_token`
+  pour les portes de connexion (elle refuse un jeton d'agent),
+  `agent_token_service.authentifier` pour la surface MCP (elle refuse un jeton
+  de connexion). **Toute nouvelle porte passe par l'une des deux, jamais par un
+  décodeur nu.** C'est la leçon qui compte : le défaut n'était pas un oubli de
+  logique, c'était une mauvaise valeur par défaut, la fonction évidente étant la
+  dangereuse.
 - **Jamais de régression sur la porte de validation humaine.** `git commit`, `git push` et `gh pr` restent refusés par le hook `PreToolUse`, quel que soit le transport.
 
 ---
@@ -1207,7 +1218,10 @@ projet et par appel, pour dire ce que l'état waiting_input dit déjà.
 - Test: `backend/tests/unit/test_agent_token_service.py`
 
 **Interfaces:**
-- Consomme : `create_access_token(subject, *, expires_minutes, extra_claims)` et `decode_access_token(token)` de `app/core/security.py`.
+- Consomme : `create_access_token(subject, *, expires_minutes, extra_claims)` de
+  `app/core/security.py`, et `decode_agent_token(token)` de ce même module, qui
+  refuse un jeton de connexion. Le décodeur nu est privé (`_decode_jwt`) et ne
+  s'appelle pas depuis un service.
 - Produit :
 
 ```python
