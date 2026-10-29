@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from app.core.child_report import extract_cr, state_after_turn
 from app.core.config import get_settings
 from app.core.constants import (
     EVENT_TYPE_ERROR,
@@ -241,6 +242,9 @@ class ActiveSession:
     message_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     # Publication (commit/push/PR) autorisée par John pour cette session.
     publish_allowed: bool = False
+    # Dernier compte rendu <cr> du tour en cours, lu pour décider de l'état
+    # final de la session (cf. `_etat_apres_tour`).
+    last_cr: str | None = None
     # Alias SSH que cette session peut atteindre, ou None.
     remote_host: str | None = None
 
@@ -480,9 +484,10 @@ class SessionManager:
                 session_id, EVENT_TYPE_USER_MESSAGE, {"text": content, "origin": origin}
             )
             await self._publish_state(session_id, SESSION_STATE_THINKING)
+            active.last_cr = None
             await active.client.query(content)
             await self._consume_response(active)
-            await self._publish_state(session_id, SESSION_STATE_IDLE)
+            await self._publish_state(session_id, state_after_turn(active.last_cr))
 
     def set_publish_allowed(self, session_id: str, allowed: bool) -> None:
         """Autorise (ou retire) la publication pour une session active.
@@ -550,11 +555,7 @@ class SessionManager:
                     content = getattr(message, "content", []) or []
                     for block in content:
                         if isinstance(block, TextBlock):
-                            await self._publish(
-                                active.session_id,
-                                EVENT_TYPE_TEXT,
-                                {"text": getattr(block, "text", "")},
-                            )
+                            await self._on_text_block(active, getattr(block, "text", ""))
                         elif isinstance(block, ToolUseBlock):
                             await self._publish_state(active.session_id, SESSION_STATE_TOOL_USE)
 
@@ -604,6 +605,13 @@ class SessionManager:
                 EVENT_TYPE_ERROR,
                 {"message": str(exc), "type": type(exc).__name__},
             )
+
+    async def _on_text_block(self, active: ActiveSession, texte: str) -> None:
+        """Publie un bloc de texte et retient son compte rendu s'il en porte un."""
+        cr = extract_cr(texte)
+        if cr is not None:
+            active.last_cr = cr
+        await self._publish(active.session_id, EVENT_TYPE_TEXT, {"text": texte})
 
     async def _publish_state(self, session_id: str, state: str) -> None:
         active = self._sessions.get(session_id)
