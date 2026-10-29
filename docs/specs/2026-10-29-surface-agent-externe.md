@@ -149,10 +149,15 @@ Insuffisant pour un agent censé relancer sur un projet oublié : rien dans cett
 sortie ne dit qu'un projet dort. Il n'y a pas de notion d'oubli faute de date.
 
 **Changement** : on ajoute à la sortie existante la dernière activité et le
-travail non publié qui attend (`dernière activité : il y a 12 j · 2 commits non
-poussés`). Pas de sixième outil : la question « quoi avancer » et la question
-« quel projet » sont la même, et deux outils qui se consultent toujours
-ensemble sont un outil.
+nombre de sessions qui attendent un geste humain
+(`dernière activité : il y a 12 j · 1 session attend ta relecture`). Pas de
+sixième outil : la question « quoi avancer » et la question « quel projet »
+sont la même, et deux outils qui se consultent toujours ensemble sont un outil.
+
+Les deux chiffres viennent du SQL (le `max(updated_at)` des sessions du projet
+et un compte par état), donc l'outil reste une requête. Compter les commits non
+poussés aurait demandé un `git rev-list` par projet à chaque appel, pour dire
+ce que l'état `waiting_input` dit déjà.
 
 `list_sessions` porte déjà ce qu'il faut pour le reste : l'état de la session
 (`blocked`, `waiting_input`) et le compte rendu `<cr>` du dernier passage, avec
