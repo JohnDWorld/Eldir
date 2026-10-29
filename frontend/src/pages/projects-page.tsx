@@ -2,11 +2,13 @@
  * ProjectsPage - liste des projets Eldir + bouton "Ajouter depuis un repo".
  */
 
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Check,
   Circle,
   FolderGit2,
   Loader2,
+  MoreHorizontal,
   Plus,
   RefreshCw,
   Sparkles,
@@ -38,6 +40,9 @@ import type { Provider } from '@/lib/constants';
 import { PROVIDERS } from '@/lib/constants';
 import type { ProjectRead } from '@/lib/types/api';
 import { cn } from '@/lib/utils';
+
+const MENU_ITEM =
+  'flex min-h-11 w-full cursor-pointer select-none items-center gap-2.5 px-3 font-sans text-sm text-eldir-ink-2 outline-none transition-colors data-[highlighted]:bg-eldir-cream data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45';
 
 export function ProjectsPage(): JSX.Element {
   const projects = useProjects();
@@ -120,44 +125,10 @@ export function ProjectsPage(): JSX.Element {
             copie isolée de l&apos;un d&apos;eux.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {nbProjets > 0 && (
-            <>
-              <button
-                type="button"
-                onClick={handleSyncAll}
-                disabled={syncAll.isPending}
-                className="eldir-btn eldir-btn--secondary"
-                title="Fetch et fast-forward de tous les repos clonés"
-              >
-                <RefreshCw
-                  size={14}
-                  aria-hidden="true"
-                  className={syncAll.isPending ? 'animate-spin' : undefined}
-                />
-                {syncAll.isPending ? 'synchro…' : 'tout synchroniser'}
-              </button>
-              <button
-                type="button"
-                onClick={handleGenerateMissing}
-                disabled={generateMissing.isPending || batch.data?.running === true}
-                className="eldir-btn eldir-btn--secondary"
-                title="Génère et applique le Mission Template des repos qui n'en ont pas"
-              >
-                <Sparkles size={14} aria-hidden="true" className="text-eldir-gold-text" />
-                {batch.data?.running ? 'génération…' : 'templates manquants'}
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => setNewRepoOpen(true)}
-            className="eldir-btn eldir-btn--secondary"
-            title="Crée un repo vide chez ton provider, puis le clone ici"
-          >
-            <Plus size={14} aria-hidden="true" />
-            créer un repo
-          </button>
+        {/* Une seule action en clair, le reste dans un menu : les quatre
+            boutons alignés poussaient la liste des projets hors du premier
+            écran sur mobile, alors que trois d'entre eux servent rarement. */}
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={() => setAddOpen(true)}
@@ -167,6 +138,73 @@ export function ProjectsPage(): JSX.Element {
             <Plus size={14} aria-hidden="true" />
             ajouter un repo
           </button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                aria-label="Autres actions sur les projets"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-eldir border border-eldir-gray-3 text-eldir-gray transition-colors hover:bg-eldir-cream hover:text-eldir-ink"
+              >
+                <MoreHorizontal size={18} aria-hidden="true" />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={8}
+                className="z-50 w-72 overflow-hidden rounded-eldir border border-eldir-gray-3 bg-eldir-paper shadow-lg"
+              >
+                <DropdownMenu.Item
+                  onSelect={() => setNewRepoOpen(true)}
+                  className={MENU_ITEM}
+                >
+                  <Plus size={16} aria-hidden="true" className="shrink-0" />
+                  <span className="min-w-0">
+                    Créer un repo
+                    <span className="mt-0.5 block font-sans text-xs text-eldir-gray">
+                      Crée un repo vide chez ton provider, puis le clone ici.
+                    </span>
+                  </span>
+                </DropdownMenu.Item>
+                {nbProjets > 0 && (
+                  <>
+                    <DropdownMenu.Separator className="h-px bg-eldir-gray-3" />
+                    <DropdownMenu.Item
+                      onSelect={handleSyncAll}
+                      disabled={syncAll.isPending}
+                      className={MENU_ITEM}
+                    >
+                      <RefreshCw
+                        size={16}
+                        aria-hidden="true"
+                        className={cn('shrink-0', syncAll.isPending && 'animate-spin')}
+                      />
+                      <span className="min-w-0">
+                        {syncAll.isPending ? 'Synchronisation…' : 'Tout synchroniser'}
+                        <span className="mt-0.5 block font-sans text-xs text-eldir-gray">
+                          Récupère les derniers commits de chaque repo cloné.
+                        </span>
+                      </span>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onSelect={handleGenerateMissing}
+                      disabled={generateMissing.isPending || batch.data?.running === true}
+                      className={MENU_ITEM}
+                    >
+                      <Sparkles size={16} aria-hidden="true" className="shrink-0" />
+                      <span className="min-w-0">
+                        {batch.data?.running ? 'Génération en cours…' : 'Templates manquants'}
+                        <span className="mt-0.5 block font-sans text-xs text-eldir-gray">
+                          Un tour Claude par repo sans template, facturé comme
+                          une session.
+                        </span>
+                      </span>
+                    </DropdownMenu.Item>
+                  </>
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </header>
 
@@ -456,9 +494,8 @@ function ProjectRow({ project }: { project: ProjectRead }): JSX.Element {
             </div>
             {/* Deux données, deux blocs qui passent à la ligne entre eux :
                 `break-all` coupait « branch » en plein milieu sur mobile. */}
-            <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-xs text-eldir-gray">
-              <span className="break-all">slug {project.slug}</span>
-              <span>branche {project.default_branch}</span>
+            <div className="mt-0.5 font-mono text-xs text-eldir-gray">
+              branche {project.default_branch}
             </div>
           </div>
         </div>
