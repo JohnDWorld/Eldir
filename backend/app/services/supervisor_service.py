@@ -18,13 +18,20 @@ publication depuis le dashboard.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
-from app.core.constants import EVENT_TYPE_ERROR, EVENT_TYPE_STOP, MESSAGE_ORIGIN_ELDIR
+from app.core.constants import (
+    EVENT_TYPE_ERROR,
+    EVENT_TYPE_STOP,
+    MESSAGE_ORIGIN_ELDIR,
+    SESSION_STATE_BLOCKED,
+    SESSION_STATE_WAITING_INPUT,
+)
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
 from app.db.models import Project
@@ -45,8 +52,9 @@ SUPERVISOR_PREFS_SLUG = "supervisor_prefs"
 # qu'il n'existe jamais deux descriptions du même outil.
 SCHEMAS_OUTILS: dict[str, tuple[str, dict[str, Any]]] = {
     "list_projects": (
-        "Liste les repos branchés sur Eldir. Sert à identifier de quel "
-        "projet John parle avant de dispatcher.",
+        "Liste les repos branchés sur Eldir, avec pour chacun la date de "
+        "dernière activité et ce qui attend un geste de John. Sert à "
+        "identifier de quel projet il parle, et à repérer ceux qui dorment.",
         {"type": "object", "properties": {}},
     ),
     "list_sessions": (
@@ -164,6 +172,22 @@ def _text(message: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": message}]}
 
 
+def _anciennete(moment: datetime | None) -> str:
+    """Ancienneté lisible. Un agent raisonne sur « il y a 12 jours », pas sur
+    un horodatage ISO qu'il devrait soustraire de tête."""
+    if moment is None:
+        return "jamais travaillé"
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    delta = datetime.now(UTC) - moment
+    if delta.days >= 1:
+        return f"il y a {delta.days} j"
+    heures = delta.seconds // 3600
+    if heures >= 1:
+        return f"il y a {heures} h"
+    return "à l'instant"
+
+
 class SupervisorService:
     def __init__(
         self,
@@ -279,12 +303,38 @@ class SupervisorService:
                 select(Project).where(Project.user_id == user_id).order_by(Project.name.asc())
             )
             projects = list(result.scalars().all())
-        if not projects:
-            return "Aucun projet branché sur Eldir."
-        lines = [
-            f"- {p.name} (id={p.id}) · {p.provider}:{p.repo_full_name} · branche {p.default_branch}"
-            for p in projects
-        ]
+            if not projects:
+                return "Aucun projet branché sur Eldir."
+
+            # Deux agrégats, pas d'appel git : compter les commits non poussés
+            # coûterait un `git rev-list` par projet et par appel, pour dire ce
+            # que l'état `waiting_input` dit déjà.
+            activite = await db.execute(
+                select(
+                    SessionRow.project_id,
+                    func.max(SessionRow.updated_at),
+                    func.count().filter(
+                        SessionRow.state.in_((SESSION_STATE_WAITING_INPUT, SESSION_STATE_BLOCKED))
+                    ),
+                )
+                .where(SessionRow.user_id == user_id, SessionRow.is_system.is_(False))
+                .group_by(SessionRow.project_id)
+            )
+            par_projet = {pid: (dernier, attente) for pid, dernier, attente in activite.all()}
+
+        lines: list[str] = []
+        for p in projects:
+            dernier, attente = par_projet.get(p.id, (None, 0))
+            suffixe = ""
+            if attente == 1:
+                suffixe = " · 1 session attend un geste de ta part"
+            elif attente:
+                suffixe = f" · {attente} sessions attendent un geste de ta part"
+            lines.append(
+                f"- {p.name} (id={p.id}) · {p.provider}:{p.repo_full_name} "
+                f"· branche {p.default_branch} · dernière activité : "
+                f"{_anciennete(dernier)}{suffixe}"
+            )
         return "\n".join(lines)
 
     async def outil_list_sessions(self, user_id: str) -> str:
