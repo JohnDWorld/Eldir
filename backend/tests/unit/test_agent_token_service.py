@@ -14,7 +14,7 @@ from app.core.security import create_access_token, decode_agent_token
 from app.db.models import AgentToken
 from app.services import agent_token_service as svc
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
 async def _emettre(db: AsyncSession, user_id: str = "u1", label: str = "eldir du village"):
@@ -49,20 +49,22 @@ async def test_un_jeton_vit_des_mois(db_session: AsyncSession) -> None:
     assert expire > datetime.now(UTC) + timedelta(days=300)
 
 
-async def test_un_jeton_revoque_est_refuse(db_session: AsyncSession) -> None:
-    ligne, clair = await _emettre(db_session, label="à couper")
-    await svc.revoquer(db_session, user_id="u1", token_id=ligne.id)
-    await db_session.commit()
-    with pytest.raises(AuthenticationError):
-        await svc.authentifier(db_session, jeton=clair)
-
-
-async def test_un_jwt_de_session_ordinaire_n_ouvre_pas_la_porte(
-    db_session: AsyncSession,
+async def test_un_jeton_revoque_est_refuse_depuis_une_autre_session(
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    ordinaire = create_access_token("u1")
-    with pytest.raises(AuthenticationError):
-        await svc.authentifier(db_session, jeton=ordinaire)
+    """Émettre, révoquer et authentifier dans trois sessions distinctes, comme le
+    font trois requêtes. Dans une seule session, l'objet en mémoire porterait déjà
+    `revoked_at` (`expire_on_commit=False`) et le test réussirait même si rien
+    n'était écrit en base."""
+    async with session_factory() as emission:
+        ligne, clair = await _emettre(emission, label="à couper")
+        token_id = ligne.id
+    async with session_factory() as coupure:
+        await svc.revoquer(coupure, user_id="u1", token_id=token_id)
+        await coupure.commit()
+    async with session_factory() as requete:
+        with pytest.raises(AuthenticationError, match="révoqué"):
+            await svc.authentifier(requete, jeton=clair)
 
 
 @pytest.mark.parametrize("extra", [{}, {"kind": "session"}])
@@ -82,7 +84,7 @@ async def test_un_jeton_inconnu_en_base_est_refuse(db_session: AsyncSession) -> 
     """Un jti forgé avec la bonne clé mais absent de la table ne passe pas :
     la table est la liste blanche, pas un simple journal."""
     forge = create_access_token("u1", extra_claims={"kind": "agent", "jti": "inexistant"})
-    with pytest.raises(AuthenticationError, match="invalide ou révoqué"):
+    with pytest.raises(AuthenticationError, match="inconnu"):
         await svc.authentifier(db_session, jeton=forge)
 
 
@@ -97,7 +99,7 @@ async def test_le_jti_d_un_autre_utilisateur_ne_se_rejoue_pas(db_session: AsyncS
     la ligne. Sinon, connaître un `jti` permettrait d'usurper un autre compte."""
     ligne, _ = await _emettre(db_session, user_id="u1")
     usurpe = create_access_token("u2", extra_claims={"kind": "agent", "jti": ligne.jti})
-    with pytest.raises(AuthenticationError, match="invalide ou révoqué"):
+    with pytest.raises(AuthenticationError, match="inconnu"):
         await svc.authentifier(db_session, jeton=usurpe)
 
 
