@@ -23,6 +23,7 @@ import { SESSION_STATE_LABEL } from '@/lib/constants';
 import { DiffPanel } from '@/features/sessions/diff-panel';
 import { CommitDialog, OpenPrDialog } from '@/features/sessions/git-actions';
 import { SessionActions } from '@/features/sessions/session-actions';
+import { messagesEnAttente } from '@/features/sessions/pending-messages';
 import { useSessionStream } from '@/hooks/use-session-stream';
 import {
   useDeleteSession,
@@ -84,6 +85,9 @@ export function SessionPage(): JSX.Element {
   };
 
   const [input, setInput] = useState('');
+  // Ce que John a envoyé et que le fil ne porte pas encore. Un tableau de
+  // textes et pas un compteur : on les affiche, on ne les dénombre pas.
+  const [envoyes, setEnvoyes] = useState<string[]>([]);
   const composer = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const el = composer.current;
@@ -130,17 +134,27 @@ export function SessionPage(): JSX.Element {
     return merged;
   }, [historical.data, live.events]);
 
+  const enAttente = useMemo(
+    () => messagesEnAttente(envoyes, events),
+    [envoyes, events],
+  );
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const content = input.trim();
     if (!content) return;
     setInput('');
+    setEnvoyes((liste) => [...liste, content]);
     try {
       await sendMessage.mutateAsync({ content });
     } catch (err) {
       // Le message n'est pas parti : on le rend à John au lieu de le perdre.
       // Sans ça, un réseau coupé effaçait un paragraphe tapé au pouce.
+      setEnvoyes((liste) => {
+        const i = liste.lastIndexOf(content);
+        return i === -1 ? liste : [...liste.slice(0, i), ...liste.slice(i + 1)];
+      });
       setInput((current) => (current.length === 0 ? content : current));
       setError(
         err instanceof Error
@@ -333,6 +347,19 @@ export function SessionPage(): JSX.Element {
           )}
         >
           <ChatStream events={events} />
+          {enAttente.length > 0 && (
+            <ul className="shrink-0 space-y-1 border-t border-eldir-gray-3 px-4 py-2">
+              {enAttente.map((texte, i) => (
+                <li
+                  key={`${texte}-${i}`}
+                  className="ml-auto max-w-[85%] rounded-eldir bg-eldir-cream-2 px-3 py-2 text-sm text-eldir-gray"
+                >
+                  <span className="whitespace-pre-wrap break-words">{texte}</span>
+                  <span className="eldir-caps ml-2 whitespace-nowrap">en attente</span>
+                </li>
+              ))}
+            </ul>
+          )}
           {error && (
             <div className="border-t border-eldir-gray-3 px-4 py-2 font-mono text-xs text-eldir-red-text">
               {error}
@@ -363,12 +390,11 @@ export function SessionPage(): JSX.Element {
                 }}
                 placeholder={isSupervisor ? 'Écris à Eldir…' : 'Écris à Claude…'}
                 aria-label="Message"
-                disabled={sendMessage.isPending}
-                className="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-3 font-sans text-sm leading-5 text-eldir-ink disabled:opacity-50"
+                className="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-3 font-sans text-sm leading-5 text-eldir-ink"
               />
               <button
                 type="submit"
-                disabled={sendMessage.isPending || input.trim().length === 0}
+                disabled={input.trim().length === 0}
                 aria-label="Envoyer le message"
                 title="Envoyer (⌘ ou Ctrl + Entrée)"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-eldir bg-eldir-orange font-mono text-sm text-eldir-on-orange transition-colors hover:bg-eldir-orange/90 disabled:opacity-40"

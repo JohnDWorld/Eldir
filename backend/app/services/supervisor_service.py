@@ -263,6 +263,15 @@ class SupervisorService:
                             "vide pour laisser Eldir choisir."
                         ),
                     },
+                    "nouveau_chantier": {
+                        "type": "boolean",
+                        "description": (
+                            "Optionnel. true pour ouvrir une session neuve à "
+                            "côté des existantes, dans son propre worktree. "
+                            "Un chantier par sujet indépendant ; la même "
+                            "session pour la suite d'un travail en cours."
+                        ),
+                    },
                 },
                 "required": ["project_id", "consigne"],
             },
@@ -278,6 +287,7 @@ class SupervisorService:
                     user_id=user_id,
                     project_id=project_id,
                     session_id=session_id,
+                    nouveau_chantier=bool(args.get("nouveau_chantier")),
                 )
             except NotFoundError as exc:
                 return _text(f"Erreur : {exc.message}")
@@ -377,7 +387,12 @@ class SupervisorService:
 
     # ── dispatch ────────────────────────────────────────────────
     async def _resolve_target(
-        self, *, user_id: str, project_id: str, session_id: str | None
+        self,
+        *,
+        user_id: str,
+        project_id: str,
+        session_id: str | None,
+        nouveau_chantier: bool = False,
     ) -> tuple[str, str, bool]:
         """Renvoie (session_id, nom du projet, session_créée)."""
         async with self._factory() as db:
@@ -391,19 +406,25 @@ class SupervisorService:
                     raise NotFoundError(f"Session {session_id} introuvable.")
                 return existing.id, project.name, False
 
-            result = await db.execute(
-                select(SessionRow)
-                .where(
-                    SessionRow.user_id == user_id,
-                    SessionRow.project_id == project_id,
-                    SessionRow.is_system.is_(False),
+            # Un second chantier sur le même repo veut sa propre session, donc
+            # son propre worktree : deux consignes parallèles dans le même
+            # arbre de travail se marcheraient dessus. Sans ce choix, ouvrir
+            # une seconde session demandait un passage par l'interface, ce
+            # qu'un agent ne peut pas faire.
+            if not nouveau_chantier:
+                result = await db.execute(
+                    select(SessionRow)
+                    .where(
+                        SessionRow.user_id == user_id,
+                        SessionRow.project_id == project_id,
+                        SessionRow.is_system.is_(False),
+                    )
+                    .order_by(SessionRow.updated_at.desc())
+                    .limit(1)
                 )
-                .order_by(SessionRow.updated_at.desc())
-                .limit(1)
-            )
-            existing = result.scalar_one_or_none()
-            if existing is not None and existing.sdk_session_id:
-                return existing.id, project.name, False
+                existing = result.scalar_one_or_none()
+                if existing is not None and existing.sdk_session_id:
+                    return existing.id, project.name, False
 
             created = await self._sessions.create_and_start(
                 db, user_id=user_id, project_id=project_id
