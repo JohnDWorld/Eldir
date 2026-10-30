@@ -5,6 +5,9 @@
  * Mobile  : brand + libellé de la page courante + bouton menu (ProfileMenu),
  * parce que cinq onglets ne tiennent pas sous 375px. La navigation reste donc
  * atteignable partout, sans barre du bas qui mange la hauteur utile.
+ *
+ * La barre porte la marge d'encoche : c'est elle qui touche le haut de l'écran,
+ * et `viewport-fit=cover` (index.html) fait dessiner l'app dessous.
  */
 
 import type { ReactNode } from 'react';
@@ -37,7 +40,10 @@ export function AppTopbar({ rightInfo }: AppTopbarProps): JSX.Element {
   const pageLabel = currentNavLabel(pathname);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 md:h-[42px] md:gap-3.5 md:px-4">
+    // `min-h` et pas `h` : avec `box-sizing: border-box`, une hauteur fixe
+    // aurait fait rentrer la marge d'encoche DANS les 48px et comprimé la
+    // barre au lieu de la décaler.
+    <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-eldir-gray-3 bg-eldir-cream-2 px-3 pt-[env(safe-area-inset-top)] md:min-h-[42px] md:gap-3.5 md:px-4">
       <NavLink
         to="/"
         end

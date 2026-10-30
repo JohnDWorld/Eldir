@@ -130,3 +130,36 @@
     @apply animate-pulse rounded-eldir bg-eldir-cream-2;
   }
 }
+
+/* Plancher de 16px sur les champs de saisie, sous le point de rupture tactile.
+
+   WebKit zoome la page quand un champ sous 16px prend le focus, et ne dézoome
+   jamais. Écrire à Claude, qui est le geste le plus fréquent de l'app,
+   laissait donc le téléphone zoomé pour tout le reste de la visite. Les 33
+   champs de l'app recopient `text-sm` (14px) à la main et il n'existe aucune
+   classe de champ partagée : la règle vit ici, en un seul endroit, plutôt que
+   recopiée dans 14 fichiers.
+
+   Hors de ce fichier, la seule autre façon de régler le zoom au focus serait
+   `maximum-scale=1` dans le viewport, qui l'empêche en interdisant à
+   l'utilisateur de zoomer du tout. Jamais : un plancher de police ne coûte
+   rien à personne, couper le zoom coûte l'app à qui en a besoin.
+
+   `!important` est nécessaire, pas confortable. `.text-sm` a une spécificité
+   de classe qu'aucun sélecteur de type ne bat, et la rattraper par
+   `input[class]` laisserait dehors les champs sans attribut `class`, qui sont
+   justement ceux que WebKit rend à 13px. Le prix : un champ qui voudrait être
+   PLUS grand que 16px sur mobile doit le dire avec son propre `!important`.
+   Aucun ne le veut aujourd'hui.
+
+   Les contrôles sans texte sont exclus : leur taille rendue suit la police
+   dans certains moteurs, un plancher les grossirait sans rien corriger. */
+@media (max-width: 767px) {
+  input:where(
+      :not([type='checkbox'], [type='radio'], [type='range'], [type='color'])
+    ),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
