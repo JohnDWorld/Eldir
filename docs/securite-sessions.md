@@ -86,14 +86,15 @@ un fichier.
 
 ## Ce qui tient face à une injection de prompt
 
-Trois gardes, dans cet ordre d'importance. Seule la première est en place à
-ce jour, et ce document suit les deux autres au fur et à mesure.
+Trois gardes, dans cet ordre d'importance. Ce document suit l'état réel de
+chacune.
 
 1. **Le masque d'environnement** (ce document). ✅ En place. Sans lui les deux
    autres seraient décoratives : une session se réautorise elle-même.
 2. **La publication n'est ouverte que par un geste humain dans le dashboard.**
-   ⏳ À faire : `allow_publish` est encore servi sur la surface externe, donc un
-   jeton d'agent compromis peut l'ouvrir.
+   ✅ En place. `allow_publish` n'est pas servi sur la surface externe
+   (`HORS_SURFACE_EXTERNE` dans `app/mcp_http.py`) : un jeton d'agent ne peut
+   pas l'ouvrir, même compromis.
 3. **Le jeton Git n'est jamais à portée d'une session.** ⏳ À faire : il reste
    aujourd'hui dans le remote du clone, lisible par `git remote -v`, et un PAT
    classique porte sur tous les dépôts de son propriétaire.

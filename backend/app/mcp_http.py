@@ -1,9 +1,12 @@
 """La surface MCP d'Eldir, servie en HTTP pour un agent extérieur.
 
-Les cinq outils sont ceux du superviseur, à l'identique : ce module ne porte
+Les outils servis sont ceux du superviseur, à l'identique : ce module ne porte
 aucune logique métier, seulement l'adaptation d'un transport et la garde du
 jeton. Toute règle qui vivrait ici seulement serait une règle que le
 superviseur interne n'applique pas, donc deux Eldir qui divergent.
+
+Une seule exception, et elle est un retrait, pas une règle : la surface externe
+ne sert pas `allow_publish`. Cf. `HORS_SURFACE_EXTERNE`.
 """
 
 from __future__ import annotations
@@ -133,24 +136,31 @@ async def dispatch(
     )
 
 
-async def allow_publish(session_id: str, autoriser: StrictBool) -> str:
-    user_id, _ = agent_courant()
-    return await get_supervisor_service().outil_allow_publish(
-        user_id, session_id=session_id, autoriser=autoriser
-    )
-
-
 async def remember(fait: str) -> str:
     # Le libellé du jeton signe la préférence : elle entre dans le prompt de John.
     user_id, libelle = agent_courant()
     return await get_supervisor_service().outil_remember(user_id, fait=fait, libelle_agent=libelle)
 
 
+# Ce que le superviseur sait faire et que la surface externe ne sert pas.
+#
+# `allow_publish` ouvre la seule action irréversible d'une session. Un agent
+# extérieur transmet des suggestions et des tickets écrits par des utilisateurs
+# de La Boutique : du texte non fiable, envoyé à des sessions qui tournent en
+# `bypassPermissions`. Lui laisser cet outil rendait la porte de publication
+# ouvrable par injection de prompt, et un jeton d'agent vit dix ans : la garde
+# tenait face à la dérive, pas face à une consigne hostile.
+#
+# La publication ne s'ouvre donc que par un geste humain dans le dashboard. Le
+# superviseur interne garde l'outil : il ne lit que les consignes de John.
+# Aucune fonction d'adaptation n'existe ici pour cet outil, et c'est voulu :
+# un nom retiré d'une table se remet, une fonction absente ne s'appelle pas.
+HORS_SURFACE_EXTERNE: frozenset[str] = frozenset({"allow_publish"})
+
 OUTILS: dict[str, Callable[..., Awaitable[str]]] = {
     "list_projects": list_projects,
     "list_sessions": list_sessions,
     "dispatch": dispatch,
-    "allow_publish": allow_publish,
     "remember": remember,
 }
 

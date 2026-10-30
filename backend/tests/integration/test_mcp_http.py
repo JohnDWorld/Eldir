@@ -297,13 +297,55 @@ def test_un_outil_appele_hors_de_la_garde_n_agit_au_nom_de_personne() -> None:
 
 
 # ── Ce que le modèle lit ────────────────────────────────────────────────
+def _table_externe() -> dict[str, tuple[str, dict[str, Any]]]:
+    """La table du superviseur moins ce que la surface externe retire."""
+    return {
+        nom: valeur
+        for nom, valeur in SCHEMAS_OUTILS.items()
+        if nom not in mcp_http.HORS_SURFACE_EXTERNE
+    }
+
+
 async def test_les_outils_publies_sont_exactement_la_table(url_mcp: str, jeton_agent: str) -> None:
-    """Descriptions ET schémas, paramètre par paramètre : comme le serveur in-process."""
+    """Descriptions ET schémas, paramètre par paramètre : comme le serveur in-process.
+
+    À un retrait près, nommé dans `HORS_SURFACE_EXTERNE` et vérifié juste après :
+    comparer à la table entière ferait échouer ce test sur le durcissement
+    lui-même, comparer à la seule liste servie laisserait un outil réapparaître
+    en silence.
+    """
     async with _agent(url_mcp, jeton_agent) as session:
         outils = (await session.list_tools()).tools
-    assert {o.name: (o.description, o.inputSchema) for o in outils} == SCHEMAS_OUTILS
+    assert {o.name: (o.description, o.inputSchema) for o in outils} == _table_externe()
     # Le superviseur interne rend du texte seul : pas de contenu structuré en plus.
     assert all(o.outputSchema is None for o in outils)
+
+
+async def test_un_jeton_d_agent_ne_peut_pas_ouvrir_la_publication(
+    url_mcp: str, jeton_agent: str
+) -> None:
+    """Le retrait porte sur ce que la surface annonce ET sur ce qu'elle accepte.
+
+    Deux preuves séparées parce qu'elles tombent pour des raisons différentes :
+    un outil retiré de `list_tools` mais encore routé resterait appelable par
+    un agent qui connaît son nom, et un outil refusé mais encore annoncé
+    inviterait le modèle à l'essayer à chaque tour.
+    """
+    async with _agent(url_mcp, jeton_agent) as session:
+        annonces = {o.name for o in (await session.list_tools()).tools}
+        resultat = await session.call_tool(
+            "allow_publish", {"session_id": "s1", "autoriser": True}
+        )
+
+    assert mcp_http.HORS_SURFACE_EXTERNE, "un retrait vide ferait passer ce test pour une garde"
+    for retire in mcp_http.HORS_SURFACE_EXTERNE:
+        assert retire not in annonces, f"{retire} est encore annoncé à l'agent"
+        assert retire not in mcp_http.OUTILS, f"{retire} est encore routé"
+    assert resultat.isError
+
+    # Et il reste servi au superviseur interne : le retrait vise la surface
+    # externe, pas la fonctionnalité.
+    assert "allow_publish" in SCHEMAS_OUTILS
 
 
 def test_le_schema_servi_est_une_copie_de_la_table() -> None:
@@ -321,7 +363,7 @@ def test_chaque_fonction_d_outil_accepte_les_parametres_que_la_table_annonce() -
 
     Un paramètre ajouté à la table seule serait annoncé puis jeté en silence.
     """
-    assert set(mcp_http.OUTILS) == set(SCHEMAS_OUTILS)
+    assert set(mcp_http.OUTILS) == set(_table_externe())
     types_json = {"string": str, "boolean": bool}
     for nom, fonction in mcp_http.OUTILS.items():
         _, schema = SCHEMAS_OUTILS[nom]
@@ -667,7 +709,6 @@ async def _en_process(
         ("list_projects", {}),
         ("list_sessions", {}),
         ("dispatch", {"project_id": "projet-inconnu", "consigne": "x"}),
-        ("allow_publish", {"session_id": "session-inconnue", "autoriser": True}),
     ],
 )
 async def test_http_et_in_process_rendent_le_meme_texte(
@@ -716,7 +757,12 @@ def _arguments_invalides(nom: str) -> list[tuple[str, dict[str, Any]]]:
 
 
 @pytest.mark.parametrize(
-    "nom", [n for n, (_, schema) in SCHEMAS_OUTILS.items() if schema["properties"]]
+    "nom",
+    [
+        n
+        for n, (_, schema) in SCHEMAS_OUTILS.items()
+        if schema["properties"] and n not in mcp_http.HORS_SURFACE_EXTERNE
+    ],
 )
 async def test_http_et_in_process_refusent_les_memes_arguments(
     url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch, nom: str
@@ -828,12 +874,14 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Commit, push et PR restent refusés à l'enfant quel que soit le transport.
+    """Commit, push et PR restent refusés à l'enfant, et aucun jeton n'ouvre la porte.
 
-    Le hook est le vrai (SessionManager réel, seul le SDK est factice), la
-    permission passe par le vrai `allow_publish` servi en HTTP. Le test ouvre
-    la porte à la fin : sans cette preuve, un hook qui refuserait tout, tout le
-    temps, passerait pour un hook qui garde.
+    Le hook est le vrai (SessionManager réel, seul le SDK est factice). La
+    permission ne passe plus par HTTP, parce que la surface externe ne sert pas
+    `allow_publish` : elle passe par `outil_allow_publish`, le corps que le
+    superviseur interne appelle et que le geste humain du dashboard empruntera.
+    (Pas par le serveur MCP in-process : ce test remplace le SDK par un double,
+    donc `_build_mcp_server` ne peut pas s'y monter.)
     """
     options = _sdk_factice(monkeypatch)
     service, manager = _superviseur_reel(session_factory)
@@ -860,18 +908,24 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
         assert await _refus(hook, commande), commande
     assert not await _refus(hook, "git status"), "le hook ne doit pas tout refuser"
 
-    # L'agent d'un autre porteur ne peut pas lui ouvrir la porte.
-    texte = await _appelle(
-        url_mcp, jeton_etranger, "allow_publish", {"session_id": session_id, "autoriser": True}
-    )
-    assert texte == f"Erreur : Session {session_id} introuvable."
-    for commande in _PUBLIER:
-        assert await _refus(hook, commande), commande
+    # Aucun jeton d'agent n'ouvre la porte, pas même celui du propriétaire de
+    # la session : l'outil n'est pas servi en HTTP. C'est le test que John
+    # demande, et il porte sur les deux jetons pour ne pas confondre « retiré
+    # de la surface » avec « refusé parce que la session est à un autre ».
+    for jeton in (jeton_etranger, jeton_proprietaire):
+        async with _agent(url_mcp, jeton) as agent:
+            resultat = await agent.call_tool(
+                "allow_publish", {"session_id": session_id, "autoriser": True}
+            )
+        assert resultat.isError, "la surface externe ne doit pas servir allow_publish"
+        for commande in _PUBLIER:
+            assert await _refus(hook, commande), commande
 
-    # Le propriétaire la rouvre sur demande explicite : la porte tourne, et le
-    # push forcé reste refusé même ouverte.
-    texte = await _appelle(
-        url_mcp, jeton_proprietaire, "allow_publish", {"session_id": session_id, "autoriser": True}
+    # Le geste humain, lui, la rouvre : la porte tourne, et le push forcé reste
+    # refusé même ouverte. Sans cette preuve, un hook qui refuserait tout, tout
+    # le temps, passerait pour un hook qui garde.
+    texte = await service.outil_allow_publish(
+        proprietaire, session_id=session_id, autoriser=True
     )
     assert texte.startswith(f"Publication autorisée pour la session {session_id}.")
     for commande in _PUBLIER:
@@ -882,8 +936,8 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
     )
 
     # Et il la referme.
-    texte = await _appelle(
-        url_mcp, jeton_proprietaire, "allow_publish", {"session_id": session_id, "autoriser": False}
+    texte = await service.outil_allow_publish(
+        proprietaire, session_id=session_id, autoriser=False
     )
     assert texte.startswith(f"Publication de nouveau bloquée pour la session {session_id}.")
     for commande in _PUBLIER:

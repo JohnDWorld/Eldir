@@ -262,6 +262,12 @@ reconstruire la logique de dispatch, ou bien conduire l'interface à la main.
 - [x] **La porte de validation humaine ne bouge pas** : `git commit`, `git push`,
       `gh pr` et `glab mr` restent refusés au niveau du hook `PreToolUse`, quel que
       soit le transport, et un test le vérifie.
+- [x] **Et elle ne s'ouvre que par un geste humain** : `allow_publish` a été retiré
+      de la surface externe. La surface sert à transmettre du texte écrit par des
+      utilisateurs de La Boutique, donc non fiable : servi en HTTP, l'outil rendait
+      la publication ouvrable par injection de prompt, pour dix ans et sans
+      périmètre. Le superviseur interne le garde. Cf.
+      [`docs/securite-sessions.md`](./docs/securite-sessions.md).
 
 Volontairement **hors périmètre**, et ce sont des choix, pas des oublis :
 
@@ -270,9 +276,9 @@ Volontairement **hors périmètre**, et ce sont des choix, pas des oublis :
   jamais de blocage*) et l'alerte de budget par session reste la seule garde.
 - **Pas de file de messages durable.** Le plafond ci-dessus borne une file en mémoire :
   un redémarrage perd les messages en attente, comme il perd les sessions actives.
-- **Pas d'autorisation fine par outil.** Un jeton donne les cinq outils ou rien. Un
-  jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé, se
-  branche. Ce jour-là, pas avant.
+- **Pas d'autorisation fine par outil.** Un jeton donne les quatre outils servis ou
+  rien. Un jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé,
+  se branche. Ce jour-là, pas avant.
 
 ### Phase 7 - Souveraineté complète (V2/V3)
 

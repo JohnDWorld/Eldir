@@ -139,11 +139,13 @@ La **dernière activité** de `list_projects` est la dernière écriture sur la 
 session, pas la date du dernier commit : un projet dont une session a bougé hier est
 « actif d'hier », quel que soit l'âge de son historique git.
 
-Ces cinq outils sont aussi servis en MCP sur HTTP, pour qu'un agent extérieur puisse
-piloter Eldir comme le fait cette conversation. Un seul corps par outil et une seule
-table de descriptions : les deux transports ne peuvent pas diverger. Voir
-[`docs/agent-externe.md`](./agent-externe.md), qui dit surtout ce qu'un jeton
-d'agent accorde.
+Quatre de ces outils sont aussi servis en MCP sur HTTP, pour qu'un agent
+extérieur puisse piloter Eldir comme le fait cette conversation. Un seul corps
+par outil et une seule table de descriptions : les deux transports ne peuvent
+pas diverger. Le cinquième, `allow_publish`, reste réservé au superviseur
+interne et au dashboard : la publication ne s'ouvre pas sur une consigne venue
+du dehors. Voir [`docs/agent-externe.md`](./agent-externe.md), qui dit surtout
+ce qu'un jeton d'agent accorde.
 
 ## Ce que ça coûte
 

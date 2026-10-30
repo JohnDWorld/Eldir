@@ -1,8 +1,9 @@
 # Brancher un agent extérieur sur Eldir
 
-> Les cinq outils du superviseur, servis en MCP sur HTTP, derrière un jeton que tu
-> révoques. De quoi laisser un autre assistant piloter tes sessions Claude sans
-> reconstruire la logique de dispatch ni conduire l'interface à ta place.
+> Quatre des cinq outils du superviseur, servis en MCP sur HTTP, derrière un
+> jeton que tu révoques. De quoi laisser un autre assistant piloter tes
+> sessions Claude sans reconstruire la logique de dispatch ni conduire
+> l'interface à ta place.
 
 Cette page est écrite pour la personne qui va émettre le jeton. Elle dit comment
 brancher l'agent, mais surtout ce que ce geste accorde, ce qui peut mal tourner et
@@ -12,7 +13,7 @@ ce qui n'est pas garanti. Si tu ne lis qu'une section, lis
 ## Ce que c'est
 
 Eldir a déjà un cerveau : la session **superviseur**, une session Claude sans
-projet ni worktree qui pilote les sessions enfants à travers cinq outils MCP
+projet ni worktree qui pilote les sessions enfants à travers quatre outils MCP
 in-process. Voir [`docs/supervisor.md`](./supervisor.md).
 
 Ce contrat était jusqu'ici joignable depuis le seul processus d'Eldir. Il est
@@ -45,14 +46,10 @@ consigne de prompt, qui se contourne, mais un refus mécanique : la tentative
 apparaît dans le flux d'events et l'agent reçoit l'explication à la place du
 résultat.
 
-Ce refus est **le même quel que soit le transport**. Un test d'intégration
-l'épingle en passant par le vrai hook et le vrai `allow_publish` servi en HTTP
-(`backend/tests/integration/test_mcp_http.py`).
-
-Un agent ne peut pas non plus ouvrir la porte d'un autre porteur : un jeton ne
-voit que les projets et les sessions de l'utilisateur qui l'a émis, et appeler
-`allow_publish` sur la session de quelqu'un d'autre rend `Erreur : Session …
-introuvable.`
+Ce refus est **le même quel que soit le transport**, et un agent extérieur n'a
+aucun moyen de le lever : `allow_publish` n'est pas servi en HTTP. Deux tests
+d'intégration l'épinglent, l'un sur ce que la surface annonce, l'autre sur ce
+qu'elle accepte (`backend/tests/integration/test_mcp_http.py`).
 
 Enfin, la réécriture d'historique (`git push --force`, `--mirror`, `-f`) reste
 refusée **même quand la publication est autorisée** : c'est la seule opération
@@ -62,22 +59,23 @@ pour ça.
 ## Ce que tu accordes en émettant un jeton
 
 C'est le passage important. Le refus ci-dessus a exactement une clé, et un jeton
-d'agent la porte.
+d'agent ne la porte pas.
 
-**`allow_publish` est servi en HTTP.** Dans l'interface, autoriser une session à
-publier est un geste que tu fais, une fois, en connaissance de cause. Servi par
-HTTP, ce même geste devient la **capacité d'un jeton qui vit dix ans, sans
-périmètre** : tout porteur du jeton peut autoriser n'importe laquelle de tes
-sessions, à n'importe quel moment. Il n'existe pas de jeton en lecture seule :
-c'est les cinq outils ou rien.
+**La publication ne s'ouvre que par un geste humain dans le dashboard.** Elle a
+été retirée de la surface externe : servie par HTTP, elle devenait la capacité
+d'un jeton qui vit dix ans, sans périmètre, et la surface sert à transmettre des
+suggestions et des tickets écrits par des utilisateurs de La Boutique, donc du
+texte non fiable envoyé à des sessions en `bypassPermissions`. La garde tenait
+face à la dérive d'un agent, pas face à une injection de prompt. Il n'existe pas
+de jeton en lecture seule : c'est les quatre outils ou rien.
 
-**Le drapeau est persistant.** `allow_publish` écrit en base, pas seulement dans
-la session vivante : une session dormante le retrouve à son prochain démarrage. Et
-`dispatch` sans `session_id` reprend la session ouverte la plus récente du projet.
-Un agent peut donc dispatcher une consigne dans une session restée ouverte, dont
-la publication avait été autorisée pour un autre travail. Si tu autorises une
-session, referme-la quand le travail est relu (`allow_publish` avec `autoriser:
-false`, ou le bouton du dashboard).
+**Le drapeau reste persistant.** Une autorisation donnée dans le dashboard écrit
+en base, pas seulement dans la session vivante : une session dormante la retrouve
+à son prochain démarrage. Et `dispatch` sans `session_id` reprend la session
+ouverte la plus récente du projet. Un agent peut donc dispatcher une consigne
+dans une session restée ouverte, dont tu avais autorisé la publication pour un
+autre travail. Si tu autorises une session, referme-la quand le travail est relu
+(le bouton du dashboard).
 
 **`remember` écrit dans les préférences du superviseur.** Une préférence
 enregistrée par un agent entre dans le prompt **Préférences apprises par le
@@ -212,14 +210,13 @@ Si tu passes par le reverse proxy fourni (`docker/Caddyfile`), il transmet le
 `Host` d'origine tel quel : c'est donc le nom public qu'il faut déclarer, pas
 `backend:8000`.
 
-## Les cinq outils
+## Les quatre outils
 
 | Outil | À quoi ça sert | Paramètres |
 |---|---|---|
 | `list_projects` | Les repos branchés sur Eldir, avec pour chacun sa dernière activité et le nombre de sessions qui attendent un geste humain. Sert à identifier de quel projet on parle, et à repérer ceux qui dorment. | aucun |
 | `list_sessions` | Les 20 sessions projet les plus récemment actives, avec leur état, leur branche, si elles tournent, et le compte rendu `<cr>` de leur dernier passage. | aucun |
 | `dispatch` | Transmet une consigne à une session projet et rend la main immédiatement. Reprend la session indiquée, sinon la plus récente du projet, sinon en démarre une. | `project_id` (requis), `consigne` (requis), `session_id` (optionnel), `nouveau_chantier` (booléen, optionnel) |
-| `allow_publish` | Autorise une session à publier (commit, push, PR) ou lui retire ce droit. | `session_id` (requis), `autoriser` (booléen, requis) |
 | `remember` | Enregistre une préférence de travail durable dans les **Préférences apprises par le superviseur**. | `fait` (requis) |
 
 Trois précisions qui ne se devinent pas :
@@ -442,7 +439,7 @@ configuré, cette consigne-là est perdue en silence. Un dispatcheur autonome
 attend la fin d'un tour avant d'en demander un autre sur la même session, ou
 ouvre un `nouveau_chantier`.
 
-**Pas d'autorisation fine par outil.** Un jeton donne les cinq outils ou rien. Un
+**Pas d'autorisation fine par outil.** Un jeton donne les quatre outils ou rien. Un
 jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé, se
 branche. Ce jour-là, pas avant.
 
@@ -576,6 +573,7 @@ d'abaisser le niveau de `httpx` : tu réécrirais le jeton dans le journal.
 ## Pour aller plus loin
 
 - [`docs/supervisor.md`](./supervisor.md) : les cinq outils vus du superviseur
+  (il garde `allow_publish`, lui ne lit que tes consignes)
   interne, le protocole `<cr>`, la porte de validation humaine.
 - [`docs/sessions.md`](./sessions.md) : cycle de vie d'une session, worktrees,
   diff et publication.
