@@ -15,7 +15,7 @@ import pytest
 from app.core.config import get_settings
 from app.core.exceptions import SessionLimitError, SessionNotFoundError
 from app.services.event_bus import EventBus
-from app.services.session_manager import SessionManager
+from app.services.session_manager import MESSAGE_FLUX_SANS_RESULTAT, ActiveSession, SessionManager
 
 
 @pytest.fixture
@@ -114,3 +114,76 @@ async def test_stop_disconnects_client(manager: SessionManager, fake_sdk: MagicM
     assert manager.is_active("s1") is False
     assert active.client is not None
     active.client.disconnect.assert_awaited()  # type: ignore[attr-defined]
+
+
+# ── Fin du flux d'un tour ───────────────────────────────────────
+# Un tour finit par un résultat (STOP `turn_complete`), une erreur ou un arrêt. Le flux
+# qui se ferme proprement sans résultat ne publiait rien : personne ne savait que le tour
+# avait fini.
+
+
+def _active_avec_flux(flux: object) -> ActiveSession:
+    class Client:
+        def receive_response(self) -> object:
+            return flux
+
+    return ActiveSession(
+        session_id="s1",
+        project_id="p1",
+        user_id="u1",
+        cwd="/tmp",
+        client=Client(),  # type: ignore[arg-type]
+    )
+
+
+async def _evenements_du_tour(
+    manager: SessionManager, fake_sdk: MagicMock, flux: object
+) -> list[tuple[str, dict[str, object]]]:
+    publies: list[tuple[str, dict[str, object]]] = []
+
+    async def noter(_session_id: str, type_: str, data: dict[str, object]) -> None:
+        publies.append((type_, data))
+
+    manager.register_persist_callback(noter)
+    await manager._consume_response(_active_avec_flux(flux))
+    return [(t, d) for t, d in publies if t in ("stop", "error")]
+
+
+async def test_un_flux_qui_se_ferme_sans_resultat_publie_une_erreur(
+    manager: SessionManager, fake_sdk: MagicMock
+) -> None:
+    async def flux_vide():  # type: ignore[no-untyped-def]
+        if False:
+            yield None
+
+    terminaux = await _evenements_du_tour(manager, fake_sdk, flux_vide())
+
+    assert terminaux == [
+        (
+            "error",
+            {"message": MESSAGE_FLUX_SANS_RESULTAT, "type": "StreamEndedWithoutResult"},
+        )
+    ]
+
+
+async def test_un_flux_qui_finit_par_un_resultat_ne_publie_pas_d_erreur(
+    manager: SessionManager, fake_sdk: MagicMock
+) -> None:
+    async def flux_complet():  # type: ignore[no-untyped-def]
+        yield fake_sdk.ResultMessage()
+
+    terminaux = await _evenements_du_tour(manager, fake_sdk, flux_complet())
+
+    assert terminaux == [("stop", {"reason": "turn_complete"})]
+
+
+async def test_un_flux_qui_leve_ne_publie_qu_une_erreur(
+    manager: SessionManager, fake_sdk: MagicMock
+) -> None:
+    async def flux_qui_leve():  # type: ignore[no-untyped-def]
+        raise RuntimeError("CLI coupé")
+        yield None
+
+    terminaux = await _evenements_du_tour(manager, fake_sdk, flux_qui_leve())
+
+    assert terminaux == [("error", {"message": "CLI coupé", "type": "RuntimeError"})]

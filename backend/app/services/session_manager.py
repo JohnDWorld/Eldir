@@ -56,6 +56,11 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Ce que l'UI et les abonnés lisent quand le flux du CLI se ferme sans résultat.
+MESSAGE_FLUX_SANS_RESULTAT = (
+    "Le flux du CLI s'est fermé sans résultat : le tour n'est pas allé au bout."
+)
+
 # ── Porte de validation humaine ─────────────────────────────────
 # Les sessions tournent en `bypassPermissions` (pas de TTY côté serveur),
 # donc rien n'empêcherait un agent de pousser tout seul. La publication est
@@ -592,6 +597,10 @@ class SessionManager:
         )
 
         sdk_session_id_captured = active.sdk_session_id
+        # Un tour finit par un résultat, une erreur ou un arrêt. Un flux qui se ferme sans
+        # aucun des trois (le CLI quitte proprement en plein tour) ne publierait rien :
+        # le tour aurait fini sans que personne le sache.
+        resultat_vu = False
 
         try:
             async for message in active.client.receive_response():
@@ -618,42 +627,8 @@ class SessionManager:
                             await self._publish_state(active.session_id, SESSION_STATE_TOOL_USE)
 
                 elif isinstance(message, ResultMessage):
-                    # Capture usage / coût du tour avant de signaler la fin.
-                    usage = getattr(message, "usage", None) or {}
-                    model_usage = getattr(message, "model_usage", None) or {}
-                    primary_model: str | None = None
-                    if isinstance(model_usage, dict) and model_usage:
-                        # Le SDK renvoie {"claude-opus-5": {...}} : on prend
-                        # la clé qui totalise le plus de tokens output.
-                        try:
-                            primary_model = max(
-                                model_usage.items(),
-                                key=lambda kv: int((kv[1] or {}).get("output_tokens", 0)),
-                            )[0]
-                        except (TypeError, ValueError):  # pragma: no cover
-                            primary_model = next(iter(model_usage.keys()), None)
-                    await self._publish(
-                        active.session_id,
-                        EVENT_TYPE_USAGE,
-                        {
-                            "input_tokens": int(usage.get("input_tokens", 0) or 0),
-                            "output_tokens": int(usage.get("output_tokens", 0) or 0),
-                            "cache_read_tokens": int(usage.get("cache_read_input_tokens", 0) or 0),
-                            "cache_write_tokens": int(
-                                usage.get("cache_creation_input_tokens", 0) or 0
-                            ),
-                            "cost_usd": float(getattr(message, "total_cost_usd", 0.0) or 0.0),
-                            "duration_ms": int(getattr(message, "duration_ms", 0) or 0),
-                            "num_turns": int(getattr(message, "num_turns", 1) or 1),
-                            "model": primary_model,
-                        },
-                    )
-                    # Fin de tour
-                    await self._publish(
-                        active.session_id,
-                        EVENT_TYPE_STOP,
-                        {"reason": STOP_REASON_TURN_COMPLETE},
-                    )
+                    resultat_vu = True
+                    await self._publier_le_resultat(active, message)
                     break
 
         except Exception as exc:
@@ -663,6 +638,51 @@ class SessionManager:
                 EVENT_TYPE_ERROR,
                 {"message": str(exc), "type": type(exc).__name__},
             )
+        else:
+            if not resultat_vu:
+                logger.warning("session.consume.sans_resultat", session_id=active.session_id)
+                await self._publish(
+                    active.session_id,
+                    EVENT_TYPE_ERROR,
+                    {"message": MESSAGE_FLUX_SANS_RESULTAT, "type": "StreamEndedWithoutResult"},
+                )
+
+    async def _publier_le_resultat(self, active: ActiveSession, message: Any) -> None:
+        """Publie l'usage du tour, puis son STOP `turn_complete` : le tour est allé au bout."""
+        # Capture usage / coût du tour avant de signaler la fin.
+        usage = getattr(message, "usage", None) or {}
+        model_usage = getattr(message, "model_usage", None) or {}
+        primary_model: str | None = None
+        if isinstance(model_usage, dict) and model_usage:
+            # Le SDK renvoie {"claude-opus-5": {...}} : on prend
+            # la clé qui totalise le plus de tokens output.
+            try:
+                primary_model = max(
+                    model_usage.items(),
+                    key=lambda kv: int((kv[1] or {}).get("output_tokens", 0)),
+                )[0]
+            except (TypeError, ValueError):  # pragma: no cover
+                primary_model = next(iter(model_usage.keys()), None)
+        await self._publish(
+            active.session_id,
+            EVENT_TYPE_USAGE,
+            {
+                "input_tokens": int(usage.get("input_tokens", 0) or 0),
+                "output_tokens": int(usage.get("output_tokens", 0) or 0),
+                "cache_read_tokens": int(usage.get("cache_read_input_tokens", 0) or 0),
+                "cache_write_tokens": int(usage.get("cache_creation_input_tokens", 0) or 0),
+                "cost_usd": float(getattr(message, "total_cost_usd", 0.0) or 0.0),
+                "duration_ms": int(getattr(message, "duration_ms", 0) or 0),
+                "num_turns": int(getattr(message, "num_turns", 1) or 1),
+                "model": primary_model,
+            },
+        )
+        # Fin de tour
+        await self._publish(
+            active.session_id,
+            EVENT_TYPE_STOP,
+            {"reason": STOP_REASON_TURN_COMPLETE},
+        )
 
     async def _on_text_block(self, active: ActiveSession, texte: str) -> None:
         """Publie un bloc de texte et retient son compte rendu s'il en porte un."""

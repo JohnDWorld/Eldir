@@ -33,6 +33,8 @@ class ClientFactice:
         self.demandes: list[str] = []
         self.portes: deque[asyncio.Event] = deque()
         self.reponses: deque[str | None] = deque()
+        # Le flux se ferme proprement sans résultat, comme un CLI qui quitte en plein tour.
+        self.sans_resultat = False
 
     async def query(self, texte: str) -> None:
         self.demandes.append(texte)
@@ -46,7 +48,8 @@ class ClientFactice:
             bloc, message = sdk.TextBlock(), sdk.AssistantMessage()
             bloc.text, message.content = texte, [bloc]
             yield message
-        yield sdk.ResultMessage()
+        if not self.sans_resultat:
+            yield sdk.ResultMessage()
 
 
 class ManagerReel(SessionManager):

@@ -19,7 +19,11 @@ from app.schemas.claude_credential import ClaudeCredentialCreate
 from app.services import supervisor_service
 from app.services.claude_credential_service import claude_credential_service
 from app.services.event_bus import EventBus
-from app.services.session_manager import ActiveSession, SessionManager
+from app.services.session_manager import (
+    MESSAGE_FLUX_SANS_RESULTAT,
+    ActiveSession,
+    SessionManager,
+)
 from app.services.session_service import SessionService
 from app.services.supervisor_service import (
     ERREUR_ABONNE_LONGUEUR_MAX,
@@ -1836,6 +1840,54 @@ async def test_un_tour_sans_bloc_de_compte_rendu_envoie_null_et_non_celui_du_tou
     _, ping_du_second = manager.clients[id_du_superviseur].demandes
     assert "Elle n'a pas produit de compte rendu" in ping_du_second
     assert "le premier tour" not in ping_du_second
+
+
+async def test_un_flux_qui_se_ferme_sans_resultat_previent_l_abonne_et_ne_laisse_rien_d_arme(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor_reel: tuple[SupervisorService, ManagerReel],
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    """Le CLI ferme sa sortie proprement en plein tour, sans résultat : ni STOP ni ERROR
+    ni exception. L'entrée de la consigne survivait alors, et c'est le tour suivant, celui
+    de John, qui annonçait une fausse fin portant son compte rendu au nom de l'agent."""
+    service, manager = supervisor_reel
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    client = manager.installer(child.id, project.id, admin.id)
+    client.sans_resultat = True
+
+    await service.outil_dispatch(
+        admin.id,
+        project_id=project.id,
+        consigne=CONSIGNE,
+        session_id=child.id,
+        libelle_agent="Munin Bot",
+    )
+    await abonne.attendre(1)
+    await _fin_des_taches_de_fond(service)
+
+    assert _charge_recue(abonne) == {
+        "session_id": child.id,
+        "projet": "munin",
+        "branche": "claude/x",
+        "etat": "erreur",
+        "cr": None,
+        "erreur": MESSAGE_FLUX_SANS_RESULTAT,
+        "demandeur": "agent:Munin Bot",
+    }
+    (id_du_superviseur,) = [sid for sid in manager.clients if sid != child.id]
+    (avis,) = manager.clients[id_du_superviseur].demandes
+    assert f"Elle a échoué : {MESSAGE_FLUX_SANS_RESULTAT}" in avis
+
+    # John mène un tour complet, avec un compte rendu `PRET: oui` : rien ne le met au
+    # nom de l'agent.
+    client.sans_resultat = False
+    client.reponses.append("<cr>\nFAIT: ce que John demandait\nPRET: oui\n</cr>")
+    await manager.send_message(child.id, "Et la suite ?", origin="user")
+    await _fin_des_taches_de_fond(service)
+    assert len(abonne.requetes) == 1
 
 
 @pytest.mark.parametrize("arret", ["route", "extinction", "suppression"])
