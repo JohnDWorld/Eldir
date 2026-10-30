@@ -260,6 +260,32 @@ def origine_de_dispatch(libelle_agent: str | None) -> str:
     return f"{MESSAGE_ORIGIN_AGENT_PREFIX}{_sur_une_ligne(libelle_agent)}"
 
 
+def _empiler[T](files: dict[str, list[T]], session_id: str, valeur: T) -> None:
+    files.setdefault(session_id, []).append(valeur)
+
+
+def _enlever[T](files: dict[str, list[T]], session_id: str, valeur: T) -> bool:
+    """Retire la plus ancienne occurrence de `valeur`. `False` si elle n'y était pas."""
+    file = files.get(session_id, [])
+    if valeur not in file:
+        return False
+    file.remove(valeur)
+    if not file:
+        del files[session_id]
+    return True
+
+
+def _depiler[T](files: dict[str, list[T]], session_id: str) -> T | None:
+    """Retire et rend la plus ancienne valeur, ou `None` si la file est vide."""
+    file = files.get(session_id)
+    if not file:
+        return None
+    valeur = file.pop(0)
+    if not file:
+        del files[session_id]
+    return valeur
+
+
 def _est_ligne_d_agent(ligne: str) -> bool:
     return ligne.startswith(f"- {MARQUE_AGENT}")
 
@@ -366,17 +392,19 @@ class SupervisorService:
         self._manager = manager
         self._sessions = sessions
         self._factory = session_factory
-        # Consignes dispatchées que la session n'a pas encore reçues : (origine,
-        # texte), dans l'ordre d'envoi. `send_message` attend son tour derrière
-        # celui qui tourne (celui de John, par exemple) : la consigne n'est livrée
-        # qu'à la fin de l'autre.
+        # Deux files par session, dans l'ordre d'envoi, qui se suivent :
+        #  - `_attendues` : les consignes dispatchées que la session n'a pas encore reçues,
+        #    (origine, texte). `send_message` attend son tour derrière celui qui tourne
+        #    (celui de John, par exemple) : la consigne n'est livrée qu'à la fin de l'autre ;
+        #  - `_en_cours` : les consignes livrées dont le tour n'est pas fini, avec leur
+        #    origine (cf. `origine_de_dispatch`), c'est-à-dire qui a demandé ce travail, ce
+        #    que le ping rapporte. Une consigne passe de l'une à l'autre à sa livraison (l'event
+        #    `user_message`), pas à l'appel de `dispatch` : armer plus tôt ferait annoncer comme
+        #    fin de la consigne la fin du tour qui tourne déjà. Chaque fin de tour retire la
+        #    plus ancienne. Ce sont des files et non un créneau par session : une affectation
+        #    écraserait la consigne d'avant, et son agent n'apprendrait jamais rien.
         self._attendues: dict[str, list[tuple[str, str]]] = {}
-        # Sessions dont le tour en cours est celui d'une consigne dispatchée, avec
-        # l'origine de celle-ci (cf. `origine_de_dispatch`) : qui a demandé ce
-        # travail, que le ping rapporte. On arme à la livraison de la consigne
-        # (l'event `user_message`), pas à l'appel de `dispatch` : armer plus tôt
-        # ferait annoncer comme fin de la consigne la fin du tour qui tourne déjà.
-        self._pending: dict[str, str] = {}
+        self._en_cours: dict[str, list[str]] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         manager.register_persist_callback(self._on_event)
 
@@ -869,9 +897,8 @@ class SupervisorService:
             # Encore attendue (jamais livrée) ou déjà armée (livrée, puis l'envoi a
             # levé) : aucun ping n'est parti. Ni l'une ni l'autre : un STOP ou un
             # ERROR l'a déjà dit à l'abonné, un second le doublerait.
-            if (
-                self._retirer(session_id, auteur, consigne)
-                or self._pending.pop(session_id, None) is not None
+            if self._retirer(session_id, auteur, consigne) or _enlever(
+                self._en_cours, session_id, auteur
             ):
                 # Aucun STOP ni ERROR ne viendra. Sans ce ping, l'abonné attendrait
                 # une fin de tour qui n'arrive pas, et ne pourrait pas distinguer ce
@@ -893,17 +920,11 @@ class SupervisorService:
                 logger.warning("supervisor.dispatch.jamais_armee", session_id=session_id)
 
     def _attendre(self, session_id: str, auteur: str, consigne: str) -> None:
-        self._attendues.setdefault(session_id, []).append((auteur, consigne))
+        _empiler(self._attendues, session_id, (auteur, consigne))
 
     def _retirer(self, session_id: str, auteur: str, consigne: str) -> bool:
         """Retire une consigne attendue. `False` si elle n'y était pas (déjà livrée)."""
-        file = self._attendues.get(session_id, [])
-        if (auteur, consigne) not in file:
-            return False
-        file.remove((auteur, consigne))
-        if not file:
-            del self._attendues[session_id]
-        return True
+        return _enlever(self._attendues, session_id, (auteur, consigne))
 
     # ── ping de fin de tour ─────────────────────────────────────
     async def _on_event(self, session_id: str, event_type: str, data: dict[str, Any]) -> None:
@@ -916,26 +937,28 @@ class SupervisorService:
                 and isinstance(texte, str)
                 and self._retirer(session_id, auteur, texte)
             ):
-                self._pending[session_id] = auteur
+                _empiler(self._en_cours, session_id, auteur)
             return
         if event_type not in (EVENT_TYPE_STOP, EVENT_TYPE_ERROR):
             return
-        demandeur = self._pending.pop(session_id, None)
-        if demandeur is None:
-            return
         if event_type == EVENT_TYPE_STOP and data.get("reason") != STOP_REASON_TURN_COMPLETE:
             # `SessionManager.stop()` publie aussi un STOP : la session a été arrêtée,
-            # supprimée ou Eldir s'éteint, le tour n'est pas allé au bout. Le compte
-            # rendu de la ligne est celui d'un tour précédent : le donner pour une fin
-            # de tour ferait lire « prêt » à qui attend le travail. La fiche se lit
-            # ici et non dans une tâche : à la suppression, la ligne n'existe plus
-            # quand la tâche tourne.
-            fiche = await self._fiche(session_id)
+            # supprimée ou Eldir s'éteint, aucun des tours en cours n'est allé au bout.
+            # Le compte rendu de la ligne est celui d'un tour précédent : le donner pour
+            # une fin de tour ferait lire « prêt » à qui attend le travail. La fiche se lit
+            # ici et non dans une tâche : à la suppression, la ligne n'existe plus quand la
+            # tâche tourne.
+            interrompus = self._en_cours.pop(session_id, [])
+            fiche = await self._fiche(session_id) if interrompus else None
             if fiche is not None:
                 child, project_name = fiche
-                self._prevenir_l_abonne(
-                    child, project_name, demandeur=demandeur, erreur=MESSAGE_INTERRUPTION
-                )
+                for interrompu in interrompus:
+                    self._prevenir_l_abonne(
+                        child, project_name, demandeur=interrompu, erreur=MESSAGE_INTERRUPTION
+                    )
+            return
+        demandeur = _depiler(self._en_cours, session_id)
+        if demandeur is None:
             return
         # Le compte rendu se lit ici, pas dans la tâche : le tour suivant d'une consigne en
         # file le remet à zéro dès qu'il commence, avant que la tâche ait tourné. Et c'est

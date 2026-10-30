@@ -1273,6 +1273,112 @@ async def test_un_envoi_qui_leve_apres_la_livraison_previent_l_abonne(
     assert len(abonne.requetes) == 1
 
 
+async def _deux_consignes_livrees(
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    admin: User,
+    project: Project,
+    child: Session,
+) -> ActiveSession:
+    """Deux agents ont chacun une consigne livrée, aucun des deux tours n'est fini.
+
+    Le verrou du manager l'interdit en production (une consigne n'est livrée qu'à la fin
+    du tour d'avant) : c'est la structure du superviseur, pas le verrou, qu'on éprouve.
+    """
+    manager = supervisor._manager  # type: ignore[attr-defined]
+    actif = _activer(supervisor, child)
+    for agent in ("Premier", "Second"):
+        await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, agent)
+    for agent in ("Premier", "Second"):
+        await manager._publish(
+            child.id, "user_message", {"text": CONSIGNE, "origin": f"agent:{agent}"}
+        )
+    return actif
+
+
+async def test_deux_consignes_livrees_avant_la_premiere_fin_sont_annoncees_chacune(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    """Un créneau unique par session (une affectation) écrasait la consigne d'avant : deux
+    fins de tour donnaient un seul ping, au nom du second, et le premier agent n'apprenait
+    rien. Les entrées sont une file : chaque fin de tour retire la plus ancienne."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    manager = supervisor._manager  # type: ignore[attr-defined]
+    actif = await _deux_consignes_livrees(supervisor, monkeypatch, admin, project, child)
+
+    await manager._on_text_block(actif, "<cr>\nFAIT: pour le premier\nPRET: oui\n</cr>")
+    await manager._publish(child.id, *FIN_DE_TOUR)
+    await manager._on_text_block(actif, "<cr>\nFAIT: pour le second\nPRET: oui\n</cr>")
+    await manager._publish(child.id, *FIN_DE_TOUR)
+    await abonne.attendre(2)
+    await _fin_des_taches_de_fond(supervisor)
+
+    pings = [_charge_recue(abonne, r) for r in (0, 1)]
+    assert {(p["demandeur"], p["cr"]) for p in pings} == {
+        ("agent:Premier", "FAIT: pour le premier\nPRET: oui"),
+        ("agent:Second", "FAIT: pour le second\nPRET: oui"),
+    }
+    assert len(abonne.requetes) == 2
+    assert supervisor._en_cours == {}  # type: ignore[attr-defined]
+
+
+async def test_la_meme_consigne_envoyee_deux_fois_est_annoncee_deux_fois(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    """Un agent qui réessaie renvoie le même texte : chaque livraison consomme une seule
+    entrée en attente, pas toutes celles qui lui ressemblent."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    for _ in range(2):
+        await _dispatche_sans_lancer_le_tour(
+            supervisor, monkeypatch, admin, project, child, "Munin Bot"
+        )
+
+    await _tour_dispatche(supervisor, child, "agent:Munin Bot")
+    await _tour_dispatche(supervisor, child, "agent:Munin Bot")
+    await abonne.attendre(2)
+    await _fin_des_taches_de_fond(supervisor)
+
+    assert len(abonne.requetes) == 2
+    assert supervisor._attendues == {} and supervisor._en_cours == {}  # type: ignore[attr-defined]
+
+
+async def test_une_interruption_annonce_chaque_tour_en_cours(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    manager = supervisor._manager  # type: ignore[attr-defined]
+    await _deux_consignes_livrees(supervisor, monkeypatch, admin, project, child)
+
+    await manager._publish(child.id, *INTERRUPTION)
+    await abonne.attendre(2)
+    await _fin_des_taches_de_fond(supervisor)
+
+    pings = [_charge_recue(abonne, r) for r in (0, 1)]
+    assert {(p["demandeur"], p["erreur"]) for p in pings} == {
+        ("agent:Premier", MESSAGE_INTERRUPTION),
+        ("agent:Second", MESSAGE_INTERRUPTION),
+    }
+    assert supervisor._en_cours == {}  # type: ignore[attr-defined]
+
+
 async def test_un_stop_d_interruption_n_est_pas_une_fin_de_tour(
     db_session: AsyncSession,
     admin: User,
