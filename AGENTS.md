@@ -79,6 +79,18 @@ npm run build                 # Vérifie que la build PWA passe
 - Pas de CSS inline ni fichiers `.css` - Tailwind exclusivement.
 - Types partagés avec le backend : générés depuis Pydantic, jamais redéfinis à la main.
 
+### Prose et commentaires
+- **Jamais de tiret cadratin ni de demi-cadratin.** Toujours le trait d'union du
+  clavier (`-`), ou reformuler avec une virgule, des parenthèses ou deux phrases.
+  Vaut partout : prose, commentaires, messages de commit, descriptions de PR,
+  prompts système, fichiers de données. Un job de CI (`ponctuation`) le refuse.
+- La règle n'est pas une préférence de relecture, c'est une contrainte de sortie.
+  Les prompts système de `backend/app/data/` sont injectés dans les sessions
+  Claude qui travaillent sur ce dépôt : un cadratin écrit là est un cadratin
+  qu'on enseigne, et il revient dans tout ce que la session produit.
+- Le reste suit l'usage du dépôt : français, phrases courtes, et un commentaire
+  qui dit *pourquoi* plutôt que *quoi*.
+
 ### Git
 - Conventional Commits obligatoire : `feat(scope): description`, `fix(scope): …`, `docs(scope): …`, etc.
 - Branches : `feature/[slug]`, `fix/[slug]`, `docs/[slug]`.

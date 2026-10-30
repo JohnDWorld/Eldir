@@ -1,0 +1,36 @@
+name: ponctuation
+
+# SANS FILTRE DE CHEMIN, et c'est tout l'intérêt de ce job.
+#
+# Les trois autres workflows sont filtrés (`backend/**`, `frontend/**`) : une PR
+# qui ne touche que `docs/` ne déclenche AUCUNE CI. Or c'est exactement là que
+# les 90 tirets cadratins du dépôt s'étaient accumulés. Un garde-fou qui ne
+# tourne pas sur le genre de PR qui introduit le défaut ne garde rien.
+#
+# Il est volontairement le job le plus bête du dépôt : un `git grep`, dix
+# secondes, aucune dépendance à installer.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cadratins:
+    name: aucun tiret cadratin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `git grep` et pas `grep -r` : il ne lit que les fichiers SUIVIS, donc ni
+      # node_modules, ni dist, ni .venv, sans avoir à exclure quoi que ce soit.
+      # `-I` saute les binaires. Le motif est en PCRE pour nommer les points de
+      # code plutôt que de coller les caractères eux-mêmes dans ce fichier, qui
+      # se ferait alors signaler lui-même.
+      - name: Aucun tiret cadratin ni demi-cadratin
+        run: |
+          if git grep -I -n -P '[\x{2014}\x{2013}]' -- . > /tmp/cadratins.txt; then
+            echo "::error::Tiret cadratin ou demi-cadratin trouvé. Utilise le trait d'union (-), ou reformule. Cf. AGENTS.md section « Prose et commentaires »."
+            cat /tmp/cadratins.txt
+            exit 1
+          fi
+          echo "Aucun tiret cadratin. "
