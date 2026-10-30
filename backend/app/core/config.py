@@ -133,6 +133,17 @@ class Settings(BaseSettings):
     # VPN : un `Host` hors liste est alors refusé en 421.
     mcp_allowed_hosts: str = ""
 
+    # ── Ping de fin de tour vers un abonné externe ──────────────
+    # Un agent branché sur /api/mcp/ vit dans un autre processus : il ne voit
+    # pas le réveil en mémoire du superviseur. Un seul abonné pour l'instant,
+    # une table viendra quand il y en aura deux. URL vide = pas de ping.
+    # L'URL peut porter un jeton : elle n'est jamais journalisée.
+    turn_webhook_url: str = ""
+    # Sert à signer le corps (HMAC SHA-256). Vide = ping non signé.
+    turn_webhook_secret: SecretStr | None = None
+    # Délai total d'un ping (connexion, réponse, tout compris).
+    turn_webhook_timeout_seconds: float = 10.0
+
     @property
     def is_dev(self) -> bool:
         return self.app_env == "dev"

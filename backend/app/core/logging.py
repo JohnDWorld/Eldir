@@ -21,6 +21,9 @@ def configure_logging() -> None:
         stream=sys.stdout,
         level=level,
     )
+    # httpx journalise chaque requête en INFO, URL complète comprise. Celle d'un
+    # abonné au ping de fin de tour peut porter un jeton.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
