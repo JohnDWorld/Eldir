@@ -19,6 +19,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import structlog
@@ -77,13 +78,36 @@ async def test_le_ping_part_vraiment_avec_le_bon_corps_et_la_bonne_signature(
     requete = abonne.requetes[0]
     assert (requete.methode, requete.chemin) == ("POST", "/ok")
     assert requete.entetes["content-type"] == "application/json"
-    assert json.loads(requete.corps) == CHARGE, "les accents survivent à l'aller-retour"
+    corps = json.loads(requete.corps)
+    corps.pop("horodatage")  # son propre test, plus bas
+    assert corps == CHARGE, "les accents survivent à l'aller-retour"
     assert requete.corps.isascii(), "aucun abonné n'a à deviner l'encodage"
     attendu = hmac.new(b"secret-de-test", requete.corps, hashlib.sha256).hexdigest()
     assert requete.entetes["x-eldir-signature"] == f"sha256={attendu}", (
         "recalculée par l'abonné sur les octets reçus"
     )
     assert journal.appels == [], "un succès ne journalise rien"
+
+
+async def test_le_corps_signe_porte_l_heure_d_emission_en_utc(
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
+) -> None:
+    """Sans heure dans le corps signé, une charge vue passer se rejoue indéfiniment :
+    l'abonné ne peut pas refuser ce qui est trop vieux."""
+    reglages(turn_webhook_url=abonne.url("/ok"), turn_webhook_secret="secret-de-test")
+    charge = dict(CHARGE)
+
+    avant = datetime.now(UTC).replace(microsecond=0)
+    await prevenir(charge)
+    apres = datetime.now(UTC)
+
+    requete = abonne.requetes[0]
+    horodatage = datetime.fromisoformat(json.loads(requete.corps)["horodatage"])
+    assert horodatage.utcoffset() == timedelta(0), "une heure sans fuseau se lit de travers"
+    assert avant <= horodatage <= apres
+    attendu = hmac.new(b"secret-de-test", requete.corps, hashlib.sha256).hexdigest()
+    assert requete.entetes["x-eldir-signature"] == f"sha256={attendu}", "l'heure est signée"
+    assert charge == CHARGE, "la charge de l'appelant n'est pas modifiée"
 
 
 @pytest.mark.parametrize("secret", [None, ""])

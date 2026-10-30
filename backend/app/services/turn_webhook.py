@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -45,8 +46,11 @@ async def prevenir(charge: dict[str, Any]) -> None:
         url = settings.turn_webhook_url.strip()
         if not url:
             return
+        # L'horodatage est dans le corps signé : sans lui, une charge vue passer se rejoue
+        # indéfiniment, et l'abonné ne peut pas refuser ce qui est trop vieux.
+        horodatage = datetime.now(UTC).isoformat(timespec="seconds")
         # ASCII pur (les accents partent échappés) : aucun abonné n'a à deviner l'encodage.
-        corps = json.dumps(charge).encode()
+        corps = json.dumps({**charge, "horodatage": horodatage}).encode()
         entetes = {"Content-Type": "application/json"}
         # Un secret vide signerait avec une clé que tout le monde connaît.
         secret = settings.turn_webhook_secret

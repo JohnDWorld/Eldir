@@ -788,6 +788,13 @@ async def _fin_des_taches_de_fond(supervisor: SupervisorService) -> None:
             await asyncio.sleep(0)
 
 
+def _charge_recue(abonne: ServeurAbonne, rang: int = 0) -> dict[str, Any]:
+    """La charge reçue, sans l'heure d'émission (que `test_turn_webhook` vérifie)."""
+    charge = json.loads(abonne.requetes[rang].corps)
+    assert charge.pop("horodatage")
+    return charge  # type: ignore[no-any-return]
+
+
 DEMANDEURS = [(None, "eldir"), ("Munin Bot", "agent:Munin Bot")]
 
 
@@ -818,7 +825,7 @@ async def test_l_abonne_http_apprend_la_fin_du_tour_et_qui_avait_demande_le_trav
     await _fin_des_taches_de_fond(supervisor)
 
     assert len(abonne.requetes) == 1
-    assert json.loads(abonne.requetes[0].corps) == {
+    assert _charge_recue(abonne) == {
         "session_id": child.id,
         "projet": "munin",
         "branche": "claude/x",
@@ -844,7 +851,7 @@ async def test_un_tour_en_erreur_part_aussi_vers_l_abonne_avec_l_etat_erreur(
     await abonne.attendre(1)
     await _fin_des_taches_de_fond(supervisor)
 
-    assert json.loads(abonne.requetes[0].corps)["etat"] == "erreur"
+    assert _charge_recue(abonne)["etat"] == "erreur"
 
 
 async def test_un_tour_non_dispatche_ne_previent_pas_l_abonne(
