@@ -33,6 +33,7 @@ from app.services.supervisor_service import (
     SCHEMAS_OUTILS,
     SUPERVISOR_KIND,
     SUPERVISOR_PREFS_SLUG,
+    TITRE_PREFERENCES,
     SupervisorService,
     decouper_ligne_d_agent,
 )
@@ -54,7 +55,7 @@ def workspaces_root(tmp_path, monkeypatch) -> Any:
 
 @pytest.fixture
 async def admin(db_session: AsyncSession) -> User:
-    user = User(email="john@example.com", hashed_password="x", is_admin=True)
+    user = User(email="jarl@exemple.lan", hashed_password="x", is_admin=True)
     db_session.add(user)
     await db_session.commit()
     await claude_credential_service.create(
@@ -167,7 +168,7 @@ async def _preferences(supervisor: SupervisorService) -> list[str]:
     """Les lignes de préférences telles que le prompt du superviseur les relira."""
     async with supervisor._factory() as db:  # type: ignore[attr-defined]
         prompt = await supervisor._build_prompt(db)  # type: ignore[attr-defined]
-    prefs = prompt.split("## Préférences de John\n\n", 1)[1]
+    prefs = prompt.split(f"## {TITRE_PREFERENCES}\n\n", 1)[1]
     return [ligne for ligne in prefs.splitlines() if ligne.startswith("- ")]
 
 
