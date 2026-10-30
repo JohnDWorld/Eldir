@@ -100,6 +100,12 @@ relis dans l'onglet **diff**, puis tu déclenches toi-même **Commit & Push** ou
 **Ouvrir une PR**. Ces deux actions passent par le backend Eldir, pas par l'agent :
 elles ne sont pas concernées par le refus.
 
+Si tu veux qu'une session publie elle-même, tu lèves le refus pour elle seule, depuis
+le dashboard ou en le demandant au superviseur (`allow_publish`). Le drapeau est
+persistant : une session dormante le retrouve à son prochain démarrage, donc referme-le
+quand le travail est relu. Même autorisée, une session ne peut pas réécrire
+l'historique distant : `git push --force` reste refusé dans tous les cas.
+
 ## Eldir apprend tes habitudes
 
 Quand tu exprimes une préférence durable ("sur ce projet, toujours une PR",
@@ -110,17 +116,33 @@ C'est un simple prompt système : tu le lis, le corriges ou le vides dans
 **Settings > Prompts**. Rien n'est appris dans ton dos, rien n'est stocké ailleurs.
 Une préférence enregistrée est prise en compte au démarrage suivant du superviseur.
 
-## Ses quatre outils
+Un agent extérieur peut appeler le même outil, et ses lignes portent alors la marque
+de son jeton (`- [agent « nom »] …`). Le superviseur les lit comme des suggestions, et
+elles sont plafonnées. Tu les vois et tu en fais le ménage dans **Settings > Agents
+extérieurs**. Voir [`docs/agent-externe.md`](./agent-externe.md).
+
+## Ses cinq outils
 
 | Outil | Ce qu'il fait |
 |---|---|
-| `list_projects` | Les repos branchés sur Eldir, pour identifier de quel projet tu parles |
+| `list_projects` | Les repos branchés sur Eldir, avec pour chacun sa dernière activité et le nombre de sessions qui attendent un geste de ta part. Sert à identifier de quel projet tu parles, et à repérer ceux qui dorment |
 | `list_sessions` | Les sessions existantes, leur état et leur dernier compte rendu |
-| `dispatch` | Transmet une consigne à une session (reprise ou créée), sans attendre |
+| `dispatch` | Transmet une consigne à une session (reprise ou créée), sans attendre. Avec `nouveau_chantier`, ouvre une session neuve à côté des existantes plutôt que de reprendre la plus récente |
+| `allow_publish` | Autorise une session à publier (commit, push, PR) ou lui retire ce droit. Le superviseur ne s'en sert que si tu le lui demandes explicitement : c'est ta porte, pas la sienne |
 | `remember` | Enregistre une préférence de travail durable |
 
 Il n'a **aucun** autre outil : ni `Bash`, ni `Read`, ni `Write`, ni accès réseau.
 Ce n'est pas une consigne de prompt mais une restriction du SDK (`disallowed_tools`).
+
+La **dernière activité** de `list_projects` est la dernière écriture sur la ligne de
+session, pas la date du dernier commit : un projet dont une session a bougé hier est
+« actif d'hier », quel que soit l'âge de son historique git.
+
+Ces cinq outils sont aussi servis en MCP sur HTTP, pour qu'un agent extérieur puisse
+piloter Eldir comme le fait cette conversation. Un seul corps par outil et une seule
+table de descriptions : les deux transports ne peuvent pas diverger. Voir
+[`docs/agent-externe.md`](./agent-externe.md), qui dit surtout ce qu'un jeton
+d'agent accorde.
 
 ## Ce que ça coûte
 
@@ -140,8 +162,8 @@ en cours ne sont jamais touchés.
 ## Limites connues
 
 - **Mono-utilisateur** : un superviseur par utilisateur, comme le reste de la V1.
-- **Pas de parallélisme sur un même repo** : `dispatch` reprend la session la plus
-  récente du projet. Pour deux chantiers en parallèle sur le même repo, crée la
-  seconde session à la main depuis la page Ops et donne son id au superviseur.
 - **Préférences appliquées au redémarrage** : le prompt du superviseur est
   reconstruit quand sa session redémarre, pas en cours de conversation.
+- **Les tours en cours vivent en mémoire** : si Eldir redémarre pendant qu'une
+  session dispatchée travaille, le tour est interrompu et plus rien n'annonce sa fin.
+  Il faut relancer la consigne, comme il faut reprendre la session elle-même.
