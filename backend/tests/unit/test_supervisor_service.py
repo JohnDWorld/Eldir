@@ -827,9 +827,9 @@ async def _fin_des_taches_de_fond(supervisor: SupervisorService, *, echecs: int 
 
 
 def _charge_recue(abonne: ServeurAbonne, rang: int = 0) -> dict[str, Any]:
-    """La charge reçue, sans l'heure d'émission (que `test_turn_webhook` vérifie)."""
+    """La charge reçue, sans l'identifiant ni l'heure d'émission (cf. `test_turn_webhook`)."""
     charge = json.loads(abonne.requetes[rang].corps)
-    assert charge.pop("horodatage")
+    assert charge.pop("horodatage") and charge.pop("ping_id")
     return charge  # type: ignore[no-any-return]
 
 

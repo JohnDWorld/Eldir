@@ -18,6 +18,7 @@ import hmac
 import json
 import logging
 import time
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
@@ -80,6 +81,7 @@ async def test_le_ping_part_vraiment_avec_le_bon_corps_et_la_bonne_signature(
     assert requete.entetes["content-type"] == "application/json"
     corps = json.loads(requete.corps)
     corps.pop("horodatage")  # son propre test, plus bas
+    corps.pop("ping_id")  # idem
     assert corps == CHARGE, "les accents survivent à l'aller-retour"
     assert requete.corps.isascii(), "aucun abonné n'a à deviner l'encodage"
     attendu = hmac.new(b"secret-de-test", requete.corps, hashlib.sha256).hexdigest()
@@ -108,6 +110,25 @@ async def test_le_corps_signe_porte_l_heure_d_emission_en_utc(
     attendu = hmac.new(b"secret-de-test", requete.corps, hashlib.sha256).hexdigest()
     assert requete.entetes["x-eldir-signature"] == f"sha256={attendu}", "l'heure est signée"
     assert charge == CHARGE, "la charge de l'appelant n'est pas modifiée"
+
+
+async def test_chaque_ping_a_son_identifiant_meme_dans_la_meme_seconde(
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
+) -> None:
+    """Deux pings de la même session, la même seconde, sans identifiant, seraient
+    identiques octet pour octet : un doublon de livraison et un rejeu se confondraient."""
+    reglages(turn_webhook_url=abonne.url("/ok"), turn_webhook_secret="secret-de-test")
+
+    await prevenir(CHARGE)
+    await prevenir(CHARGE)
+
+    premier, second = (json.loads(r.corps) for r in abonne.requetes)
+    identifiants = {premier["ping_id"], second["ping_id"]}
+    assert len(identifiants) == 2
+    for identifiant in identifiants:
+        assert uuid.UUID(identifiant).version == 4, "aléatoire : rien à deviner ni à recouper"
+        assert str(uuid.UUID(identifiant)) == identifiant
+    assert abonne.requetes[0].corps != abonne.requetes[1].corps
 
 
 @pytest.mark.parametrize("secret", [None, ""])

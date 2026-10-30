@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -50,7 +51,11 @@ async def prevenir(charge: dict[str, Any]) -> None:
         # indéfiniment, et l'abonné ne peut pas refuser ce qui est trop vieux.
         horodatage = datetime.now(UTC).isoformat(timespec="seconds")
         # ASCII pur (les accents partent échappés) : aucun abonné n'a à deviner l'encodage.
-        corps = json.dumps({**charge, "horodatage": horodatage}).encode()
+        # Chaque ping a son identifiant : deux pings d'une même session dans la même seconde
+        # seraient sinon identiques octet pour octet, et l'abonné ne pourrait ni dédoublonner
+        # ni distinguer un doublon de livraison d'un rejeu dans la fenêtre de fraîcheur.
+        envoi = {**charge, "ping_id": str(uuid.uuid4()), "horodatage": horodatage}
+        corps = json.dumps(envoi).encode()
         entetes = {"Content-Type": "application/json"}
         # Un secret vide signerait avec une clé que tout le monde connaît.
         secret = settings.turn_webhook_secret
