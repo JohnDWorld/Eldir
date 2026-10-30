@@ -225,6 +225,13 @@ def origine_de_dispatch(libelle_agent: str | None) -> str:
     ici, à l'écriture, parce que l'origine est un fait durable que tout lecteur de
     l'historique reçoit tel quel (base, WebSocket, journaux), et que `emettre`
     autorise les retours à la ligne dans un libellé.
+
+    L'aplatissement replie les espacements, il ne nettoie pas : les caractères de
+    contrôle (ESC, BEL, DEL), de largeur nulle et de sens d'écriture (bidi) passent
+    tels quels. Rien n'en fait une fausse signature, puisque le préfixe `agent:`
+    reste en tête, et le libellé est celui que John a donné à son jeton. Mais un RLO
+    peut inverser la fin de l'en-tête dans l'interface, et un libellé réduit à un
+    caractère de largeur nulle s'y affiche vide au lieu de « agent sans nom ».
     """
     if libelle_agent is None:
         return MESSAGE_ORIGIN_ELDIR
