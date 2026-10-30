@@ -98,9 +98,10 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [x] **Pipeline DRY** :
   - [x] Génération automatique des types TS depuis schémas Pydantic (script + CI)
   - [x] Client API frontend généré ou centralisé
-- [x] Doc d'installation v0 (`docs/install.md`)
+- [x] Doc d'installation v0 (`docs/installation.md`)
 - [ ] Templates de PR et issues GitHub
-- [ ] `CONTRIBUTING.md` et `CODE_OF_CONDUCT.md`
+- [x] `CONTRIBUTING.md`
+- [ ] `CODE_OF_CONDUCT.md`
 
 ### Phase 1 - MVP : 1 user, 1 projet, 1 session ✅
 
@@ -145,7 +146,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [x] Création de repo Forgejo depuis le dashboard (`ForgejoProvider.create_repo` implémenté via API REST v1)
 - [x] UI "Ajouter un Git provider" dans les settings
 - [x] Gestion multi-providers simultanés (un user peut avoir GitHub + Forgejo connectés)
-- [ ] Documentation provider Forgejo (`docs/providers/forgejo.md`)
+- [x] Documentation provider Forgejo (`docs/providers/forgejo.md`)
 
 ### Phase 4 - Mission Templates & Skills ✅
 
