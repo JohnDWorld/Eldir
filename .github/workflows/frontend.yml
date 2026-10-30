@@ -1,14 +1,20 @@
 name: frontend
 
+# `backend/app/core/constants.py` : le fil lit les origines de message que le
+# backend écrit, et un test du frontend compare les deux (session-page.test.tsx).
+# Sans ce chemin, une PR qui ne change que cette constante ne lancerait pas ce
+# test, et la dérive passerait la CI.
 on:
   pull_request:
     paths:
       - 'frontend/**'
+      - 'backend/app/core/constants.py'
       - '.github/workflows/frontend.yml'
   push:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'backend/app/core/constants.py'
 
 jobs:
   lint-and-test:

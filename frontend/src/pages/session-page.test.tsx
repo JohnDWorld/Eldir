@@ -12,7 +12,11 @@ import { join } from 'node:path';
 import type { ComponentProps } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { MESSAGE_ORIGIN_AGENT_PREFIX } from '@/lib/constants';
+import {
+  MESSAGE_ORIGIN_AGENT_PREFIX,
+  MESSAGE_ORIGIN_ELDIR,
+  MESSAGE_ORIGIN_USER,
+} from '@/lib/constants';
 import { ChatStream } from '@/pages/session-page';
 
 type Evenements = ComponentProps<typeof ChatStream>['events'];
@@ -79,13 +83,33 @@ describe('ChatStream - l’auteur d’un message', () => {
   });
 });
 
-describe('MESSAGE_ORIGIN_AGENT_PREFIX', () => {
-  it('est le préfixe que le backend écrit', () => {
-    // Vitest fournit `__dirname` même en ESM (cf. no-horizontal-scroll.test.ts).
-    // eslint-disable-next-line no-undef
-    const constantes = join(__dirname, '../../../backend/app/core/constants.py');
-    const source = readFileSync(constantes, 'utf-8');
-    const ecrit = /^MESSAGE_ORIGIN_AGENT_PREFIX: Final\[str\] = "([^"]*)"$/m.exec(source);
-    expect(ecrit?.[1]).toBe(MESSAGE_ORIGIN_AGENT_PREFIX);
+describe('les origines de message, miroir du backend', () => {
+  // Vitest fournit `__dirname` même en ESM (cf. no-horizontal-scroll.test.ts).
+  // eslint-disable-next-line no-undef
+  const RACINE = join(__dirname, '../../..');
+  const constantes = readFileSync(join(RACINE, 'backend/app/core/constants.py'), 'utf-8');
+  const miroir = {
+    MESSAGE_ORIGIN_USER,
+    MESSAGE_ORIGIN_ELDIR,
+    MESSAGE_ORIGIN_AGENT_PREFIX,
+  };
+
+  it.each(Object.entries(miroir))('%s est ce que le backend écrit', (nom, valeur) => {
+    const ecrit = new RegExp(`^${nom}: Final\\[str\\] = "([^"]*)"$`, 'm').exec(constantes);
+    expect(ecrit?.[1]).toBe(valeur);
+  });
+
+  it('le backend n’a pas d’origine que le frontend ne connaisse pas', () => {
+    const noms = [...constantes.matchAll(/^(MESSAGE_ORIGIN_\w+): Final/gm)].map((m) => m[1]);
+    expect(noms.sort()).toEqual(Object.keys(miroir).sort());
+  });
+
+  it('la CI du frontend se lance quand ce fichier change', () => {
+    // Sans cela, une PR qui ne change que les constantes du backend est verte sans
+    // que les tests ci-dessus aient tourné.
+    const workflow = readFileSync(join(RACINE, '.github/workflows/frontend.yml'), 'utf-8');
+    const lignes = workflow.match(/^\s+- 'backend\/app\/core\/constants\.py'$/gm);
+    // Une fois pour `pull_request`, une fois pour `push`.
+    expect(lignes).toHaveLength(2);
   });
 });
