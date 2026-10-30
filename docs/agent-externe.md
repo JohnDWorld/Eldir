@@ -121,7 +121,9 @@ moment, et personne n'était là pour en décider.
    par exemple `assistant de bureau`. Ce libellé n'est pas décoratif : il signe
    chaque consigne dans l'historique de la session et chaque préférence
    enregistrée. En relisant son fil, tu cherches précisément à savoir lequel de
-   tes cerveaux a décidé.
+   tes cerveaux a décidé. Deux jetons vivants ne peuvent donc pas porter le même
+   libellé : Eldir refuse l'émission en le nommant. Un libellé libéré par une
+   révocation se réutilise, c'est le geste de secours après une fuite.
 2. **Créer un jeton.** Le clair s'affiche **une seule fois**, juste après la
    création. Eldir ne le conserve pas et ne peut donc pas le réafficher : si tu le
    perds, révoque celui-ci et émets-en un autre.

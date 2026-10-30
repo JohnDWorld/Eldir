@@ -49,8 +49,23 @@ def upgrade() -> None:
         sa.UniqueConstraint("jti", name="uq_agent_tokens_jti"),
     )
     op.create_index("ix_agent_tokens_user_id", "agent_tokens", ["user_id"])
+    # Deux jetons vivants au même libellé seraient indiscernables : la
+    # documentation présente `demandeur` comme le champ qui dit qui a décidé, et
+    # le fil comme la liste n'affichent que ce libellé. La révocation étant par
+    # jeton, John ne saurait pas lequel couper. Partielle sur les jetons non
+    # révoqués : réémettre après révocation est le geste de secours documenté
+    # quand un jeton a fuité, et il reprend le même libellé.
+    op.create_index(
+        "uq_agent_tokens_user_label_vivant",
+        "agent_tokens",
+        ["user_id", "label"],
+        unique=True,
+        sqlite_where=sa.text("revoked_at IS NULL"),
+        postgresql_where=sa.text("revoked_at IS NULL"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("uq_agent_tokens_user_label_vivant", table_name="agent_tokens")
     op.drop_index("ix_agent_tokens_user_id", table_name="agent_tokens")
     op.drop_table("agent_tokens")

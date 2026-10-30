@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKey
@@ -21,7 +21,21 @@ class AgentToken(UUIDPrimaryKey, TimestampMixin, Base):
     """Une ligne par jeton émis, y compris révoqué (on garde la trace)."""
 
     __tablename__ = "agent_tokens"
-    __table_args__ = (UniqueConstraint("jti", name="uq_agent_tokens_jti"),)
+    __table_args__ = (
+        UniqueConstraint("jti", name="uq_agent_tokens_jti"),
+        # Un seul jeton vivant par libellé : c'est le libellé qui dit qui a
+        # décidé, dans les pings comme dans le fil, et la révocation est par
+        # jeton. Partielle, pour que réémettre après révocation garde le même
+        # nom (c'est le geste de secours documenté quand un jeton a fuité).
+        Index(
+            "uq_agent_tokens_user_label_vivant",
+            "user_id",
+            "label",
+            unique=True,
+            sqlite_where=text("revoked_at IS NULL"),
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
 
     # CASCADE comme partout ailleurs : supprimer un utilisateur coupe ses jetons.
     user_id: Mapped[str] = mapped_column(

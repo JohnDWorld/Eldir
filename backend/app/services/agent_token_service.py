@@ -8,7 +8,12 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
+from app.core.exceptions import (
+    AuthenticationError,
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.security import KIND_AGENT, create_access_token, decode_agent_token
 from app.db.models import AgentToken
 
@@ -23,11 +28,30 @@ async def emettre(db: AsyncSession, *, user_id: str, label: str) -> tuple[AgentT
 
     Le clair n'est rendu qu'ici : on ne le stocke pas, donc on ne peut pas le
     réafficher. L'interface doit le dire avant de le montrer.
+
+    Raises:
+        ValidationError: libellé vide ou trop long.
+        ConflictError: un jeton non révoqué porte déjà ce libellé. Un libellé
+            révoqué se réutilise : c'est le geste de secours après une fuite.
     """
     label = label.strip()
     if not label or len(label) > _LABEL_MAX:
         raise ValidationError(
             f"Un jeton d'agent doit porter un libellé de 1 à {_LABEL_MAX} caractères."
+        )
+    deja = await db.execute(
+        select(AgentToken.id).where(
+            AgentToken.user_id == user_id,
+            AgentToken.label == label,
+            AgentToken.revoked_at.is_(None),
+        )
+    )
+    if deja.first() is not None:
+        raise ConflictError(
+            f"Un jeton actif porte déjà le libellé « {label} ». C'est ce libellé "
+            "qui dit quel agent a décidé, dans les pings comme dans le fil, et "
+            "la révocation est par jeton : avec deux homonymes, tu ne saurais "
+            "pas lequel couper. Donne-lui un autre nom, ou révoque le premier."
         )
     jti = str(uuid.uuid4())
     ligne = AgentToken(user_id=user_id, label=label, jti=jti)

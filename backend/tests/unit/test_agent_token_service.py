@@ -9,7 +9,12 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
+from app.core.exceptions import (
+    AuthenticationError,
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.security import create_access_token, decode_agent_token
 from app.db.models import AgentToken
 from app.services import agent_token_service as svc
@@ -155,5 +160,53 @@ async def test_un_jti_ne_peut_pas_etre_porte_par_deux_lignes(db_session: AsyncSe
     """`authentifier` suppose un `jti` unique : à deux, la liste blanche serait ambiguë."""
     ligne, _ = await _emettre(db_session)
     db_session.add(AgentToken(user_id="u1", label="doublon", jti=ligne.jti))
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_deux_jetons_vivants_ne_portent_pas_le_meme_libelle(
+    db_session: AsyncSession,
+) -> None:
+    """Le libellé dit qui a décidé : à deux, John ne sait pas lequel révoquer.
+
+    Les pings, les encarts du fil et les lignes de la liste n'affichent que lui,
+    et la révocation est par jeton. Le refus nomme le libellé pour que John
+    n'ait pas à deviner lequel de ses jetons gêne.
+    """
+    await _emettre(db_session, label="assistant de bureau")
+    with pytest.raises(ConflictError, match="assistant de bureau"):
+        await svc.emettre(db_session, user_id="u1", label="  assistant de bureau  ")
+
+
+async def test_un_autre_porteur_peut_reprendre_le_meme_libelle(
+    db_session: AsyncSession,
+) -> None:
+    """L'unicité est par utilisateur : rien de partagé entre deux porteurs."""
+    await _emettre(db_session, user_id="u1", label="assistant de bureau")
+    ligne, _ = await _emettre(db_session, user_id="u2", label="assistant de bureau")
+    assert ligne.user_id == "u2"
+
+
+async def test_un_libelle_revoque_se_reutilise(db_session: AsyncSession) -> None:
+    """Révoquer puis réémettre est le geste de secours après une fuite de jeton,
+    et il reprend le même nom : l'unicité ne porte que sur les jetons vivants."""
+    ligne, _ = await _emettre(db_session, label="assistant de bureau")
+    await svc.revoquer(db_session, user_id="u1", token_id=ligne.id)
+    await db_session.commit()
+    neuf, _ = await _emettre(db_session, label="assistant de bureau")
+    assert neuf.id != ligne.id
+    assert [j.label for j in await svc.lister(db_session, user_id="u1")] == [
+        "assistant de bureau",
+        "assistant de bureau",
+    ]
+
+
+async def test_la_base_refuse_deux_libelles_vivants_meme_sans_la_garde(
+    db_session: AsyncSession,
+) -> None:
+    """La garde du service est doublée par un index partiel : deux émissions
+    simultanées la contournent, la base non."""
+    await _emettre(db_session, label="assistant de bureau")
+    db_session.add(AgentToken(user_id="u1", label="assistant de bureau", jti="jti-bis"))
     with pytest.raises(IntegrityError):
         await db_session.flush()
