@@ -276,13 +276,25 @@ export function SessionPage(): JSX.Element {
         />
       )}
 
-      {/* Sélecteur de panneau, mobile uniquement */}
-      <div className="flex shrink-0 border-b border-eldir-gray-3 bg-eldir-cream-2 md:hidden">
+      {/* Sélecteur de panneau, mobile uniquement.
+
+          `aria-pressed` et pas `role="tab"` : l'onglet actif ne se distinguait que
+          par sa couleur et son trait orange, donc un lecteur d'écran annonçait trois
+          boutons identiques et taisait lequel était ouvert. `role="tab"` aurait été
+          plus précis, mais il vient avec un contrat clavier (flèches entre les
+          onglets) qu'il faudrait écrire : promettre le rôle sans le contrat rend
+          l'expérience PIRE qu'un bouton, parce que la navigation annoncée ne
+          répond pas. Un bouton à deux états, lui, tient entièrement sa promesse. */}
+      <div
+        className="flex shrink-0 border-b border-eldir-gray-3 bg-eldir-cream-2 md:hidden"
+        aria-label="Panneau affiché"
+      >
         {(['chat', 'diff', 'live'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
             onClick={() => selectMobileTab(tab)}
+            aria-pressed={mobileTab === tab}
             className={cn(
               'min-h-11 flex-1 px-3 font-mono text-2xs uppercase tracking-caps transition-colors',
               mobileTab === tab
