@@ -147,7 +147,7 @@ class MissionTemplateService:
         await db.flush()
         # Recharge avec selectinload pour que `template.skills` /
         # `template.sub_agents` ne déclenchent pas un lazy-load synchrone
-        # plus tard (le contexte async ne le supporte pas — MissingGreenlet).
+        # plus tard (le contexte async ne le supporte pas - MissingGreenlet).
         reloaded = await self.get(db, project_id=project_id, user_id=user_id)
         assert reloaded is not None
         return reloaded

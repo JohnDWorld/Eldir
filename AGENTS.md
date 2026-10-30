@@ -57,7 +57,7 @@ npm run build                 # Vérifie que la build PWA passe
 - **Tailwind CSS + shadcn/ui**
 - **TanStack Query** pour le server state, **Zustand** pour le client state
 - **Zod** pour validation runtime
-- **npm** package manager (jamais yarn ni pnpm — `package-lock.json` est la source de vérité)
+- **npm** package manager (jamais yarn ni pnpm - `package-lock.json` est la source de vérité)
 - **PostgreSQL 16 + Redis 7**
 
 ## Code style - règles strictes

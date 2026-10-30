@@ -253,7 +253,7 @@ function D4DeskHome() {
             </div>
             <div style={{padding:'6px 12px',background:'#0E0C0A',borderTop:`1px solid ${TERM_AC}`,
               display:'flex',gap:14,fontSize:11,color:TERM_DIM}}>
-              <Kbd k="^N" l="new session"/><Kbd k="^K" l="jump"/><Kbd k="1–9" l="switch tab"/>
+              <Kbd k="^N" l="new session"/><Kbd k="^K" l="jump"/><Kbd k="1-9" l="switch tab"/>
               <Kbd k="^/" l="search"/><Kbd k="?" l="help"/>
               <span style={{flex:1}}/>
               <span>auth: pro · model: sonnet 4.5 · ollama:off</span>

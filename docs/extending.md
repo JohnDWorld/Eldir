@@ -82,11 +82,11 @@ Et un `GitMark` icon pour le provider dans `frontend/src/components/eldir/git-ma
 
 Crée `docs/providers/{nom}.md` sur le modèle de `docs/providers/forgejo.md`.
 
-Ouvre une PR — pas besoin de migration DB, tout est déjà pluggable.
+Ouvre une PR - pas besoin de migration DB, tout est déjà pluggable.
 
 ## Ajouter un preset de Mission Template
 
-Phase 4 t'a fourni un loader automatique pour les presets — pas de code à toucher.
+Phase 4 t'a fourni un loader automatique pour les presets - pas de code à toucher.
 
 ### 1. Créer le JSON
 
@@ -189,12 +189,12 @@ Puis affiche-le dans `session-page.tsx` (`ChatStream` ou `LogLine`) selon ton in
 
 ### 5. Persistance
 
-Aucune action — `SessionService._persist_event` enregistre tous les events publiés. Si tu veux un traitement spécial (comme `usage` qui crée une ligne `session_costs`), ajoute un `if event_type == EVENT_TYPE_SUBAGENT_START: ...` dans la callback.
+Aucune action - `SessionService._persist_event` enregistre tous les events publiés. Si tu veux un traitement spécial (comme `usage` qui crée une ligne `session_costs`), ajoute un `if event_type == EVENT_TYPE_SUBAGENT_START: ...` dans la callback.
 
 ## Ajouter un endpoint API
 
 1. Crée un module dans `backend/app/api/v1/{nom}.py` avec un `APIRouter`.
-2. Délègue à un service dans `backend/app/services/` — **jamais** de logique métier dans les routes.
+2. Délègue à un service dans `backend/app/services/` - **jamais** de logique métier dans les routes.
 3. Schemas Pydantic dans `backend/app/schemas/{nom}.py`.
 4. Inclus le router dans `backend/app/api/v1/__init__.py` :
 
@@ -203,7 +203,7 @@ from app.api.v1.{nom} import router as {nom}_router
 api_router.include_router({nom}_router)
 ```
 
-5. Côté frontend, ajoute la queryKey + le hook dans `frontend/src/lib/api/queries.ts`. Pas de `fetch()` direct dans les composants — toujours via `apiClient`.
+5. Côté frontend, ajoute la queryKey + le hook dans `frontend/src/lib/api/queries.ts`. Pas de `fetch()` direct dans les composants - toujours via `apiClient`.
 
 6. Ajoute les types TS via `./scripts/gen-types.sh` (depuis Pydantic) plutôt que de les écrire à la main.
 
@@ -229,6 +229,6 @@ docker exec eldir-backend uv run alembic upgrade head
 
 ## Voir aussi
 
-- [`AGENTS.md`](../AGENTS.md) — conventions strictes pour les contributeurs
-- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — workflow PR
-- [`architecture.md`](./architecture.md) — vue d'ensemble pour comprendre où ton code s'insère
+- [`AGENTS.md`](../AGENTS.md) - conventions strictes pour les contributeurs
+- [`CONTRIBUTING.md`](../CONTRIBUTING.md) - workflow PR
+- [`architecture.md`](./architecture.md) - vue d'ensemble pour comprendre où ton code s'insère
