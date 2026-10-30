@@ -22,6 +22,7 @@ import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import TracebackType
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,23 @@ class ServeurAbonne:
             if time.monotonic() > fin:
                 raise AssertionError(f"{len(self.requetes)} requête(s) reçue(s) sur {nombre}")
             await asyncio.sleep(0.01)
+
+
+class Journal:
+    """Remplace le logger du ping : ce qu'il a dit, et sous quel nom.
+
+    Le journal réel écrit sur la sortie standard, que rien ne relit ; l'espion
+    permet de prouver qu'un échec a bien été vu, donc que le ping est bien parti.
+    """
+
+    def __init__(self) -> None:
+        self.appels: list[tuple[str, dict[str, Any]]] = []
+
+    def warning(self, evenement: str, **champs: Any) -> None:
+        self.appels.append((evenement, champs))
+
+    def evenements(self) -> list[str]:
+        return [e for e, _ in self.appels]
 
 
 def port_ferme() -> int:

@@ -18,59 +18,18 @@ import hmac
 import json
 import logging
 import time
-from collections.abc import Callable, Iterator
-from typing import Any
+from collections.abc import Callable
 
 import pytest
 import structlog
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.core.logging import configure_logging
-from app.services import turn_webhook
 from app.services.turn_webhook import prevenir, signer
 
-from tests.unit.serveur_abonne import ServeurAbonne, port_ferme
+from tests.unit.serveur_abonne import Journal, ServeurAbonne, port_ferme
 
 JETON = "jeton-d-url-42"
 CHARGE = {"session_id": "s1", "projet": "Munin", "etat": "fin_de_tour", "cr": "Fait : é à ü"}
-
-
-class _Journal:
-    """Remplace le logger du module : ce que le ping a dit, et sous quel nom."""
-
-    def __init__(self) -> None:
-        self.appels: list[tuple[str, dict[str, Any]]] = []
-
-    def warning(self, evenement: str, **champs: Any) -> None:
-        self.appels.append((evenement, champs))
-
-    def evenements(self) -> list[str]:
-        return [e for e, _ in self.appels]
-
-
-@pytest.fixture
-def journal(monkeypatch: pytest.MonkeyPatch) -> _Journal:
-    espion = _Journal()
-    monkeypatch.setattr(turn_webhook, "logger", espion)
-    return espion
-
-
-@pytest.fixture
-def reglages(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., None]]:
-    """Pose des variables d'environnement, puis vide le cache des réglages."""
-
-    def poser(**env: str) -> None:
-        for nom, valeur in env.items():
-            monkeypatch.setenv(nom.upper(), valeur)
-        get_settings.cache_clear()
-
-    yield poser
-    get_settings.cache_clear()
-
-
-@pytest.fixture
-def abonne() -> Iterator[ServeurAbonne]:
-    with ServeurAbonne() as serveur:
-        yield serveur
 
 
 def test_la_signature_depend_du_corps_et_du_secret() -> None:
@@ -98,7 +57,7 @@ def test_par_defaut_aucun_ping_n_est_configure(monkeypatch: pytest.MonkeyPatch) 
 
 
 async def test_sans_url_configuree_on_ne_fait_rien(
-    reglages: Callable[..., None], journal: _Journal
+    reglages: Callable[..., None], journal: Journal
 ) -> None:
     reglages(turn_webhook_url="")
     await prevenir(CHARGE)
@@ -108,7 +67,7 @@ async def test_sans_url_configuree_on_ne_fait_rien(
 
 
 async def test_le_ping_part_vraiment_avec_le_bon_corps_et_la_bonne_signature(
-    reglages: Callable[..., None], journal: _Journal, abonne: ServeurAbonne
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
 ) -> None:
     reglages(turn_webhook_url=abonne.url("/ok"), turn_webhook_secret="secret-de-test")
 
@@ -129,7 +88,7 @@ async def test_le_ping_part_vraiment_avec_le_bon_corps_et_la_bonne_signature(
 @pytest.mark.parametrize("secret", [None, ""])
 async def test_sans_secret_le_ping_part_non_signe(
     reglages: Callable[..., None],
-    journal: _Journal,
+    journal: Journal,
     abonne: ServeurAbonne,
     secret: str | None,
 ) -> None:
@@ -147,7 +106,7 @@ async def test_sans_secret_le_ping_part_non_signe(
 
 
 async def test_un_abonne_qui_refuse_ne_fait_pas_echouer_le_tour(
-    reglages: Callable[..., None], journal: _Journal, abonne: ServeurAbonne
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
 ) -> None:
     """La session enfant a fini son travail : un abonné en erreur n'y change rien."""
     reglages(turn_webhook_url=abonne.url("/erreur") + f"?jeton={JETON}")
@@ -160,7 +119,7 @@ async def test_un_abonne_qui_refuse_ne_fait_pas_echouer_le_tour(
 
 
 async def test_une_redirection_n_est_pas_suivie_et_compte_comme_un_refus(
-    reglages: Callable[..., None], journal: _Journal, abonne: ServeurAbonne
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
 ) -> None:
     """Suivre la redirection enverrait le corps signé là où John ne l'a pas configuré,
     et l'ignorer en silence laisserait un abonné déménagé sans ping, sans le savoir."""
@@ -173,7 +132,7 @@ async def test_une_redirection_n_est_pas_suivie_et_compte_comme_un_refus(
 
 
 async def test_un_abonne_injoignable_ne_fait_pas_echouer_le_tour(
-    reglages: Callable[..., None], journal: _Journal
+    reglages: Callable[..., None], journal: Journal
 ) -> None:
     """Connexion refusée pour de bon, sans remplacer httpx : si le ping n'était pas
     parti, il n'y aurait pas d'avertissement du tout."""
@@ -186,7 +145,7 @@ async def test_un_abonne_injoignable_ne_fait_pas_echouer_le_tour(
 
 
 async def test_un_abonne_qui_ne_repond_pas_est_lache_au_bout_du_delai(
-    reglages: Callable[..., None], journal: _Journal, abonne: ServeurAbonne
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
 ) -> None:
     reglages(turn_webhook_url=abonne.url("/silence"), turn_webhook_timeout_seconds="0.3")
 
@@ -200,7 +159,7 @@ async def test_un_abonne_qui_ne_repond_pas_est_lache_au_bout_du_delai(
 
 
 async def test_un_abonne_qui_repond_au_compte_gouttes_ne_garde_pas_le_ping_indefiniment(
-    reglages: Callable[..., None], journal: _Journal, abonne: ServeurAbonne
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
 ) -> None:
     """Le délai de httpx court par phase : un octet toutes les 50 ms le remet à zéro
     sans cesse. Seul un délai sur le ping entier le borne."""
@@ -216,7 +175,7 @@ async def test_un_abonne_qui_repond_au_compte_gouttes_ne_garde_pas_le_ping_indef
 
 
 async def test_une_charge_qui_ne_se_serialise_pas_ne_fait_pas_echouer_le_tour(
-    reglages: Callable[..., None], journal: _Journal, abonne: ServeurAbonne
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
 ) -> None:
     reglages(turn_webhook_url=abonne.url("/ok"))
 
