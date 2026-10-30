@@ -5,8 +5,10 @@ aucune logique métier, seulement l'adaptation d'un transport et la garde du
 jeton. Toute règle qui vivrait ici seulement serait une règle que le
 superviseur interne n'applique pas, donc deux Eldir qui divergent.
 
-Une seule exception, et elle est un retrait, pas une règle : la surface externe
-ne sert pas `allow_publish`. Cf. `HORS_SURFACE_EXTERNE`.
+La surface sert donc les cinq outils, sans exception. `allow_publish` en avait
+été retiré le 2026-10-30, puis remis le même jour sur décision de John : il veut
+qu'un agent extérieur puisse publier directement. Ce que cela change, et les
+deux bornes qui restent mécaniques, sont écrits au-dessus de l'adaptateur.
 """
 
 from __future__ import annotations
@@ -142,33 +144,67 @@ async def remember(fait: str) -> str:
     return await get_supervisor_service().outil_remember(user_id, fait=fait, libelle_agent=libelle)
 
 
-# Ce que le superviseur sait faire et que la surface externe ne sert pas.
+async def allow_publish(session_id: str, autoriser: StrictBool) -> str:
+    """Ouvre ou referme la porte de publication d'une session, depuis l'extérieur.
+
+    DÉCISION DE JOHN, 2026-10-30, en toute connaissance du risque. L'outil avait
+    été retiré de cette surface le matin même ; il le remet parce qu'il veut un
+    agent autonome de bout en bout, qui publie sans l'attendre.
+
+    CE QUE ÇA CHANGE, ET IL FAUT L'ÉCRIRE ICI PLUTÔT QUE DANS UN DOCUMENT QUE
+    PERSONNE N'OUVRE. Un agent extérieur lit des comptes rendus de sessions, et
+    un compte rendu contient du texte de dépôt : une issue, un README, le
+    fichier d'une dépendance, la phrase d'un inconnu. Une injection dans ce
+    texte peut donc le pousser à appeler cet outil. La porte de validation
+    humaine n'est plus la garde du chemin extérieur : elle reste le défaut d'une
+    session neuve, et l'agent peut la lever.
+
+    LES DEUX BORNES QUI RESTENT, ET ELLES SONT MÉCANIQUES, PAS DES CONSIGNES :
+
+    1. **Un jeton n'ouvre que les sessions de son propre utilisateur.**
+       `set_publish_allowed` filtre sur `user_id` ; la session d'un autre est
+       introuvable, donc refusée, sans qu'aucun prompt n'ait à être lu.
+    2. **Le push forcé reste refusé même porte ouverte.** Le hook `PreToolUse`
+       le refuse dans tous les cas : ce qui est publié peut être relu et
+       révoqué, un historique réécrit ne se récupère pas.
+
+    Et une trace, qui n'est pas une borne mais ce qui rend l'après lisible : le
+    libellé du jeton est inscrit au journal, donc une publication décidée par un
+    agent ne se confond pas avec un geste de John.
+    """
+    user_id, libelle = agent_courant()
+    return await get_supervisor_service().outil_allow_publish(
+        user_id,
+        session_id=session_id,
+        autoriser=autoriser,
+        libelle_agent=libelle,
+    )
+
+
+# La surface externe sert la table ENTIÈRE du superviseur.
 #
-# `allow_publish` ouvre la seule action irréversible d'une session. Un agent
-# extérieur transmet des suggestions et des tickets écrits par des utilisateurs
-# de La Boutique : du texte non fiable, envoyé à des sessions qui tournent en
-# `bypassPermissions`. Lui laisser cet outil rendait la porte de publication
-# ouvrable par injection de prompt, et un jeton d'agent vit dix ans : la garde
-# tenait face à la dérive, pas face à une consigne hostile.
+# Il n'y a plus de retrait : `HORS_SURFACE_EXTERNE` a existé une journée, le
+# 2026-10-30, pour tenir `allow_publish` hors de ce transport. John le remet,
+# parce qu'il veut un agent qui publie sans l'attendre. Le raisonnement du
+# retrait et celui du retour sont écrits au-dessus de l'adaptateur
+# `allow_publish`, et dans `docs/securite-sessions.md`.
 #
-# Depuis l'extérieur, la publication ne s'ouvre donc que par un geste humain
-# dans le dashboard. Le superviseur interne garde l'outil (décision de John du
-# 2026-10-30). Ce qui le protège n'est pas qu'il ignore le texte extérieur : la
-# table ci-dessous sert `remember`, qui dépose une ligne d'agent dans son prompt
-# durable, relue à chaque démarrage. C'est `_NOTE_AGENTS`
-# (`supervisor_service.py`) qui lui interdit de lire une telle ligne comme une
-# autorisation de publier. Une garde de prompt, là où les autres sont des
-# mécanismes : à rouvrir si le superviseur se met à encaisser plus de texte
-# extérieur qu'une préférence bornée et marquée.
-# Aucune fonction d'adaptation n'existe ici pour cet outil, et c'est voulu :
-# un nom retiré d'une table se remet, une fonction absente ne s'appelle pas.
-HORS_SURFACE_EXTERNE: frozenset[str] = frozenset({"allow_publish"})
+# Le mécanisme du retrait n'est pas conservé à vide : un ensemble vide ne garde
+# rien et aucun test ne peut le prouver. Rien n'est perdu, le geste se refait en
+# deux lignes (retirer le nom de cette table, retirer son adaptateur), et c'est
+# justement ce qui le rend sûr : une fonction absente ne s'appelle pas.
+#
+# `_NOTE_AGENTS` (`supervisor_service.py`) reste en place et garde son sens :
+# elle interdit au superviseur de lire une ligne de `remember` marquée d'un agent
+# comme une autorisation de publier. Elle ne protégeait jamais cette surface-ci,
+# elle protège le prompt durable du superviseur, et ce chemin n'a pas changé.
 
 OUTILS: dict[str, Callable[..., Awaitable[str]]] = {
     "list_projects": list_projects,
     "list_sessions": list_sessions,
     "dispatch": dispatch,
     "remember": remember,
+    "allow_publish": allow_publish,
 }
 
 

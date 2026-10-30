@@ -1,7 +1,8 @@
 # Brancher un agent extérieur sur Eldir
 
-> Quatre des cinq outils du superviseur, servis en MCP sur HTTP, derrière un
-> jeton que tu révoques. De quoi laisser un autre assistant piloter tes
+> Les cinq outils du superviseur, servis en MCP sur HTTP, derrière un
+> jeton que tu révoques. **Publication comprise** : lis
+> [Ce que tu accordes](#ce-que-tu-accordes-en-émettant-un-jeton) avant d'en émettre un. De quoi laisser un autre assistant piloter tes
 > sessions Claude sans reconstruire la logique de dispatch ni conduire
 > l'interface à ta place.
 
@@ -13,7 +14,7 @@ ce qui n'est pas garanti. Si tu ne lis qu'une section, lis
 ## Ce que c'est
 
 Eldir a déjà un cerveau : la session **superviseur**, une session Claude sans
-projet ni worktree qui pilote les sessions enfants à travers quatre outils MCP
+projet ni worktree qui pilote les sessions enfants à travers cinq outils MCP
 in-process. Voir [`docs/supervisor.md`](./supervisor.md).
 
 Ce contrat était jusqu'ici joignable depuis le seul processus d'Eldir. Il est
@@ -46,10 +47,12 @@ consigne de prompt, qui se contourne, mais un refus mécanique : la tentative
 apparaît dans le flux d'events et l'agent reçoit l'explication à la place du
 résultat.
 
-Ce refus est **le même quel que soit le transport**, et un agent extérieur n'a
-aucun moyen de le lever : `allow_publish` n'est pas servi en HTTP. Deux tests
-d'intégration l'épinglent, l'un sur ce que la surface annonce, l'autre sur ce
-qu'elle accepte (`backend/tests/integration/test_mcp_http.py`).
+Ce refus est **le même quel que soit le transport**, et c'est le DÉFAUT d'une
+session neuve. ⚠️ Mais un agent extérieur peut le lever : `allow_publish` est
+servi en HTTP depuis le 2026-10-30. Il n'ouvre que les sessions de son propre
+utilisateur, et un test d'intégration épingle les deux bords (il ouvre bien, et
+le jeton d'un autre utilisateur ne peut pas) dans
+`backend/tests/integration/test_mcp_http.py`.
 
 Enfin, la réécriture d'historique (`git push --force`, `--mirror`, `-f`) reste
 refusée **même quand la publication est autorisée** : c'est la seule opération
@@ -58,16 +61,32 @@ pour ça.
 
 ## Ce que tu accordes en émettant un jeton
 
-C'est le passage important. Le refus ci-dessus a exactement une clé, et un jeton
-d'agent ne la porte pas.
+C'est le passage important. Le refus ci-dessus a exactement une clé, et **un
+jeton d'agent la porte**.
 
-**La publication ne s'ouvre que par un geste humain dans le dashboard.** Elle a
-été retirée de la surface externe : servie par HTTP, elle devenait la capacité
-d'un jeton qui vit dix ans, sans périmètre, et la surface sert à transmettre des
-suggestions et des tickets écrits par des utilisateurs de La Boutique, donc du
-texte non fiable envoyé à des sessions en `bypassPermissions`. La garde tenait
-face à la dérive d'un agent, pas face à une injection de prompt. Il n'existe pas
-de jeton en lecture seule : c'est les quatre outils ou rien.
+**Un jeton d'agent ouvre la publication.** `allow_publish` est servi sur cette
+surface depuis le 2026-10-30 (décision du mainteneur, prise en connaissance du
+risque, pour avoir un agent autonome de bout en bout). Concrètement, émettre un
+jeton accorde le droit de publier sur tes dépôts, pas seulement celui de faire
+travailler des sessions.
+
+**Et c'est un risque réel, pas théorique.** Un agent extérieur lit les comptes
+rendus des sessions, et un compte rendu contient du texte de dépôt : une issue,
+un README, le message d'erreur d'une dépendance, la phrase d'un inconnu. Une
+injection dans ce texte peut pousser l'agent à ouvrir la publication, puis à
+dispatcher ce qu'il faut pour qu'une session publie. Un jeton d'agent vit dix
+ans. N'émets un jeton que pour un agent dont tu maîtrises le cerveau et le
+salon, et sur une instance dont les dépôts t'appartiennent.
+
+**Les deux bornes qui restent sont des mécanismes.** Un jeton n'ouvre que les
+sessions de SON utilisateur (`set_publish_allowed` filtre sur `user_id` : la
+session d'un autre est introuvable), et le push forcé reste refusé porte ouverte
+comprise. Le libellé du jeton entre au journal à chaque ouverture, donc une
+publication décidée par un agent se relit après coup.
+
+Il n'existe pas de jeton en lecture seule : c'est les cinq outils ou rien. Si
+tu veux la porte fermée pour les agents, deux lignes de `app/mcp_http.py` la
+referment, et `docs/securite-sessions.md` dit lesquelles.
 
 **Le drapeau reste persistant.** Une autorisation donnée dans le dashboard écrit
 en base, pas seulement dans la session vivante : une session dormante la retrouve
@@ -210,7 +229,7 @@ Si tu passes par le reverse proxy fourni (`docker/Caddyfile`), il transmet le
 `Host` d'origine tel quel : c'est donc le nom public qu'il faut déclarer, pas
 `backend:8000`.
 
-## Les quatre outils
+## Les cinq outils
 
 | Outil | À quoi ça sert | Paramètres |
 |---|---|---|
@@ -218,6 +237,7 @@ Si tu passes par le reverse proxy fourni (`docker/Caddyfile`), il transmet le
 | `list_sessions` | Les 20 sessions projet les plus récemment actives, avec leur état, leur branche, si elles tournent, et le compte rendu `<cr>` de leur dernier passage. | aucun |
 | `dispatch` | Transmet une consigne à une session projet et rend la main immédiatement. Reprend la session indiquée, sinon la plus récente du projet, sinon en démarre une. | `project_id` (requis), `consigne` (requis), `session_id` (optionnel), `nouveau_chantier` (booléen, optionnel) |
 | `remember` | Enregistre une préférence de travail durable dans les **Préférences apprises par le superviseur**. | `fait` (requis) |
+| `allow_publish` | ⚠️ Ouvre ou referme la porte de publication d'une session (commit, push, PR). N'agit que sur les sessions de l'utilisateur du jeton. Le push forcé reste refusé même porte ouverte. | `session_id` (requis), `autoriser` (booléen, requis) |
 
 Trois précisions qui ne se devinent pas :
 
@@ -439,9 +459,10 @@ configuré, cette consigne-là est perdue en silence. Un dispatcheur autonome
 attend la fin d'un tour avant d'en demander un autre sur la même session, ou
 ouvre un `nouveau_chantier`.
 
-**Pas d'autorisation fine par outil.** Un jeton donne les quatre outils ou rien. Un
-jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé, se
-branche. Ce jour-là, pas avant.
+**Pas d'autorisation fine par outil.** Un jeton donne les cinq outils ou rien,
+publication comprise. Un jeton en lecture seule, ou un jeton sans
+`allow_publish`, sera utile le jour où un agent tiers, non maîtrisé, se branche.
+Ce jour-là, pas avant.
 
 ## Si ça ne marche pas
 

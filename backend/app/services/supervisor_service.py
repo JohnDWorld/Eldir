@@ -645,8 +645,22 @@ class SupervisorService:
             "son tour."
         )
 
-    async def outil_allow_publish(self, user_id: str, *, session_id: str, autoriser: bool) -> str:
+    async def outil_allow_publish(
+        self,
+        user_id: str,
+        *,
+        session_id: str,
+        autoriser: bool,
+        libelle_agent: str | None = None,
+    ) -> str:
         """Autorise ou retire à une session le droit de publier (commit, push, PR).
+
+        `libelle_agent` est le nom du jeton d'un agent extérieur, `None` pour le
+        superviseur interne. Comme pour `dispatch` et `remember`, il est inscrit
+        au journal : c'est la seule trace qui dise lequel des deux cerveaux a
+        ouvert la porte. Sans elle, une publication décidée par un agent est
+        indistinguable d'un geste de John dans le dashboard, et c'est justement
+        ce qu'il faut pouvoir relire après coup.
 
         Returns:
             Du texte pour l'agent. Un refus (session vide ou introuvable) est
@@ -662,7 +676,17 @@ class SupervisorService:
                 )
                 await db.commit()
         except NotFoundError as exc:
+            # `set_publish_allowed` filtre sur `user_id` : la session d'un autre
+            # utilisateur est introuvable, pas refusée. C'est la borne qui reste
+            # mécanique maintenant que l'outil est servi en HTTP, et elle ne
+            # dépend d'aucune lecture de prompt.
             return f"Erreur : {exc.message}"
+        logger.info(
+            "supervisor.allow_publish",
+            session_id=session_id,
+            autoriser=autoriser,
+            agent=libelle_agent,
+        )
         etat = "autorisée" if autoriser else "de nouveau bloquée"
         return (
             f"Publication {etat} pour la session {session_id}. "

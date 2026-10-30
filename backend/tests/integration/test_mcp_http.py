@@ -136,12 +136,17 @@ async def _agent(url: str, jeton: str) -> AsyncIterator[ClientSession]:
         yield session
 
 
-async def _appelle(url: str, jeton: str, nom: str, args: dict[str, Any] | None = None) -> str:
-    async with _agent(url, jeton) as session:
-        resultat = await session.call_tool(nom, args or {})
+def _texte(resultat: Any) -> str:
+    """Le texte d'un résultat d'outil. Trois endroits le dépliaient à la main."""
     contenu = resultat.content[0]
     assert isinstance(contenu, mcp_types.TextContent)
     return contenu.text
+
+
+async def _appelle(url: str, jeton: str, nom: str, args: dict[str, Any] | None = None) -> str:
+    async with _agent(url, jeton) as session:
+        resultat = await session.call_tool(nom, args or {})
+    return _texte(resultat)
 
 
 # ── Les données ─────────────────────────────────────────────────────────
@@ -297,53 +302,38 @@ def test_un_outil_appele_hors_de_la_garde_n_agit_au_nom_de_personne() -> None:
 
 
 # ── Ce que le modèle lit ────────────────────────────────────────────────
-def _table_externe() -> dict[str, tuple[str, dict[str, Any]]]:
-    """La table du superviseur moins ce que la surface externe retire."""
-    return {
-        nom: valeur
-        for nom, valeur in SCHEMAS_OUTILS.items()
-        if nom not in mcp_http.HORS_SURFACE_EXTERNE
-    }
-
-
 async def test_les_outils_publies_sont_exactement_la_table(url_mcp: str, jeton_agent: str) -> None:
     """Descriptions ET schémas, paramètre par paramètre : comme le serveur in-process.
 
-    À un retrait près, nommé dans `HORS_SURFACE_EXTERNE` et vérifié juste après :
-    comparer à la table entière ferait échouer ce test sur le durcissement
-    lui-même, comparer à la seule liste servie laisserait un outil réapparaître
-    en silence.
+    La table ENTIÈRE, sans soustraction, depuis que John a remis `allow_publish`
+    sur cette surface (2026-10-30). L'égalité va dans les deux sens et c'est ce
+    qui compte : un outil qui disparaîtrait de la surface ferait tomber ce test
+    au même titre qu'un outil qui y apparaîtrait sans passer par la table.
     """
     async with _agent(url_mcp, jeton_agent) as session:
         outils = (await session.list_tools()).tools
-    assert {o.name: (o.description, o.inputSchema) for o in outils} == _table_externe()
+    assert {o.name: (o.description, o.inputSchema) for o in outils} == SCHEMAS_OUTILS
     # Le superviseur interne rend du texte seul : pas de contenu structuré en plus.
     assert all(o.outputSchema is None for o in outils)
 
 
-async def test_un_jeton_d_agent_ne_peut_pas_ouvrir_la_publication(
+async def test_la_surface_sert_allow_publish_annonce_et_route(
     url_mcp: str, jeton_agent: str
 ) -> None:
-    """Le retrait porte sur ce que la surface annonce ET sur ce qu'elle accepte.
+    """Annoncé ET routé : deux preuves, parce qu'elles tombent séparément.
 
-    Deux preuves séparées parce qu'elles tombent pour des raisons différentes :
-    un outil retiré de `list_tools` mais encore routé resterait appelable par
-    un agent qui connaît son nom, et un outil refusé mais encore annoncé
-    inviterait le modèle à l'essayer à chaque tour.
+    Un outil routé sans être annoncé reste appelable par qui connaît son nom,
+    mais aucun modèle ne le trouve ; annoncé sans être routé, il invite le
+    modèle à l'essayer à chaque tour pour rien. John veut que son agent publie :
+    il faut les deux.
     """
     async with _agent(url_mcp, jeton_agent) as session:
         annonces = {o.name for o in (await session.list_tools()).tools}
-        resultat = await session.call_tool("allow_publish", {"session_id": "s1", "autoriser": True})
 
-    assert mcp_http.HORS_SURFACE_EXTERNE, "un retrait vide ferait passer ce test pour une garde"
-    for retire in mcp_http.HORS_SURFACE_EXTERNE:
-        assert retire not in annonces, f"{retire} est encore annoncé à l'agent"
-        assert retire not in mcp_http.OUTILS, f"{retire} est encore routé"
-    assert resultat.isError
-
-    # Et il reste servi au superviseur interne : le retrait vise la surface
-    # externe, pas la fonctionnalité.
-    assert "allow_publish" in SCHEMAS_OUTILS
+    assert "allow_publish" in annonces, "allow_publish n'est pas annoncé à l'agent"
+    assert "allow_publish" in mcp_http.OUTILS, "allow_publish n'est pas routé"
+    # Et la parité tient dans l'autre sens : rien ne se sert hors de la table.
+    assert set(mcp_http.OUTILS) == set(SCHEMAS_OUTILS)
 
 
 def test_le_schema_servi_est_une_copie_de_la_table() -> None:
@@ -361,7 +351,7 @@ def test_chaque_fonction_d_outil_accepte_les_parametres_que_la_table_annonce() -
 
     Un paramètre ajouté à la table seule serait annoncé puis jeté en silence.
     """
-    assert set(mcp_http.OUTILS) == set(_table_externe())
+    assert set(mcp_http.OUTILS) == set(SCHEMAS_OUTILS)
     types_json = {"string": str, "boolean": bool}
     for nom, fonction in mcp_http.OUTILS.items():
         _, schema = SCHEMAS_OUTILS[nom]
@@ -662,10 +652,9 @@ async def test_les_bornes_de_remember_arrivent_a_l_agent_en_phrases_lisibles(
 
     for refus, borne in ((trop_long, PREFERENCE_LONGUEUR_MAX), (plein, PREFERENCES_AGENT_MAX)):
         assert not refus.isError
-        contenu = refus.content[0]
-        assert isinstance(contenu, mcp_types.TextContent)
-        assert contenu.text.startswith("Erreur : ")
-        assert str(borne) in contenu.text
+        texte = _texte(refus)
+        assert texte.startswith("Erreur : ")
+        assert str(borne) in texte
 
 
 # ── Un seul comportement, deux transports ───────────────────────────────
@@ -695,10 +684,7 @@ async def _en_process_brut(
 async def _en_process(
     service: SupervisorService, user_id: str, nom: str, args: dict[str, Any]
 ) -> str:
-    resultat = await _en_process_brut(service, user_id, nom, args)
-    contenu = resultat.content[0]
-    assert isinstance(contenu, mcp_types.TextContent)
-    return contenu.text
+    return _texte(await _en_process_brut(service, user_id, nom, args))
 
 
 @pytest.mark.parametrize(
@@ -756,11 +742,7 @@ def _arguments_invalides(nom: str) -> list[tuple[str, dict[str, Any]]]:
 
 @pytest.mark.parametrize(
     "nom",
-    [
-        n
-        for n, (_, schema) in SCHEMAS_OUTILS.items()
-        if schema["properties"] and n not in mcp_http.HORS_SURFACE_EXTERNE
-    ],
+    [n for n, (_, schema) in SCHEMAS_OUTILS.items() if schema["properties"]],
 )
 async def test_http_et_in_process_refusent_les_memes_arguments(
     url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch, nom: str
@@ -866,20 +848,28 @@ async def _publication_en_base(factory: Fabrique, session_id: str) -> bool:
         return ligne.publish_allowed
 
 
-async def test_la_surface_http_ne_degage_pas_la_publication(
+async def test_la_surface_http_ouvre_la_publication_et_ce_qui_la_borne_encore(
     url_mcp: str,
     session_factory: Fabrique,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Commit, push et PR restent refusés à l'enfant, et aucun jeton n'ouvre la porte.
+    """Un jeton d'agent ouvre la porte de SES sessions, et rien de plus.
 
-    Le hook est le vrai (SessionManager réel, seul le SDK est factice). La
-    permission ne passe plus par HTTP, parce que la surface externe ne sert pas
-    `allow_publish` : elle passe par `outil_allow_publish`, le corps que le
-    superviseur interne appelle et que le geste humain du dashboard empruntera.
-    (Pas par le serveur MCP in-process : ce test remplace le SDK par un double,
-    donc `_build_mcp_server` ne peut pas s'y monter.)
+    DÉCISION DE JOHN, 2026-10-30 : il veut que son agent extérieur publie
+    directement. Ce test est l'inverse exact de celui qu'il remplace, et il
+    garde les trois preuves de l'ancien qui tiennent encore, parce que ce sont
+    elles qui restent mécaniques :
+
+    1. une session neuve est fermée par DÉFAUT. L'agent doit ouvrir la porte,
+       elle ne s'ouvre pas d'elle-même ;
+    2. le jeton d'un AUTRE utilisateur ne l'ouvre pas. `set_publish_allowed`
+       filtre sur `user_id` : la session d'autrui est introuvable, et cette
+       borne ne dépend d'aucune lecture de prompt ;
+    3. le push FORCÉ reste refusé porte ouverte. Ce qui est publié se relit et
+       se révoque, un historique réécrit ne se récupère pas.
+
+    Le hook est le vrai (SessionManager réel, seul le SDK est factice).
     """
     options = _sdk_factice(monkeypatch)
     service, manager = _superviseur_reel(session_factory)
@@ -901,39 +891,50 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
     )
     hook = options[-1]["hooks"]["PreToolUse"][0].hooks[0]
 
-    # Par défaut, une session enfant ne publie pas.
+    # 1. Par défaut, une session enfant ne publie pas.
     for commande in _PUBLIER:
         assert await _refus(hook, commande), commande
     assert not await _refus(hook, "git status"), "le hook ne doit pas tout refuser"
 
-    # Aucun jeton d'agent n'ouvre la porte, pas même celui du propriétaire de
-    # la session : l'outil n'est pas servi en HTTP. C'est le test que John
-    # demande, et il porte sur les deux jetons pour ne pas confondre « retiré
-    # de la surface » avec « refusé parce que la session est à un autre ».
-    for jeton in (jeton_etranger, jeton_proprietaire):
-        async with _agent(url_mcp, jeton) as agent:
-            resultat = await agent.call_tool(
-                "allow_publish", {"session_id": session_id, "autoriser": True}
-            )
-        assert resultat.isError, "la surface externe ne doit pas servir allow_publish"
-        for commande in _PUBLIER:
-            assert await _refus(hook, commande), commande
+    # 2. Le jeton d'un AUTRE utilisateur ne l'ouvre pas, et la porte reste close.
+    async with _agent(url_mcp, jeton_etranger) as agent:
+        resultat = await agent.call_tool(
+            "allow_publish", {"session_id": session_id, "autoriser": True}
+        )
+    assert not resultat.isError, "la session d'autrui se refuse en texte, pas en erreur d'outil"
+    assert "Erreur" in _texte(resultat), _texte(resultat)
+    for commande in _PUBLIER:
+        assert await _refus(hook, commande), commande
+    assert await _publication_en_base(session_factory, session_id) is False
 
-    # Le geste humain, lui, la rouvre : la porte tourne, et le push forcé reste
-    # refusé même ouverte. Sans cette preuve, un hook qui refuserait tout, tout
-    # le temps, passerait pour un hook qui garde.
-    texte = await service.outil_allow_publish(proprietaire, session_id=session_id, autoriser=True)
-    assert texte.startswith(f"Publication autorisée pour la session {session_id}.")
+    # 3. Le jeton du propriétaire, lui, ouvre bien la porte PAR HTTP. C'est ce
+    #    que John a demandé, et c'est la seule assertion de ce fichier qui le
+    #    prouve de bout en bout : surface, service, base, puis hook vivant.
+    async with _agent(url_mcp, jeton_proprietaire) as agent:
+        resultat = await agent.call_tool(
+            "allow_publish", {"session_id": session_id, "autoriser": True}
+        )
+    assert not resultat.isError, _texte(resultat)
+    assert _texte(resultat).startswith(f"Publication autorisée pour la session {session_id}.")
     for commande in _PUBLIER:
         assert not await _refus(hook, commande), commande
-    assert await _refus(hook, "git push --force origin feat/x")
     assert await _publication_en_base(session_factory, session_id) is True, (
         "la base doit porter l'autorisation, pas seulement le hook vivant"
     )
 
-    # Et il la referme.
-    texte = await service.outil_allow_publish(proprietaire, session_id=session_id, autoriser=False)
-    assert texte.startswith(f"Publication de nouveau bloquée pour la session {session_id}.")
+    # 4. Le push forcé reste refusé, porte ouverte. Sans cette preuve, un hook
+    #    qui aurait tout ouvert d'un coup passerait pour un hook qui garde.
+    assert await _refus(hook, "git push --force origin feat/x")
+
+    # 5. Et l'agent la referme, en base aussi : sinon le `resume` la rouvre au
+    #    prochain réveil de la session.
+    async with _agent(url_mcp, jeton_proprietaire) as agent:
+        resultat = await agent.call_tool(
+            "allow_publish", {"session_id": session_id, "autoriser": False}
+        )
+    assert _texte(resultat).startswith(
+        f"Publication de nouveau bloquée pour la session {session_id}."
+    )
     for commande in _PUBLIER:
         assert await _refus(hook, commande), commande
     assert await _publication_en_base(session_factory, session_id) is False, (
