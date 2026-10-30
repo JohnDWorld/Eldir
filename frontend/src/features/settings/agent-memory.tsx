@@ -169,6 +169,17 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
         </p>
       )}
 
+      {entries.length > 0 && (
+        // Quand un agent occupe quinze lignes sur vingt, le geste évident est de couper
+        // son jeton : il ne doit pas avoir à retrouver la page à la main.
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-sm text-eldir-ink-2">Un agent en occupe trop ? Coupe son jeton.</p>
+          <Link to="/settings/agents" className="eldir-btn eldir-btn--secondary eldir-btn--sm">
+            Voir les jetons
+          </Link>
+        </div>
+      )}
+
       {entries.length === 0 ? (
         <p className="mt-3 text-sm text-eldir-ink-2">Aucun agent n'a enregistré de préférence.</p>
       ) : entries.length > SEUIL_REPLI ? (
@@ -196,7 +207,30 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
  */
 export function AgentMemoryStatus(): JSX.Element | null {
   const memoire = useAgentMemory();
-  if (!memoire.data) return null;
+  if (memoire.isPending) return null;
+  // Ne pas se taire quand la requête échoue : c'est le moment où elle compte le
+  // plus. Une mémoire pleine, c'est des agents refusés dont seul l'agent lit le refus.
+  if (memoire.isError || !memoire.data) {
+    return (
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-4">
+        <div className="min-w-0">
+          <div className="eldir-caps">Mémoire des agents</div>
+          <p role="status" className="mt-1 text-sm text-eldir-red-text">
+            Impossible de lire la mémoire des agents. Si elle est pleine, leurs nouvelles
+            préférences sont refusées et seul l'agent le sait.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void memoire.refetch()}
+          disabled={memoire.isFetching}
+          className="eldir-btn eldir-btn--secondary shrink-0"
+        >
+          Réessayer
+        </button>
+      </section>
+    );
+  }
   const { entries, max_entries } = memoire.data;
   const pleine = estPleine(memoire.data);
   return (

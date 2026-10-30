@@ -155,6 +155,23 @@ describe('AgentMemoryPanel', () => {
   });
 });
 
+describe('AgentMemoryPanel, vers les jetons', () => {
+  it('renvoie vers les jetons quand des agents ont écrit, pour couper celui qui en occupe trop', async () => {
+    api.get.mockResolvedValue(memoire([entree('A', 'Fait A.')]));
+    renderAvec(<AgentMemoryPanel />);
+    const lien = await screen.findByRole('link', { name: /voir les jetons/i });
+    expect(lien).toHaveAttribute('href', '/settings/agents');
+    // `.eldir-btn` porte `min-h-11` (44px).
+    expect(lien).toHaveClass('eldir-btn');
+  });
+
+  it('ne propose pas de couper un jeton quand aucun agent n’a rien écrit', async () => {
+    renderAvec(<AgentMemoryPanel />);
+    await screen.findByText(/aucun agent n'a enregistré de préférence/i);
+    expect(screen.queryByRole('link', { name: /voir les jetons/i })).not.toBeInTheDocument();
+  });
+});
+
 const QUATRE = ['A', 'B', 'C', 'D'].map((agent) => entree(agent, `Fait ${agent}.`));
 
 describe('AgentMemoryPanel, liste repliée', () => {
@@ -275,5 +292,32 @@ describe('AgentMemoryStatus', () => {
     api.get.mockResolvedValue(memoire([entree('A', 'a')], 1));
     renderAvec(<AgentMemoryStatus />);
     expect(await screen.findByText(/pleine : les nouvelles sont refusées/i)).toBeInTheDocument();
+  });
+
+  it('dit qu’il ne peut pas lire la mémoire, au lieu de disparaître', async () => {
+    api.get.mockRejectedValue(
+      new ApiError(500, { code: 'eldir_error', message: 'boom', details: {} }),
+    );
+    renderAvec(<AgentMemoryStatus />);
+    const message = await screen.findByText(/impossible de lire la mémoire des agents/i);
+    // Ce que ça coûte de ne pas savoir : l'agent est refusé et lui seul le lit.
+    expect(message.textContent).toMatch(/seul l'agent le sait/);
+  });
+
+  it('permet de réessayer quand la lecture échoue', async () => {
+    api.get.mockRejectedValueOnce(
+      new ApiError(500, { code: 'eldir_error', message: 'boom', details: {} }),
+    );
+    api.get.mockResolvedValue(memoire([entree('A', 'a'), entree('B', 'b')], 5));
+    renderAvec(<AgentMemoryStatus />);
+    fireEvent.click(await screen.findByRole('button', { name: /réessayer/i }));
+    expect(await screen.findByText(/2 sur 5 préférences enregistrées/)).toBeInTheDocument();
+    expect(screen.queryByText(/impossible de lire/i)).not.toBeInTheDocument();
+  });
+
+  it('ne montre rien le temps du premier chargement', () => {
+    api.get.mockReturnValue(new Promise(() => undefined));
+    renderAvec(<AgentMemoryStatus />);
+    expect(screen.queryByText(/mémoire des agents/i)).not.toBeInTheDocument();
   });
 });
