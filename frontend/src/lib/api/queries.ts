@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from '@/lib/api/client';
 import type {
+  AgentMemoryForget,
+  AgentMemoryRead,
   AgentTokenCreated,
   AgentTokenInput,
   AgentTokenRead,
@@ -80,6 +82,7 @@ export const queryKeys = {
   costsDashboard: ['costs', 'dashboard'] as const,
   costsSession: (id: string) => ['costs', 'sessions', id] as const,
   agentTokens: ['agent-tokens'] as const,
+  agentMemory: ['supervisor', 'agent-memory'] as const,
   systemPrompts: ['system-prompts'] as const,
   systemPrompt: (slug: string) => ['system-prompts', slug] as const,
   ollamaStatus: ['ollama', 'status'] as const,
@@ -1168,6 +1171,9 @@ export function useUpsertSystemPrompt(slug: string) {
     onSuccess: (data) => {
       qc.setQueryData(queryKeys.systemPrompt(slug), data);
       qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+      // Les préférences des agents vivent dans un de ces prompts : une édition à
+      // la main change ce que la mémoire des agents affiche.
+      qc.invalidateQueries({ queryKey: queryKeys.agentMemory });
     },
   });
 }
@@ -1180,7 +1186,34 @@ export function useResetSystemPrompt(slug: string) {
     onSuccess: (data) => {
       qc.setQueryData(queryKeys.systemPrompt(slug), data);
       qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+      qc.invalidateQueries({ queryKey: queryKeys.agentMemory });
     },
+  });
+}
+
+// ── Mémoire des agents (Settings > Prompts) ────────────────────
+export function useAgentMemory() {
+  return useQuery({
+    queryKey: queryKeys.agentMemory,
+    queryFn: () => apiClient.get<AgentMemoryRead>('/supervisor/agent-memory'),
+  });
+}
+
+export function useForgetAgentMemory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (line: string) =>
+      apiClient.post<AgentMemoryRead, AgentMemoryForget>('/supervisor/agent-memory/forget', {
+        line,
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.agentMemory, data);
+      // Le prompt édité à côté contient la ligne retirée : sans cela, l'éditeur la
+      // garderait et un « sauvegarder » la remettrait.
+      qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+    },
+    // Retirer une ligne déjà partie (autre onglet, agent) : on relit ce qui reste.
+    onError: () => qc.invalidateQueries({ queryKey: queryKeys.agentMemory }),
   });
 }
 

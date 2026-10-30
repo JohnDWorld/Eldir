@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import {
   useResetSystemPrompt,
@@ -14,15 +15,22 @@ import {
   useUpsertSystemPrompt,
 } from '@/lib/api/queries';
 import { BackLink } from '@/components/eldir/back-link';
+import { AgentMemoryPanel } from '@/features/settings/agent-memory';
+import { SUPERVISOR_PREFS_SLUG } from '@/lib/constants';
 import type { SystemPromptRead } from '@/lib/types/api';
 import { cn } from '@/lib/utils';
 
 export function SettingsPromptsPage(): JSX.Element {
   const prompts = useSystemPrompts();
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  // `?prompt=<slug>` ouvre directement un prompt (la page des agents renvoie vers
+  // celui des préférences).
+  const [searchParams] = useSearchParams();
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(searchParams.get('prompt'));
 
   useEffect(() => {
-    if (selectedSlug === null && prompts.data && prompts.data.length > 0) {
+    // Un slug absent de la liste (lien périmé) vaut « rien de choisi ».
+    const connu = prompts.data?.some((p) => p.slug === selectedSlug) ?? false;
+    if (!connu && prompts.data && prompts.data.length > 0) {
       setSelectedSlug(prompts.data[0]?.slug ?? null);
     }
   }, [prompts.data, selectedSlug]);
@@ -179,6 +187,8 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
           </div>
         </div>
       </header>
+
+      {prompt.slug === SUPERVISOR_PREFS_SLUG && <AgentMemoryPanel verrouille={dirty} />}
 
       <label className="block">
         <span className="eldir-caps mb-1 block">Contenu du prompt</span>

@@ -1,0 +1,122 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as ClientModule from '@/lib/api/client';
+
+const api = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), post: vi.fn() }));
+
+vi.mock('@/lib/api/client', async (importOriginal) => {
+  const reel = await importOriginal<typeof ClientModule>();
+  return {
+    ...reel,
+    apiClient: {
+      get: (...args: unknown[]) => api.get(...args),
+      put: (...args: unknown[]) => api.put(...args),
+      post: (...args: unknown[]) => api.post(...args),
+    },
+  };
+});
+
+import { SettingsPromptsPage } from '@/pages/settings-prompts-page';
+import type { SystemPromptRead } from '@/lib/types/api';
+
+const LIGNE = '- [agent « A »] Fait A.';
+
+function prompt(slug: string, content: string): SystemPromptRead {
+  return {
+    slug,
+    title: `Titre ${slug}`,
+    description: '',
+    content,
+    is_overridden: true,
+    default_content: '',
+  };
+}
+
+const PROMPTS = [prompt('supervisor', '# Superviseur'), prompt('supervisor_prefs', LIGNE)];
+const MEMOIRE = {
+  entries: [{ agent: 'A', text: 'Fait A.', line: LIGNE }],
+  max_entries: 20,
+  max_length: 300,
+};
+
+function renderPage(url: string): void {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[url]}>
+        <SettingsPromptsPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const laisserPasser = () => act(() => new Promise<void>((fin) => setTimeout(fin, 20)));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  api.get.mockImplementation((chemin: string) =>
+    Promise.resolve(chemin === '/supervisor/agent-memory' ? MEMOIRE : PROMPTS),
+  );
+});
+
+describe('SettingsPromptsPage, mémoire des agents', () => {
+  it('ouvre le prompt des préférences quand le lien le demande, avec la mémoire des agents', async () => {
+    renderPage('/settings/prompts?prompt=supervisor_prefs');
+    expect(await screen.findByText(/1 sur 20 préférences/)).toBeInTheDocument();
+    expect(screen.getByText('Fait A.')).toBeInTheDocument();
+  });
+
+  it('ne montre la mémoire des agents que sur le prompt des préférences', async () => {
+    renderPage('/settings/prompts');
+    // Le premier prompt est ouvert par défaut : ce n'est pas celui des préférences.
+    await screen.findByDisplayValue('# Superviseur');
+    await laisserPasser();
+    expect(screen.queryByText(/mémoire des agents extérieurs/i)).not.toBeInTheDocument();
+    expect(api.get).not.toHaveBeenCalledWith('/supervisor/agent-memory');
+
+    fireEvent.click(screen.getByRole('button', { name: /titre supervisor_prefs/i }));
+    expect(await screen.findByText(/1 sur 20 préférences/)).toBeInTheDocument();
+  });
+
+  it('retombe sur le premier prompt quand le lien en nomme un qui n’existe pas', async () => {
+    renderPage('/settings/prompts?prompt=inconnu');
+    expect(await screen.findByDisplayValue('# Superviseur')).toBeInTheDocument();
+  });
+
+  it('bloque le ménage tant que le prompt a des modifications non sauvegardées', async () => {
+    renderPage('/settings/prompts?prompt=supervisor_prefs');
+    const bouton = await screen.findByRole('button', { name: /retirer.*agent A/i });
+    expect(bouton).toBeEnabled();
+    fireEvent.change(screen.getByDisplayValue(LIGNE), { target: { value: `${LIGNE}\n- Autre.` } });
+    expect(screen.getByRole('button', { name: /retirer.*agent A/i })).toBeDisabled();
+  });
+
+  it('relit la mémoire des agents quand John restaure le défaut du prompt', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    api.post.mockResolvedValue({ ...prompt('supervisor_prefs', ''), is_overridden: false });
+    renderPage('/settings/prompts?prompt=supervisor_prefs');
+    await screen.findByText(/1 sur 20 préférences/);
+    fireEvent.click(screen.getByRole('button', { name: 'restaurer le défaut' }));
+    await waitFor(() =>
+      expect(
+        api.get.mock.calls.filter(([chemin]) => chemin === '/supervisor/agent-memory'),
+      ).toHaveLength(2),
+    );
+  });
+
+  it('relit la mémoire des agents quand John édite le prompt à la main', async () => {
+    api.put.mockResolvedValue(prompt('supervisor_prefs', '- Autre.'));
+    renderPage('/settings/prompts?prompt=supervisor_prefs');
+    await screen.findByText(/1 sur 20 préférences/);
+    fireEvent.change(screen.getByDisplayValue(LIGNE), { target: { value: '- Autre.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'sauvegarder' }));
+    await waitFor(() =>
+      expect(
+        api.get.mock.calls.filter(([chemin]) => chemin === '/supervisor/agent-memory'),
+      ).toHaveLength(2),
+    );
+  });
+});

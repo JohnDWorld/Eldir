@@ -6,6 +6,7 @@
  */
 
 import { BackLink } from '@/components/eldir/back-link';
+import { AgentMemoryStatus } from '@/features/settings/agent-memory';
 import { AgentTokensPanel } from '@/features/settings/agent-tokens';
 
 export function SettingsAgentsPage(): JSX.Element {
@@ -24,6 +25,7 @@ export function SettingsAgentsPage(): JSX.Element {
       </header>
 
       <AgentTokensPanel />
+      <AgentMemoryStatus />
     </main>
   );
 }

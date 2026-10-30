@@ -31,5 +31,12 @@ export const SESSION_STATE_LABEL: Record<SessionState, string> = {
   blocked: 'bloquée',
 };
 
+/**
+ * Slug du prompt où le superviseur range ses préférences durables, celles de John
+ * et celles des agents extérieurs. Miroir de `SUPERVISOR_PREFS_SLUG` dans
+ * backend/app/services/supervisor_service.py.
+ */
+export const SUPERVISOR_PREFS_SLUG = 'supervisor_prefs';
+
 export const PROVIDERS = ['github', 'forgejo'] as const;
 export type Provider = (typeof PROVIDERS)[number];

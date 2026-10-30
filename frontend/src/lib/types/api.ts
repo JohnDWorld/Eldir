@@ -296,6 +296,27 @@ export interface SystemPromptWrite {
   content: string;
 }
 
+// ── Mémoire des agents (préférences écrites par des agents extérieurs) ──
+export interface AgentMemoryEntry {
+  /** Nom du jeton qui a écrit la ligne : posé par Eldir, jamais lu dans le texte. */
+  agent: string;
+  text: string;
+  /** La ligne telle que stockée dans le prompt : elle désigne l'entrée pour la retirer. */
+  line: string;
+}
+
+export interface AgentMemoryRead {
+  entries: AgentMemoryEntry[];
+  /** Nombre de préférences que les agents se partagent (borne de `remember`). */
+  max_entries: number;
+  /** Longueur maximale d'une préférence, en caractères. */
+  max_length: number;
+}
+
+export interface AgentMemoryForget {
+  line: string;
+}
+
 // ── Jetons d'agent externe (Settings > Agents) ─────────────────
 export interface AgentTokenInput {
   label: string;
