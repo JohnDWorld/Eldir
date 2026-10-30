@@ -4,8 +4,9 @@ Un substitut de `httpx` ferait passer un test qui vérifie « ça n'a pas levé 
 alors que rien n'est parti. Ici le POST traverse une vraie socket, et le
 serveur garde ce qu'il a reçu : le test lit l'octet, pas l'intention.
 
-Chaque chemin joue un abonné différent :
+Chaque chemin joue un abonné différent (seul le premier segment compte) :
     /ok       répond 204
+    /json     répond 200 avec un petit JSON (modèles Ollama, réponse de génération)
     /erreur   répond 500
     /ancien   redirige vers /nouveau (302)
     /nouveau  répond 200 (ne doit jamais être joint)
@@ -50,7 +51,9 @@ class ServeurAbonne:
                         corps=self.rfile.read(taille),
                     )
                 )
-                chemin = self.path.split("?")[0]
+                # Le premier segment choisit le rôle : un client qui ajoute son propre chemin
+                # à l'URL de base (Ollama : `/api/tags`) joue le même abonné.
+                chemin = "/" + self.path.split("?")[0].lstrip("/").split("/")[0]
                 if chemin == "/silence":
                     serveur._arret.wait(30)
                 elif chemin == "/goutte":
@@ -62,6 +65,13 @@ class ServeurAbonne:
                     self.send_response(500)
                     self.send_header("Content-Length", "0")
                     self.end_headers()
+                elif chemin == "/json":
+                    corps = b'{"models": [], "response": "ok"}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(corps)))
+                    self.end_headers()
+                    self.wfile.write(corps)
                 elif chemin == "/ancien":
                     self.send_response(302)
                     self.send_header("Location", "/nouveau")

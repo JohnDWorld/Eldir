@@ -97,6 +97,15 @@ _MODE_PROMPTS: dict[TransformMode, str] = {
 }
 
 
+def _journaliser_le_refus(methode: str, chemin: str, status: int) -> None:
+    """Un refus d'Ollama lève, et l'exception n'est tracée nulle part : cette ligne est la trace.
+
+    httpx n'écrit plus ses requêtes (cf. `configure_logging`). Le chemin, jamais l'URL de base
+    (elle peut porter un jeton si Ollama est derrière un proxy) ni le corps de la réponse.
+    """
+    logger.warning("ollama.refuse", methode=methode, chemin=chemin, status=status)
+
+
 class OllamaService:
     """Stateless. Utilise les settings runtime pour configurer le client."""
 
@@ -146,6 +155,7 @@ class OllamaService:
         async with httpx.AsyncClient(base_url=self._base_url(), timeout=self._timeout()) as client:
             response = await client.get("/api/tags")
         if not response.is_success:
+            _journaliser_le_refus("GET", "/api/tags", response.status_code)
             raise EldirError(f"Ollama /api/tags a retourné {response.status_code}.")
         data = response.json()
         models = data.get("models", []) if isinstance(data, dict) else []
@@ -182,6 +192,7 @@ class OllamaService:
             response = await client.post("/api/generate", json=body)
 
         if not response.is_success:
+            _journaliser_le_refus("POST", "/api/generate", response.status_code)
             raise EldirError(
                 f"Ollama /api/generate a retourné {response.status_code} : {response.text[:200]}"
             )
