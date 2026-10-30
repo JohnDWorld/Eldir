@@ -53,11 +53,9 @@ Ce ne sont pas des failles, c'est la conception. Elles sont documentées :
   terminal côté serveur pour approuver une action. C'est la porte de validation
   humaine qui borne ce qui sort, pas le mode des permissions
   (`docs/sessions.md`) ;
-- **un jeton d'agent extérieur donne les quatre outils servis ou rien**, et il
-  vit dix ans : la borne est la révocation, pas l'expiration. Il n'existe pas
-  d'autorisation fine par outil (`docs/agent-externe.md`). Le cinquième,
-  `allow_publish`, n'est pas servi en HTTP du tout : la publication ne
-  s'ouvre que par un geste humain (`docs/securite-sessions.md`) ;
+- **un jeton d'agent extérieur donne les cinq outils ou rien**, et il vit dix
+  ans : la borne est la révocation, pas l'expiration. Il n'existe pas
+  d'autorisation fine par outil (`docs/agent-externe.md`) ;
 - **aucun plafond de dépense autonome** : la politique est d'alerter, jamais de
   bloquer ;
 - **Eldir ne fournit pas de TLS** et n'a pas vocation à être exposé nu sur
