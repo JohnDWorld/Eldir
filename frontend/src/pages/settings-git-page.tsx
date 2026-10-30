@@ -11,6 +11,7 @@ import {
   useGitCredentials,
   useGitHubOauthConfig,
   useGitHubOauthStart,
+  useProjects,
   useUpsertGitCredential,
 } from '@/lib/api/queries';
 import type { Provider } from '@/lib/constants';
@@ -48,6 +49,11 @@ const HELPERS: Record<Provider, JSX.Element> = {
 export function SettingsGitPage(): JSX.Element {
   const credentials = useGitCredentials();
   const deleteMut = useDeleteGitCredential();
+  // Pour nommer le projet d'un jeton restreint : sans ça, deux jetons du même
+  // provider sont indiscernables dans la liste.
+  const projects = useProjects();
+  const projectName = (id: string | null): string | null =>
+    (projects.data ?? []).find((p) => p.id === id)?.name ?? null;
 
   // Bandeau retour OAuth (?github=connected | error)
   const [oauthBanner, setOauthBanner] = useState<
@@ -116,6 +122,7 @@ export function SettingsGitPage(): JSX.Element {
                 cred={c}
                 onDelete={() => deleteMut.mutate(c.id)}
                 deleting={deleteMut.isPending}
+                projectName={projectName(c.project_id)}
               />
             ))}
           </ul>
@@ -211,10 +218,12 @@ function CredentialRow({
   cred,
   onDelete,
   deleting,
+  projectName,
 }: {
   cred: GitCredentialRead;
   onDelete: () => void;
   deleting: boolean;
+  projectName: string | null;
 }): JSX.Element {
   return (
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -222,6 +231,11 @@ function CredentialRow({
         <div className="font-mono text-xs font-semibold text-eldir-ink">
           {PROVIDER_LABEL[cred.provider]}
           {cred.label && <span className="ml-2 text-eldir-gray">· {cred.label}</span>}
+          {cred.project_id && (
+            <span className="ml-2 rounded-eldir border border-eldir-gold/50 bg-eldir-gold/10 px-1.5 py-0.5 text-2xs uppercase tracking-caps text-eldir-ink-2">
+              {projectName ?? 'un projet'}
+            </span>
+          )}
         </div>
         <div className="mt-1 break-all font-mono text-xs text-eldir-gray">
           {cred.masked_token}
@@ -242,6 +256,9 @@ function CredentialRow({
 
 function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
   const upsert = useUpsertGitCredential();
+  const projects = useProjects();
+  // '' = jeton global (le défaut, et le repli quand un projet n'a pas le sien).
+  const [projectId, setProjectId] = useState('');
   const [token, setToken] = useState('');
   const [label, setLabel] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -266,10 +283,12 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
         token: token.trim(),
         label: label.trim() || null,
         base_url: baseUrl.trim() || null,
+        project_id: projectId || null,
       });
       setToken('');
       setLabel('');
       setBaseUrl('');
+      setProjectId('');
       setSuccess(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur lors de la sauvegarde.');
@@ -316,6 +335,29 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
             maxLength={120}
             className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
           />
+        </label>
+        <label className="block">
+          <span className="eldir-caps mb-1 block">Portée</span>
+          <select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+          >
+            <option value="">Tous les projets</option>
+            {(projects.data ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 font-mono text-2xs text-eldir-gray">
+            Un jeton par projet borne ce qu&apos;une fuite expose, mais c&apos;est
+            le jeton lui-même qui doit être restreint&nbsp;: PAT fine-grained
+            GitHub limité à ce dépôt, jeton d&apos;accès Forgejo par dépôt. Eldir
+            choisit lequel employer, il ne peut pas réduire la portée du secret à
+            la place du provider. Sans jeton propre, un projet utilise celui de
+            « tous les projets ».
+          </p>
         </label>
         {error && (
           <div className="rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">

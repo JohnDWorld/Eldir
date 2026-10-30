@@ -526,7 +526,9 @@ class SessionService:
                 pushed=False,
             )
 
-        token = await git_credential_service.get_active_token(db, user_id, project.provider)
+        token = await git_credential_service.get_active_token(
+            db, user_id, project.provider, project.id
+        )
         if not token:
             raise AuthenticationError(
                 f"Aucun credential {project.provider} configuré. Settings > Git."
@@ -564,7 +566,9 @@ class SessionService:
             )
 
         # 2. Récupère le token et push la branche.
-        token = await git_credential_service.get_active_token(db, user_id, project.provider)
+        token = await git_credential_service.get_active_token(
+            db, user_id, project.provider, project.id
+        )
         if not token:
             raise AuthenticationError(
                 f"Aucun credential {project.provider} configuré. Settings > Git."

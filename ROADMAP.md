@@ -262,6 +262,10 @@ reconstruire la logique de dispatch, ou bien conduire l'interface à la main.
 - [x] **La porte de validation humaine ne bouge pas** : `git commit`, `git push`,
       `gh pr` et `glab mr` restent refusés au niveau du hook `PreToolUse`, quel que
       soit le transport, et un test le vérifie.
+- [x] **Un jeton Git par projet** (migration 0014) : une fuite n'expose que le
+      dépôt qu'elle sert, à condition que le jeton soit lui-même restreint côté
+      provider. `project_id` NULL reste le jeton global, et le repli : aucune
+      installation existante n'a à recréer ses jetons.
 - [x] **Un projet peut être marqué « alimenté de l'extérieur »** (migration 0013) :
       les consignes reçues sont présentées à la session comme des données et non
       comme des instructions, et l'accès SSH « Machine du projet » est refusé tant

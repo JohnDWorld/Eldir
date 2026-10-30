@@ -210,6 +210,8 @@ export interface GitCredentialRead {
   base_url: string | null;
   label: string | null;
   masked_token: string;
+  /** null = jeton global. Renseigné, le jeton ne sert que ce projet. */
+  project_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -219,6 +221,7 @@ export interface GitCredentialCreate {
   token: string;
   base_url?: string | null;
   label?: string | null;
+  project_id?: string | null;
 }
 
 // ── Remote repos (providers/{name}/repos) ──────────────────────

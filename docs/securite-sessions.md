@@ -103,6 +103,15 @@ chacune.
    helper qui le lit dans l'environnement du seul sous-processus concerné, et
    chaque sync assainit les dépôts clonés par une version d'avant.
 
+   Un jeton peut en plus être limité à un projet (Settings > Git, champ
+   « Portée »), pour qu'une fuite n'expose que le dépôt qu'il sert. **C'est le
+   jeton lui-même qui doit être restreint** côté provider : PAT fine-grained
+   GitHub limité à ce dépôt, jeton d'accès Forgejo par dépôt. Eldir choisit
+   lequel employer, il ne peut pas réduire la portée du secret à la place du
+   provider. Sans jeton propre, un projet utilise celui de « tous les
+   projets », et la création d'un projet emploie toujours ce dernier,
+   puisqu'il n'existe pas encore de projet auquel rattacher un jeton.
+
 Chaque garde a son test, vérifié par mutation : on casse la ligne qu'il prétend
 couvrir et on confirme qu'il tombe.
 

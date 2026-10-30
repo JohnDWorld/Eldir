@@ -21,6 +21,10 @@ class GitCredentialCreate(EldirModel):
     token: SecretInput = Field(min_length=8, max_length=2048)
     base_url: HttpUrl | None = None  # uniquement pour Forgejo
     label: str | None = Field(default=None, max_length=120)
+    # Renseigné, le jeton ne sert qu'à ce projet. Restreins-le aussi côté
+    # provider (PAT fine-grained GitHub, jeton par dépôt Forgejo) : Eldir
+    # choisit lequel employer, il ne peut pas réduire la portée du secret.
+    project_id: str | None = Field(default=None, max_length=36)
 
 
 class GitCredentialRead(TimestampedModel):
@@ -29,3 +33,4 @@ class GitCredentialRead(TimestampedModel):
     base_url: str | None
     label: str | None
     masked_token: str
+    project_id: str | None

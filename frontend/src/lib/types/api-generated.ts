@@ -1427,6 +1427,8 @@ export interface components {
             base_url?: string | null;
             /** Label */
             label?: string | null;
+            /** Project Id */
+            project_id?: string | null;
             /**
              * Provider
              * @enum {string}
@@ -1450,6 +1452,8 @@ export interface components {
             label: string | null;
             /** Masked Token */
             masked_token: string;
+            /** Project Id */
+            project_id: string | null;
             /**
              * Provider
              * @enum {string}
