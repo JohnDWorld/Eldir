@@ -20,16 +20,25 @@
  * Ce test lit les sources, il ne rend rien : jsdom ne fait pas de mise en
  * page, il ne pourrait de toute façon pas mesurer un débordement.
  *
+ * Les sources sont lues par l'analyseur de TypeScript, pas par des regex ni par un
+ * appariement d'accolades écrit ici. Ce dépôt est commenté en français : une
+ * apostrophe dans un commentaire (« comme l'annonce le »), une chaîne JSX ou un
+ * regex, à l'intérieur d'un `{...}`, faisait perdre l'appariement et attribuait à un
+ * `<textarea>` 8 000 caractères d'attributs, donc la règle `flex-1` ne voyait plus
+ * le composeur de la page de session et restait verte sans rien avoir regardé.
+ *
  * Chaque règle est une fonction qui rend ce qu'elle reproche à un source. Le dépôt
  * étant conforme, elles n'y trouvent rien : seul un source écrit pour elle prouve
  * qu'elle verrait quelque chose. Les derniers `describe` donnent donc à chaque
  * branche de chaque règle son témoin (ce qu'elle signale, chaque exemption qui
- * l'en empêche), et à la lecture du JSX les cas qui l'ont mise en défaut.
+ * l'en empêche), à la lecture des sources les cas qui l'ont mise en défaut, et au
+ * câblage (quelle règle regarde quels fichiers) le sien.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // Vitest fournit `__dirname` même en ESM. `import.meta.url` ne convient pas
@@ -49,90 +58,97 @@ function relative(file: string): string {
   return file.slice(SRC.length + 1);
 }
 
-// ── Lecture du JSX ──────────────────────────────────────────────────────
-// Une regex `[^>]*` s'arrête au `>` d'une flèche (`onChange={(e) => f(e)}`) et ne
-// voit plus un `className` placé après un gestionnaire ; `[^}]*` s'arrête à
-// l'accolade d'un objet (`cn({ a: b }, 'x')`). Les règles lisent donc le JSX par
-// accolades appariées, en ignorant celles des chaînes.
+// ── Lecture des sources ─────────────────────────────────────────────────
 
-/** Index de l'accolade fermante qui répond à l'ouvrante située en `debut`. */
-function accoladeFermante(source: string, debut: number): number {
-  let profondeur = 0;
-  let guillemet: string | null = null;
-  for (let i = debut; i < source.length; i++) {
-    const c = source[i];
-    if (guillemet !== null) {
-      if (c === '\\') i++;
-      else if (c === guillemet) guillemet = null;
-    } else if (c === '"' || c === "'" || c === '`') {
-      guillemet = c;
-    } else if (c === '{') {
-      profondeur++;
-    } else if (c === '}' && --profondeur === 0) {
-      return i;
-    }
-  }
-  return source.length;
+/** Une balise JSX, réduite à ce que les règles regardent. */
+interface Balise {
+  /** `input`, `pre`, `Foo.Bar`... */
+  nom: string;
+  /** Les classes de son `className`, lues dans ses littéraux de chaîne et de gabarit. */
+  classes: string;
+  /** Son contenu porte-t-il une valeur (`{x}`) ? Une espace `{' '}` et un commentaire n'en sont pas une. */
+  aUneValeur: boolean;
 }
 
-interface BaliseOuvrante {
-  /** Les attributs, entre le nom de la balise et son `>`. */
-  attributs: string;
-  /** Index du `>` qui ferme la balise ouvrante. */
-  fin: number;
+/** Les littéraux de chaîne d'une expression : ce que `cn(a, b && 'c')` écrit comme classes. */
+function litteraux(racine: ts.Node): string[] {
+  const morceaux: string[] = [];
+  const visite = (n: ts.Node): void => {
+    if (
+      ts.isStringLiteralLike(n) ||
+      ts.isTemplateHead(n) ||
+      ts.isTemplateMiddle(n) ||
+      ts.isTemplateTail(n)
+    ) {
+      morceaux.push(n.text);
+    } else {
+      ts.forEachChild(n, visite);
+    }
+  };
+  visite(racine);
+  return morceaux;
 }
 
-/** Les balises ouvrantes `<nom ...>` : le `>` ne ferme que hors expression `{...}` et hors chaîne. */
-function balisesOuvrantes(source: string, nom: string): BaliseOuvrante[] {
-  return [...source.matchAll(new RegExp(`<${nom}\\b`, 'g'))].map((m) => {
-    const debut = m.index + m[0].length;
-    let guillemet: string | null = null;
-    let i = debut;
-    for (; i < source.length; i++) {
-      const c = source[i];
-      if (guillemet !== null) {
-        if (c === guillemet) guillemet = null;
-      } else if (c === '"' || c === "'") {
-        guillemet = c;
-      } else if (c === '{') {
-        i = accoladeFermante(source, i);
-      } else if (c === '>') {
-        break;
-      }
+function aUneValeur(enfants: readonly ts.JsxChild[]): boolean {
+  return enfants.some((enfant) => {
+    if (ts.isJsxExpression(enfant)) {
+      const e = enfant.expression;
+      return e !== undefined && !(ts.isStringLiteral(e) && e.text.trim() === '');
     }
-    return { attributs: source.slice(debut, i), fin: i };
+    if (ts.isJsxElement(enfant) || ts.isJsxFragment(enfant)) return aUneValeur(enfant.children);
+    return false;
   });
 }
 
-/** Les valeurs de `className`, y compris celles composées via `cn(...)` ou un gabarit. */
-function classAttributes(source: string): string[] {
-  return [...source.matchAll(/className=/g)].map((m) => {
-    const debut = m.index + m[0].length;
-    if (source[debut] === '"') return source.slice(debut + 1, source.indexOf('"', debut + 1));
-    if (source[debut] === '{') return source.slice(debut + 1, accoladeFermante(source, debut));
-    return '';
-  });
+/** Toutes les balises JSX d'un source (ouvrantes et auto-fermantes), à tous les niveaux. */
+function balises(source: string): Balise[] {
+  const fichier = ts.createSourceFile(
+    'source.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const trouvees: Balise[] = [];
+  const visite = (n: ts.Node): void => {
+    if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) {
+      const attribut = n.attributes.properties.find(
+        (p): p is ts.JsxAttribute =>
+          ts.isJsxAttribute(p) && p.name.getText(fichier) === 'className',
+      );
+      trouvees.push({
+        nom: n.tagName.getText(fichier),
+        classes: attribut?.initializer ? litteraux(attribut.initializer).join(' ') : '',
+        aUneValeur:
+          ts.isJsxOpeningElement(n) && ts.isJsxElement(n.parent) && aUneValeur(n.parent.children),
+      });
+    }
+    ts.forEachChild(n, visite);
+  };
+  visite(fichier);
+  return trouvees;
 }
 
 // ── Les règles, une fonction chacune : elles rendent ce qu'elles reprochent ──
 
 /** 1. `whitespace-pre-wrap` sans `break-words` ni `break-all`. */
 function preWrapSansCoupure(source: string): string[] {
-  return classAttributes(source).filter(
-    (cls) =>
-      cls.includes('whitespace-pre-wrap') &&
-      !cls.includes('break-words') &&
-      !cls.includes('break-all'),
-  );
+  return balises(source)
+    .map((b) => b.classes)
+    .filter(
+      (cls) =>
+        cls.includes('whitespace-pre-wrap') &&
+        !cls.includes('break-words') &&
+        !cls.includes('break-all'),
+    );
 }
 
 /** 2. `<input>` / `<textarea>` en `flex-1` sans `min-w-0`. */
 function champsFlexSansMinW0(source: string): string[] {
-  return ['input', 'textarea'].flatMap((nom) =>
-    balisesOuvrantes(source, nom)
-      .filter((b) => /\bflex-1\b/.test(b.attributs) && !/\bmin-w-0\b/.test(b.attributs))
-      .map(() => `<${nom} flex-1 sans min-w-0>`),
-  );
+  return balises(source)
+    .filter((b) => b.nom === 'input' || b.nom === 'textarea')
+    .filter((b) => /\bflex-1\b/.test(b.classes) && !/\bmin-w-0\b/.test(b.classes))
+    .map((b) => `<${b.nom} flex-1 sans min-w-0>`);
 }
 
 /**
@@ -140,18 +156,20 @@ function champsFlexSansMinW0(source: string): string[] {
  * sait pas à la lecture du source quel conteneur enveloppe quel tableau.
  */
 function tableauSansDefilement(source: string): string[] {
-  return /<table\b/.test(source) && !source.includes('overflow-x-auto')
-    ? ['<table> sans overflow-x-auto']
-    : [];
+  const toutes = balises(source);
+  const aUnTableau = toutes.some((b) => b.nom === 'table');
+  const defile = toutes.some((b) => b.classes.includes('overflow-x-auto'));
+  return aUnTableau && !defile ? ['<table> sans overflow-x-auto'] : [];
 }
 
 /** 3 bis. `<pre>` ni défilable, ni coupé (`whitespace-pre-wrap` ET `break-words`/`break-all`). */
 function presSansDefilementNiCoupure(source: string): string[] {
-  return balisesOuvrantes(source, 'pre')
+  return balises(source)
+    .filter((b) => b.nom === 'pre')
     .filter((b) => {
-      const defile = /overflow-x-auto|overflow-auto/.test(b.attributs);
+      const defile = /overflow-x-auto|overflow-auto/.test(b.classes);
       const coupe =
-        /whitespace-pre-wrap/.test(b.attributs) && /break-words|break-all/.test(b.attributs);
+        /whitespace-pre-wrap/.test(b.classes) && /break-words|break-all/.test(b.classes);
       return !defile && !coupe;
     })
     .map(() => '<pre> ni défilable ni coupé');
@@ -162,96 +180,190 @@ function presSansDefilementNiCoupure(source: string): string[] {
  * `break-words` / conteneur défilable.
  */
 function codesSansCoupure(source: string): string[] {
-  return balisesOuvrantes(source, 'code')
+  return balises(source)
+    .filter((b) => b.nom === 'code')
     .filter((b) => {
-      const fermeture = source.indexOf('</code>', b.fin);
-      // `{' '}` est une espace de mise en page, pas une valeur.
-      const contenu = source
-        .slice(b.fin + 1, fermeture < 0 ? source.length : fermeture)
-        .replace(/\{' '\}/g, '');
-      const enBloc = /\bblock\b/.test(b.attributs);
-      const dynamique = /\{[^}]*\}/.test(contenu);
-      const coupe = /\b(break-all|break-words|overflow-x-auto|overflow-auto)\b/.test(b.attributs);
-      return (enBloc || dynamique) && !coupe;
+      const enBloc = /\bblock\b/.test(b.classes);
+      const coupe = /\b(break-all|break-words|overflow-x-auto|overflow-auto)\b/.test(b.classes);
+      return (enBloc || b.aUneValeur) && !coupe;
     })
-    .map((b) => `<code${b.attributs.slice(0, 60)}>`);
+    .map((b) => `<code className="${b.classes.slice(0, 60)}">`);
+}
+
+// ── Le câblage : quelle règle regarde quels fichiers ────────────────────
+
+/** Ce qu'une règle reproche à un ensemble de sources (nom de fichier -> source). */
+function reprochesDe(depot: Record<string, string>, regle: (source: string) => string[]): string[] {
+  return Object.entries(depot).flatMap(([fichier, source]) =>
+    regle(source).map((reproche) => `${fichier} : ${reproche.slice(0, 80)}`),
+  );
 }
 
 const FILES = sourceFiles(SRC);
+const DEPOT = Object.fromEntries(FILES.map((file) => [relative(file), readFileSync(file, 'utf8')]));
 
-/** Ce qu'une règle reproche aux sources réelles, fichier par fichier. */
+/** Ce qu'une règle reproche aux sources réelles du dépôt, tous fichiers confondus. */
 function reprochesAuDepot(regle: (source: string) => string[]): string[] {
-  return FILES.flatMap((file) =>
-    regle(readFileSync(file, 'utf8')).map(
-      (reproche) => `${relative(file)} : ${reproche.slice(0, 80)}`,
-    ),
-  );
+  return reprochesDe(DEPOT, regle);
 }
+
+/**
+ * Les règles et, pour chacune, un source qu'elle est la seule à devoir signaler. Une
+ * seule table sert aux deux usages (le dépôt réel, le source écrit pour elle) : on
+ * ne peut donc pas brancher sur le dépôt la fonction d'une autre règle sans que le
+ * test du sujet tombe.
+ */
+const REGLES = [
+  { nom: 'pre-wrap', regle: preWrapSansCoupure, sujet: '<p className="whitespace-pre-wrap" />' },
+  { nom: 'flex-1', regle: champsFlexSansMinW0, sujet: '<input className="flex-1" />' },
+  { nom: 'table', regle: tableauSansDefilement, sujet: '<table />' },
+  { nom: 'pre', regle: presSansDefilementNiCoupure, sujet: '<pre />' },
+  { nom: 'code', regle: codesSansCoupure, sujet: '<code className="block" />' },
+];
 
 describe('pas de scroll horizontal', () => {
   it('trouve les sources à vérifier', () => {
     expect(FILES.length).toBeGreaterThan(10);
+    expect(Object.keys(DEPOT)).toHaveLength(FILES.length);
   });
 
-  it('coupe les longues chaînes dans le texte pré-formaté', () => {
-    expect(reprochesAuDepot(preWrapSansCoupure)).toEqual([]);
+  it('lit les sources de l’app, dans tous les dossiers, et pas les fichiers de test', () => {
+    expect(DEPOT['features/settings/agent-tokens.tsx']).toBeDefined();
+    expect(DEPOT['components/eldir/session-card.tsx']).toBeDefined();
+    expect(Object.keys(DEPOT).filter((f) => f.endsWith('.test.tsx'))).toEqual([]);
+    expect(Object.keys(DEPOT).filter((f) => !f.endsWith('.tsx'))).toEqual([]);
   });
 
-  it('laisse les champs de saisie rétrécir dans une ligne flex', () => {
-    expect(reprochesAuDepot(champsFlexSansMinW0)).toEqual([]);
+  it.each(REGLES)('le dépôt respecte la règle $nom', ({ regle }) => {
+    expect(reprochesAuDepot(regle)).toEqual([]);
   });
 
-  it('coupe les longues chaînes dans un <code> en bloc ou à valeur dynamique', () => {
-    expect(reprochesAuDepot(codesSansCoupure)).toEqual([]);
-  });
-
-  it('donne un conteneur défilable aux tableaux', () => {
-    expect(reprochesAuDepot(tableauSansDefilement)).toEqual([]);
-  });
-
-  it('donne un conteneur défilable, ou coupe, les blocs pré-formatés', () => {
-    expect(reprochesAuDepot(presSansDefilementNiCoupure)).toEqual([]);
+  it('voit le composeur de la page de session, un champ en `flex-1` précédé d’un gestionnaire', () => {
+    // Le cas qui a mis la lecture en défaut : un commentaire à apostrophe dans `onKeyDown`.
+    // Dépouillé de son `min-w-0`, ce champ doit être reproché ; tel quel, il est en règle.
+    const source = DEPOT['pages/session-page.tsx'] ?? '';
+    expect(source).toContain("comme l'annonce le");
+    expect(champsFlexSansMinW0(source)).toEqual([]);
+    const sans = source.replace('min-h-11 min-w-0 flex-1', 'min-h-11 flex-1');
+    expect(sans).not.toBe(source);
+    expect(champsFlexSansMinW0(sans)).toEqual(['<textarea flex-1 sans min-w-0>']);
   });
 });
 
-// Le dépôt est conforme : les règles ci-dessus n'y trouvent rien, donc rien ne
-// prouve qu'elles verraient quelque chose. Une règle dont les branches ne sont
-// exercées par aucune source n'est qu'une porte décorative : on cesse de regarder
-// alors qu'elle laisse passer. Chaque branche a donc son témoin ici, sur des
-// sources écrites pour elle : ce qu'elle doit signaler, et chaque exemption qui
-// doit l'empêcher de signaler.
-describe('lecture du JSX', () => {
-  it('ne ferme pas une balise au `>` d’une flèche', () => {
-    const [balise] = balisesOuvrantes('<input onChange={(e) => set(e)} className="a" />', 'input');
-    expect(balise?.attributs).toContain('className="a"');
+describe('le câblage des règles', () => {
+  it.each(REGLES)('la règle $nom signale son sujet, et elle seule', ({ regle, sujet }) => {
+    expect(regle(sujet)).toHaveLength(1);
+    for (const autre of REGLES.filter((r) => r.regle !== regle)) {
+      expect(autre.regle(sujet)).toEqual([]);
+    }
   });
 
-  it('ne ferme pas une balise au `>` d’une chaîne', () => {
-    const [balise] = balisesOuvrantes('<pre title="a > b" className="c">', 'pre');
-    expect(balise?.attributs).toContain('className="c"');
+  it('applique la règle à chaque fichier du dépôt réel, aucun de laissé de côté', () => {
+    // Une règle qui signale tout : il doit y avoir un reproche par fichier source.
+    const reproches = reprochesAuDepot(() => ['x']);
+    expect(reproches).toHaveLength(FILES.length);
+    expect(reproches).toContain('pages/session-page.tsx : x');
   });
 
-  it('lit une expression `className` jusqu’à son accolade appariée', () => {
-    expect(classAttributes("<p className={cn({ a: b }, 'whitespace-pre-wrap')} />")).toEqual([
-      "cn({ a: b }, 'whitespace-pre-wrap')",
-    ]);
-    expect(classAttributes('<p className={`x ${y} break-words`} />')).toEqual([
-      '`x ${y} break-words`',
-    ]);
-    expect(classAttributes('<p className="a b" />')).toEqual(['a b']);
+  it('donne chaque source à la règle, pas une source vide', () => {
+    const vues: string[] = [];
+    reprochesDe({ 'a.tsx': 'A', 'b.tsx': 'B' }, (source) => {
+      vues.push(source);
+      return [];
+    });
+    expect(vues).toEqual(['A', 'B']);
   });
 
-  it('ignore les accolades qui sont dans une chaîne, un gabarit ou après un échappement', () => {
-    expect(classAttributes("<p className={cn('a}b', 'c')} />")).toEqual(["cn('a}b', 'c')"]);
-    expect(classAttributes('<p className={`a } b`} />')).toEqual(['`a } b`']);
-    expect(classAttributes(String.raw`<p className={cn('it\'s}', 'x')} />`)).toEqual([
-      String.raw`cn('it\'s}', 'x')`,
+  it('nomme le fichier de chaque reproche, tous les fichiers fautifs', () => {
+    const fautif = '<p className="whitespace-pre-wrap" />';
+    const depot = { 'a.tsx': fautif, 'b.tsx': '<p />', 'c.tsx': fautif };
+    expect(reprochesDe(depot, preWrapSansCoupure)).toEqual([
+      'a.tsx : whitespace-pre-wrap',
+      'c.tsx : whitespace-pre-wrap',
     ]);
   });
 
-  it('ne confond pas deux balises du même nom', () => {
-    expect(balisesOuvrantes('<pre className="a"><pre className="b">', 'pre')).toHaveLength(2);
-    expect(balisesOuvrantes('<preview className="a">', 'pre')).toEqual([]);
+  it('ne dit rien d’un dépôt en règle', () => {
+    expect(reprochesDe({ 'a.tsx': '<p />' }, preWrapSansCoupure)).toEqual([]);
+    expect(reprochesDe({}, preWrapSansCoupure)).toEqual([]);
+  });
+
+  it('tronque un reproche trop long', () => {
+    const [reproche] = reprochesDe({ 'a.tsx': 'x' }, () => ['y'.repeat(200)]);
+    expect(reproche).toBe(`a.tsx : ${'y'.repeat(80)}`);
+  });
+});
+
+describe('lecture des sources', () => {
+  it('lit les balises ouvrantes, auto-fermantes et imbriquées', () => {
+    const lues = balises('<div><pre className="a">x</pre><input className="b" /></div>');
+    expect(lues.map((b) => [b.nom, b.classes])).toEqual([
+      ['div', ''],
+      ['pre', 'a'],
+      ['input', 'b'],
+    ]);
+  });
+
+  it('lit les classes en chaîne, en `cn(...)`, en objet et en gabarit', () => {
+    expect(balises('<p className="a b" />')[0]?.classes).toBe('a b');
+    expect(balises("<p className={cn('a', open && 'b')} />")[0]?.classes).toBe('a b');
+    // Une clé d'objet en chaîne est une classe ; une clé nue (`{ a: b }`) n'est pas un littéral.
+    expect(balises("<p className={cn({ 'a': b, c: d }, 'e')} />")[0]?.classes).toBe('a e');
+    expect(balises('<p className={`a ${x} b`} />')[0]?.classes.split(/\s+/)).toEqual(['a', 'b']);
+    // Début, milieu et fin d'un gabarit à deux valeurs, et gabarit sans valeur.
+    expect(balises('<p className={`a ${x} b ${y} c`} />')[0]?.classes.split(/\s+/)).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
+    expect(balises('<p className={`a b`} />')[0]?.classes).toBe('a b');
+  });
+
+  it('ne prend pas pour des classes ce qui n’est pas une chaîne', () => {
+    expect(balises('<p className={cls} />')[0]?.classes).toBe('');
+    expect(balises('<p />')[0]?.classes).toBe('');
+    expect(balises('<p id="flex-1" />')[0]?.classes).toBe('');
+  });
+
+  // Le français met des apostrophes partout. Aucune ne doit faire perdre la balise.
+  const AVEC_APOSTROPHE = [
+    [
+      'un commentaire de ligne dans un gestionnaire',
+      "onKeyDown={(e) => {\n // comme l'annonce le\n go(e);\n }}",
+    ],
+    ['un commentaire de bloc dans un gestionnaire', "onKeyDown={(e) => { /* l'ordre */ go(e); }}"],
+    ['un commentaire entre deux attributs', '/* l\'ordre */ id="x"'],
+    ['du JSX à apostrophe passé en attribut', "hint={<p>l'éditeur</p>}"],
+    ['un regex à apostrophe', "onChange={(e) => e.target.value.replace(/'/g, '')}"],
+    ['une chaîne à guillemets droits qui contient une apostrophe', 'title={"l\'agent"}'],
+    ['un attribut entre apostrophes', 'title=\'a "b"\''],
+    ['un gabarit à accolades et apostrophe', "title={`l'${x} }`}"],
+    ['une apostrophe échappée', "title={'l\\'agent'}"],
+  ] as const;
+
+  it.each(AVEC_APOSTROPHE)('garde le `className` qui suit : %s', (_cas, attribut) => {
+    const source = `<input ${attribut} className="flex-1" />`;
+    expect(balises(source)[0]?.classes).toBe('flex-1');
+    expect(champsFlexSansMinW0(source)).toEqual(['<input flex-1 sans min-w-0>']);
+  });
+
+  it('garde le `className` qui précède une apostrophe, et les balises qui suivent', () => {
+    const source = `<div><input className="flex-1" title="l'agent" /><pre>x</pre></div>`;
+    expect(balises(source).map((b) => b.nom)).toEqual(['div', 'input', 'pre']);
+  });
+
+  it('dit si le contenu porte une valeur', () => {
+    const valeur = (source: string) => balises(source).find((b) => b.nom === 'code')?.aUneValeur;
+    expect(valeur('<code>{x}</code>')).toBe(true);
+    expect(valeur('<code>a{x}b</code>')).toBe(true);
+    expect(valeur('<code><b>{x}</b></code>')).toBe(true);
+    expect(valeur('<code><>{x}</></code>')).toBe(true);
+    expect(valeur('<code>abc</code>')).toBe(false);
+    expect(valeur("<code>a{' '}b</code>")).toBe(false);
+    expect(valeur('<code>{/* un commentaire */}</code>')).toBe(false);
+    expect(valeur('<code className={x} />')).toBe(false);
+    // Une valeur dans un attribut d'un enfant n'est pas une valeur du contenu.
+    expect(valeur('<code><b className={x}>a</b></code>')).toBe(false);
   });
 });
 
@@ -280,7 +392,6 @@ describe('règle 1 : `whitespace-pre-wrap` sans `break-words`', () => {
     expect(
       preWrapSansCoupure("<p className={cn('whitespace-pre-wrap', 'break-words')} />"),
     ).toEqual([]);
-    // Classe placée APRÈS l'accolade d'un objet : `[^}]*` ne la lisait pas.
     expect(
       preWrapSansCoupure("<p className={cn({ a: b }, 'whitespace-pre-wrap')} />"),
     ).toHaveLength(1);
@@ -291,7 +402,7 @@ describe('règle 1 : `whitespace-pre-wrap` sans `break-words`', () => {
   });
 
   it('juge chaque attribut, pas le fichier : un `break-words` ailleurs n’excuse pas', () => {
-    const source = '<a className="break-words" /><p className="whitespace-pre-wrap" />';
+    const source = '<><a className="break-words" /><p className="whitespace-pre-wrap" /></>';
     expect(preWrapSansCoupure(source)).toHaveLength(1);
   });
 });
@@ -306,6 +417,11 @@ describe('règle 2 : `<input>` / `<textarea>` en `flex-1` sans `min-w-0`', () =>
     ]);
   });
 
+  it('ne tient pour exemption que `min-w-0` : un autre `min-w-*` ne laisse pas rétrécir', () => {
+    expect(champsFlexSansMinW0('<input className="flex-1 min-w-full" />')).toHaveLength(1);
+    expect(champsFlexSansMinW0('<input className="flex-1 min-w-fit" />')).toHaveLength(1);
+  });
+
   it('laisse passer un champ qui peut rétrécir', () => {
     expect(champsFlexSansMinW0('<input className="flex-1 min-w-0" />')).toEqual([]);
     expect(champsFlexSansMinW0('<textarea className="min-w-0 flex-1" />')).toEqual([]);
@@ -318,7 +434,14 @@ describe('règle 2 : `<input>` / `<textarea>` en `flex-1` sans `min-w-0`', () =>
 
   it('ne reproche rien à ce qui n’est pas un champ de saisie', () => {
     expect(champsFlexSansMinW0('<div className="flex-1" />')).toEqual([]);
+    expect(champsFlexSansMinW0('<Input className="flex-1" />')).toEqual([]);
     expect(champsFlexSansMinW0('<inputGroup className="flex-1" />')).toEqual([]);
+  });
+
+  it('ne lit que le `className` : `flex-1` dans un autre attribut n’en est pas un', () => {
+    expect(champsFlexSansMinW0('<input title="flex-1" />')).toEqual([]);
+    expect(champsFlexSansMinW0('<input className="flex-1 min-w-0" title="a" />')).toEqual([]);
+    expect(champsFlexSansMinW0('<input className="flex-1" data-x="min-w-0" />')).toHaveLength(1);
   });
 
   it('voit un `className` placé après un gestionnaire à flèche dans la même balise', () => {
@@ -334,7 +457,7 @@ describe('règle 2 : `<input>` / `<textarea>` en `flex-1` sans `min-w-0`', () =>
   });
 
   it('juge chaque balise : un champ en règle n’excuse pas son voisin', () => {
-    const source = '<input className="flex-1 min-w-0" /><input className="flex-1" />';
+    const source = '<><input className="flex-1 min-w-0" /><input className="flex-1" /></>';
     expect(champsFlexSansMinW0(source)).toHaveLength(1);
   });
 
@@ -357,6 +480,11 @@ describe('règle 3 : `<table>` sans conteneur défilable', () => {
   it('ne reproche rien à un source sans tableau', () => {
     expect(tableauSansDefilement('<div className="w-full" />')).toEqual([]);
     expect(tableauSansDefilement('<tablet />')).toEqual([]);
+  });
+
+  it('ne prend pas un commentaire ou une chaîne pour un tableau ou pour son conteneur', () => {
+    expect(tableauSansDefilement('<p>{/* <table> */}</p>')).toEqual([]);
+    expect(tableauSansDefilement('<><table /><p title="overflow-x-auto" /></>')).toHaveLength(1);
   });
 });
 
@@ -398,7 +526,7 @@ describe('règle 3 bis : `<pre>` ni défilable ni coupé', () => {
   });
 
   it('juge chaque `<pre>` : un défilable n’excuse pas son voisin', () => {
-    const source = '<pre className="overflow-x-auto">a</pre><pre>b</pre>';
+    const source = '<><pre className="overflow-x-auto">a</pre><pre>b</pre></>';
     expect(presSansDefilementNiCoupure(source)).toHaveLength(1);
   });
 });
@@ -432,7 +560,7 @@ describe('règle 4 : `<code>` en bloc ou à valeur dynamique, sans coupure', () 
   });
 
   it('ne prend pas le contenu d’un autre <code> pour le sien', () => {
-    expect(codesSansCoupure('<code>a</code><code>{x}</code>')).toHaveLength(1);
-    expect(codesSansCoupure('<code>{x}</code><code>b</code>')).toHaveLength(1);
+    expect(codesSansCoupure('<><code>a</code><code>{x}</code></>')).toHaveLength(1);
+    expect(codesSansCoupure('<><code>{x}</code><code>b</code></>')).toHaveLength(1);
   });
 });
