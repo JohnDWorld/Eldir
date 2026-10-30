@@ -89,31 +89,60 @@ un fichier.
 
 ## Ce qui tient face à une injection de prompt
 
-Trois gardes, dans cet ordre d'importance. Ce document suit l'état réel de
-chacune.
+Deux gardes mécaniques, et une troisième qui a été **retirée volontairement**
+le 2026-10-30 et qui figure quand même ici, à sa place, parce qu'un document de
+sécurité qui ne liste que ce qui tient ne dit pas où se trouve le trou. Ce
+document suit l'état réel de chacune.
 
 1. **Le masque d'environnement** (ce document). ✅ En place. Sans lui les deux
    autres seraient décoratives : une session se réautorise elle-même.
-2. **Depuis l'extérieur, la publication n'est ouverte que par un geste humain
-   dans le dashboard.** ✅ En place. `allow_publish` n'est pas servi sur la
-   surface externe (`HORS_SURFACE_EXTERNE` dans `app/mcp_http.py`) : un jeton
-   d'agent ne peut pas l'ouvrir, même compromis.
+2. **La porte de publication n'est plus une garde du chemin extérieur.**
+   ⚠️ Retirée volontairement le 2026-10-30. `allow_publish` est servi sur la
+   surface externe : un jeton d'agent ouvre la publication des sessions de son
+   utilisateur, sans geste humain.
 
-   **Risque accepté.** Le superviseur interne, lui, garde l'outil et ouvre la
-   publication sans geste humain. Décision de John du 2026-10-30, après
-   proposition de la remplacer par une demande à valider au dashboard. Il faut
-   voir précisément ce qui tient ici, parce que ce n'est pas un mécanisme : le
-   superviseur n'est pas coupé du texte extérieur, puisque `remember` est servi
-   sur la surface externe et dépose une ligne dans son prompt durable, qu'il
-   relit à chaque démarrage. Trois choses la bornent. Elle porte la marque de
-   son auteur, posée d'après le jeton et jamais lue dans le texte. Elle tient
-   sur une seule ligne, donc elle ne peut ni ouvrir une ligne sans marque ni en
-   imiter une. Et `_NOTE_AGENTS` interdit au superviseur de lire une ligne
-   marquée comme une demande de John, comme une autorisation de publier ou
-   comme une dérogation à ses règles. Cette dernière est une consigne de
-   prompt, c'est-à-dire exactement ce qu'une injection attaque. À rouvrir si le
-   superviseur se met à encaisser du texte extérieur au-delà d'une préférence
-   bornée et marquée.
+   **Décision de John, le 2026-10-30, en toute connaissance du risque.** Il
+   veut un agent extérieur autonome de bout en bout, qui publie sans
+   l'attendre. L'outil avait été retiré de cette surface le matin même ; il
+   l'a remis l'après-midi. Les deux états ont existé dans la même journée, et
+   c'est le second qui tient.
+
+   **Ce que le risque est, précisément.** Un agent extérieur lit des comptes
+   rendus de sessions. Un compte rendu contient du texte de dépôt : une issue,
+   un README, le message d'erreur d'une dépendance, la phrase d'un inconnu. Une
+   injection dans ce texte peut donc pousser l'agent à appeler `allow_publish`,
+   puis à dispatcher ce qu'il faut pour que la session publie. Un jeton d'agent
+   vit dix ans. Le chemin est réel et il n'est gardé par aucun mécanisme.
+
+   **Ce qui reste, et ce sont des mécanismes.** Deux bornes, qui ne dépendent
+   d'aucune lecture de prompt :
+
+   - **un jeton n'ouvre que les sessions de son propre utilisateur.**
+     `set_publish_allowed` filtre sur `user_id` ; la session d'un autre est
+     introuvable, donc refusée ;
+   - **le push forcé reste refusé, porte ouverte comprise.** Le hook
+     `PreToolUse` le refuse dans tous les cas : ce qui est publié se relit et
+     se révoque, un historique réécrit ne se récupère pas.
+
+   S'y ajoute une trace, qui n'est pas une borne mais ce qui rend l'après
+   lisible : le libellé du jeton entre au journal à chaque ouverture, donc une
+   publication décidée par un agent ne se confond pas avec un geste de John.
+
+   Et une garde voisine, qui tient toujours et qu'il ne faut pas confondre avec
+   celle-ci : `_NOTE_AGENTS` interdit au superviseur de lire une ligne de
+   `remember` marquée d'un agent comme une demande de John, comme une
+   autorisation de publier ou comme une dérogation à ses règles. Elle protège
+   le prompt durable du superviseur, pas la surface HTTP, et ce chemin n'a pas
+   changé. La ligne porte la marque de son auteur, posée d'après le jeton et
+   jamais lue dans le texte, et elle tient sur une seule ligne, donc elle ne
+   peut ni ouvrir une ligne sans marque ni en imiter une.
+
+   **Comment refermer, si John change d'avis.** Deux lignes dans
+   `app/mcp_http.py` : retirer `"allow_publish"` de la table `OUTILS`, et
+   retirer son adaptateur. Une fonction absente ne s'appelle pas. Les tests
+   d'alors sont dans l'historique (`a096faa` les retourne, le commit d'avant
+   les porte).
+
 3. **Le jeton Git n'est jamais à portée d'une session.** ✅ En place. Il ne
    touche ni le disque ni la ligne de commande : git le demande à un credential
    helper qui le lit dans l'environnement du seul sous-processus concerné, et

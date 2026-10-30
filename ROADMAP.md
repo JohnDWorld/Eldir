@@ -271,12 +271,16 @@ reconstruire la logique de dispatch, ou bien conduire l'interface à la main.
       comme des instructions, et l'accès SSH « Machine du projet » est refusé tant
       que le drapeau est posé, y compris aux sessions déjà ouvertes. L'alias reste
       enregistré, décocher le rétablit.
-- [x] **Et elle ne s'ouvre que par un geste humain** : `allow_publish` a été retiré
-      de la surface externe. La surface sert à transmettre du texte écrit par des
-      utilisateurs de La Boutique, donc non fiable : servi en HTTP, l'outil rendait
-      la publication ouvrable par injection de prompt, pour dix ans et sans
-      périmètre. Le superviseur interne le garde. Cf.
-      [`docs/securite-sessions.md`](./docs/securite-sessions.md).
+- [x] **Un agent extérieur publie directement** : `allow_publish` est servi sur la
+      surface HTTP. Retiré le matin du 2026-10-30 puis remis l'après-midi, sur
+      décision de John qui veut un agent autonome de bout en bout. Le risque est
+      assumé et il est réel : un agent lit des comptes rendus de sessions, donc du
+      texte de dépôt, donc une injection peut lui faire ouvrir la porte. Deux bornes
+      restent mécaniques : un jeton n'ouvre que les sessions de SON utilisateur, et
+      le push forcé reste refusé porte ouverte comprise. Le libellé du jeton entre au
+      journal, donc une publication décidée par un agent se relit. Cf.
+      [`docs/securite-sessions.md`](./docs/securite-sessions.md), garde nº2, qui dit
+      aussi comment refermer en deux lignes.
 
 Volontairement **hors périmètre**, et ce sont des choix, pas des oublis :
 
@@ -285,9 +289,9 @@ Volontairement **hors périmètre**, et ce sont des choix, pas des oublis :
   jamais de blocage*) et l'alerte de budget par session reste la seule garde.
 - **Pas de file de messages durable.** Le plafond ci-dessus borne une file en mémoire :
   un redémarrage perd les messages en attente, comme il perd les sessions actives.
-- **Pas d'autorisation fine par outil.** Un jeton donne les quatre outils servis ou
-  rien. Un jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé,
-  se branche. Ce jour-là, pas avant.
+- **Pas d'autorisation fine par outil.** Un jeton donne les cinq outils ou rien,
+  publication comprise. Un jeton sans `allow_publish` sera utile le jour où un agent
+  tiers, non maîtrisé, se branche. Ce jour-là, pas avant.
 
 ### Phase 6 bis - Isoler les sessions du backend (V2)
 
