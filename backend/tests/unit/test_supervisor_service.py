@@ -22,6 +22,7 @@ from app.services.event_bus import EventBus
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
 from app.services.supervisor_service import (
+    ERREUR_ABONNE_LONGUEUR_MAX,
     MESSAGE_INTERRUPTION,
     PREFERENCE_LONGUEUR_MAX,
     PREFERENCES_AGENT_MAX,
@@ -1320,6 +1321,76 @@ async def test_une_base_qui_hoquette_pendant_le_ping_de_fin_de_tour_est_journali
     assert abonne.requetes == [] and supervisor._manager.sent == []  # type: ignore[attr-defined]
     appels = supervisor_service.logger.appels  # type: ignore[attr-defined]
     assert appels == [("supervisor.tache.failed", {"tache": "SupervisorService._notify_turn_done"})]
+
+
+@pytest.mark.parametrize("chemin", ["tour_en_erreur", "consigne_non_partie"])
+async def test_le_message_d_erreur_est_borne_pour_l_abonne_et_entier_pour_le_superviseur(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+    chemin: str,
+) -> None:
+    """Une exception de base recopie le SQL et ses paramètres, sur des centaines de ko :
+    ni les données ni le volume n'ont à partir par HTTP, mais le superviseur et le
+    journal, qui restent chez Eldir, gardent le texte entier."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    long_message = "SELECT secret " + "x" * 500_000
+    manager = supervisor._manager  # type: ignore[attr-defined]
+
+    if chemin == "tour_en_erreur":
+        await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+        await _tour_dispatche(supervisor, child, "eldir", fin=("error", {"message": long_message}))
+    else:
+
+        async def refuse(*_: Any, **__: Any) -> None:
+            raise RuntimeError(long_message)
+
+        monkeypatch.setattr(supervisor._sessions, "get", refuse)  # type: ignore[attr-defined]
+        await supervisor.outil_dispatch(
+            admin.id, project_id=project.id, consigne=CONSIGNE, session_id=child.id
+        )
+    await abonne.attendre(1)
+    await _attendre(lambda: manager.sent)
+    await _fin_des_taches_de_fond(supervisor)
+
+    erreur = _charge_recue(abonne)["erreur"]
+    assert len(erreur) == ERREUR_ABONNE_LONGUEUR_MAX
+    assert erreur.startswith("SELECT secret xxx") and erreur.endswith("x…")
+    assert len(abonne.requetes[0].corps) < 2_000
+    assert long_message in manager.sent[0][1], "le superviseur reçoit le texte entier"
+
+
+@pytest.mark.parametrize(
+    ("longueur", "borne"),
+    [(ERREUR_ABONNE_LONGUEUR_MAX, False), (ERREUR_ABONNE_LONGUEUR_MAX + 1, True)],
+    ids=["a_la_limite", "un_caractere_de_trop"],
+)
+async def test_la_borne_du_message_d_erreur_ne_coupe_qu_au_dela(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+    longueur: int,
+    borne: bool,
+) -> None:
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+    message = "e" * longueur
+
+    await _tour_dispatche(supervisor, child, "eldir", fin=("error", {"message": message}))
+    await abonne.attendre(1)
+    await _fin_des_taches_de_fond(supervisor)
+
+    erreur = _charge_recue(abonne)["erreur"]
+    assert (erreur != message) is borne
+    assert len(erreur) == ERREUR_ABONNE_LONGUEUR_MAX
 
 
 @pytest.mark.parametrize(

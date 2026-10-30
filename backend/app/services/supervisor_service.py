@@ -203,6 +203,14 @@ DISALLOWED_TOOLS = [
     "WebSearch",
 ]
 
+# Longueur maximale du message d'erreur envoyé à l'abonné. Le texte entier reste chez
+# Eldir (superviseur, journal) : une exception de base de données recopie le SQL et ses
+# paramètres, et un message de plusieurs centaines de ko ferait refuser le POST par un
+# abonné qui limite la taille, ce qui rendrait à l'agent le silence qu'on vient de lever.
+# Même ordre de grandeur que le libellé d'une session (`[:280]` dans `session_service`).
+# Couper n'est pas filtrer : le début du message part tel quel.
+ERREUR_ABONNE_LONGUEUR_MAX = 300
+
 # Ce que l'abonné lit quand le tour d'une consigne dispatchée a été interrompu.
 MESSAGE_INTERRUPTION = "La session a été arrêtée avant la fin du tour."
 
@@ -217,6 +225,13 @@ def _sur_une_ligne(texte: str) -> str:
     des lignes sans marque d'auteur, qui passeraient pour celles de John.
     """
     return " ".join(texte.split())
+
+
+def _borner(erreur: str | None) -> str | None:
+    """Le message d'erreur tel que l'abonné le reçoit : coupé, avec une ellipse qui le dit."""
+    if erreur is None or len(erreur) <= ERREUR_ABONNE_LONGUEUR_MAX:
+        return erreur
+    return erreur[: ERREUR_ABONNE_LONGUEUR_MAX - 1] + "…"
 
 
 def origine_de_dispatch(libelle_agent: str | None) -> str:
@@ -1000,7 +1015,7 @@ class SupervisorService:
                     "branche": child.branch,
                     "etat": "fin_de_tour" if erreur is None else "erreur",
                     "cr": (child.summary or "").strip() if erreur is None else "",
-                    "erreur": erreur,
+                    "erreur": _borner(erreur),
                     "demandeur": demandeur,
                 }
             )
