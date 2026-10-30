@@ -1,9 +1,7 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "npm run preview -- --port 4173",
-      "startServerReadyPattern": "Local:",
-      "url": ["http://127.0.0.1:4173/"],
+      "staticDistDir": "./frontend/dist",
       "numberOfRuns": 1,
       "settings": { "preset": "desktop" }
     },

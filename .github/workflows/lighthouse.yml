@@ -42,6 +42,17 @@ jobs:
         run: npm run build
         working-directory: frontend
 
+      # L'action lance lhci depuis la racine du dépôt, pas depuis `frontend/` :
+      # les chemins de `lighthouserc.json` sont donc relatifs à la racine, et
+      # c'est de là qu'il faut le lancer en local aussi.
+      #
+      #   npm --prefix frontend run build
+      #   npx @lhci/cli autorun --config=frontend/lighthouserc.json
+      #
+      # `staticDistDir` plutôt que `npm run preview` : lhci sert `dist/`
+      # lui-même, ce qui retire du chemin un serveur à démarrer, son port, et
+      # l'attente de son message de démarrage (que `vite preview` n'écrit pas
+      # dans la forme attendue).
       - name: Lighthouse
         uses: treosh/lighthouse-ci-action@v12
         with:
