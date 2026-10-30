@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.core.child_report import extract_cr, state_after_turn
-from app.core.config import get_settings
+from app.core.config import env_a_masquer_pour_cli, get_settings
 from app.core.constants import (
     EVENT_TYPE_ERROR,
     EVENT_TYPE_STATE,
@@ -441,6 +441,12 @@ class SessionManager:
         options_kwargs: dict[str, Any] = {
             "cwd": cwd,
             "stderr": _on_cli_stderr,
+            # Le SDK transmet l'environnement du backend en entier : ce masque
+            # retire les secrets d'Eldir de ce que la session peut lire. Cf.
+            # `env_a_masquer_pour_cli` - sans lui, `JWT_SECRET` suffit à une
+            # session pour se forger un jeton de connexion et s'autoriser la
+            # publication sans passer par le hook.
+            "env": env_a_masquer_pour_cli(),
             # Pas de TTY côté serveur → le mode "default" bloque toute action
             # qui demande approbation. Chaque session vit dans son worktree
             # isolé et l'UI Eldir streame chaque tool_use en temps réel, donc

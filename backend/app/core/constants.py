@@ -79,3 +79,13 @@ DEFAULT_SESSION_TOKEN_BUDGET: Final[int] = 1_000_000
 PROVIDER_GITHUB: Final[str] = "github"
 PROVIDER_FORGEJO: Final[str] = "forgejo"
 SUPPORTED_PROVIDERS: Final[frozenset[str]] = frozenset({PROVIDER_GITHUB, PROVIDER_FORGEJO})
+
+# ── Credential Claude dans l'environnement ──────────────────────
+# Les deux seules variables d'environnement par lesquelles le CLI Claude
+# s'authentifie, selon le type de credential stocké. C'est aussi la seule
+# chose qu'un sous-processus Claude a besoin de voir de l'environnement du
+# backend : `app.core.config.env_a_masquer_pour_cli` masque tout le reste.
+ENV_VAR_CREDENTIEL_PAR_KIND: Final[dict[str, str]] = {
+    "oauth_token": "CLAUDE_CODE_OAUTH_TOKEN",
+    "api_key": "ANTHROPIC_API_KEY",
+}

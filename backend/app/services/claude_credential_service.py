@@ -19,8 +19,11 @@ from typing import Final
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
-from app.core.constants import CREDENTIAL_TEST_TIMEOUT_S
+from app.core.config import env_a_masquer_pour_cli, get_settings
+from app.core.constants import (
+    CREDENTIAL_TEST_TIMEOUT_S,
+    ENV_VAR_CREDENTIEL_PAR_KIND,
+)
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.core.security import decrypt_secret, encrypt_secret
@@ -34,11 +37,6 @@ logger = get_logger(__name__)
 
 MASK_TAIL = 4
 MASK_PREFIX = "…"
-
-_ENV_VAR_BY_KIND: Final[dict[str, str]] = {
-    "oauth_token": "CLAUDE_CODE_OAUTH_TOKEN",
-    "api_key": "ANTHROPIC_API_KEY",
-}
 
 # Marqueurs d'échec dans la sortie du CLI : il sort en code 0 même quand
 # l'API refuse le credential, son erreur arrive comme une réponse normale.
@@ -146,8 +144,16 @@ class ClaudeCredentialService:
         réponse telle quelle, sans jamais exposer le secret.
         """
         cred = await self.get(db, credential_id, user_id)
-        env = {k: v for k, v in os.environ.items() if k not in _ENV_VAR_BY_KIND.values()}
-        env[_ENV_VAR_BY_KIND[cred.kind]] = decrypt_secret(cred.encrypted_value)
+        # Ce CLI est un sous-processus Claude comme une session : il voit
+        # l'environnement du backend s'il n'est pas masqué. Les variables du
+        # credential sont réécrites juste après, donc retirées ici aussi.
+        masque = env_a_masquer_pour_cli()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in masque and k not in ENV_VAR_CREDENTIEL_PAR_KIND.values()
+        }
+        env[ENV_VAR_CREDENTIEL_PAR_KIND[cred.kind]] = decrypt_secret(cred.encrypted_value)
 
         cwd = get_settings().workspaces_root
         cwd.mkdir(parents=True, exist_ok=True)
