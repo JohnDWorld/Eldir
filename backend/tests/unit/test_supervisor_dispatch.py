@@ -116,3 +116,39 @@ async def test_une_session_d_un_autre_utilisateur_est_introuvable(
         await service._resolve_target(
             user_id=user_id, project_id=project_id, session_id=session_etrangere
         )
+
+
+@pytest.mark.asyncio
+async def test_une_session_systeme_ne_se_dispatche_pas(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Un agent ne délivre pas une consigne dans la session superviseur.
+
+    C'est la seule des quatre gardes `is_system` dont l'agent choisit la
+    valeur : `list_projects`, `list_sessions` et la reprise de la session la
+    plus récente filtrent déjà. Livrée là, la consigne arriverait comme un tour
+    utilisateur sans marque d'auteur, donc indistinguable pour le modèle de ce
+    que John aurait tapé, alors que c'est exactement le trou que la marque
+    d'auteur ferme sur `remember`.
+    """
+    async with session_factory() as db:
+        user_id, project_id, _ = await pose_projet_et_session(db)
+        superviseur = SessionRow(
+            project_id=project_id,
+            user_id=user_id,
+            branch="claude/superviseur",
+            worktree_path="/tmp/munin-wt4",
+            model="claude-sonnet-5",
+            sdk_session_id="sdk-4",
+            is_system=True,
+            system_kind="supervisor",
+        )
+        db.add(superviseur)
+        await db.commit()
+        session_systeme = superviseur.id
+
+    service = service_superviseur(session_factory)
+    with pytest.raises(NotFoundError, match=session_systeme):
+        await service._resolve_target(
+            user_id=user_id, project_id=project_id, session_id=session_systeme
+        )

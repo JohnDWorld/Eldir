@@ -858,7 +858,13 @@ class SupervisorService:
 
             if session_id is not None:
                 existing = await db.get(SessionRow, session_id)
-                if existing is None or existing.user_id != user_id:
+                # `is_system` ici aussi : c'est la seule des quatre gardes dont
+                # un agent choisit la valeur. Sans elle, dispatcher vers l'id de
+                # la session superviseur y délivre la consigne comme un tour
+                # utilisateur sans marque, donc indistinguable de ce que John
+                # aurait tapé. Même refus que pour la session d'un autre : ce
+                # qu'un agent ne peut pas viser n'existe pas pour lui.
+                if existing is None or existing.user_id != user_id or existing.is_system:
                     raise NotFoundError(f"Session {session_id} introuvable.")
                 return existing.id, project.name, False
 
