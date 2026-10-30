@@ -126,6 +126,26 @@
     @apply px-3;
   }
 
+  /* Champs de saisie. Même histoire que les boutons : 32 champs recopiaient la
+     même déclaration à la main, à deux tailles de police et sans aucun plancher
+     de hauteur.
+
+     Le fond n'est pas dans la classe de base par hasard. Un champ prend
+     toujours l'INVERSE du fond de son conteneur : papier sur une carte crème,
+     crème dans un dialogue papier. C'est la seule règle que les champs
+     suivaient déjà, et la seule qui ne peut pas être décidée ici, puisqu'elle
+     dépend de la surface d'accueil. `bg-eldir-paper` est donc le défaut (le cas
+     des pages, dont les sections sont crème) et les dialogues, qui sont papier,
+     posent `bg-eldir-cream` par-dessus. Un fond oublié rend papier sur crème :
+     lisible, donc l'échec est sans danger.
+
+     `min-h-11` est la règle des 44px d'AGENTS.md, que les boutons appliquaient
+     et que les champs n'avaient jamais eue : avec `py-2` et le plancher de
+     16px du bas de ce fichier, un champ mesurait 37px sur mobile. */
+  .eldir-field {
+    @apply min-h-11 w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink transition-colors duration-150 focus:border-eldir-orange;
+  }
+
   .eldir-skeleton {
     @apply animate-pulse rounded-eldir bg-eldir-cream-2;
   }

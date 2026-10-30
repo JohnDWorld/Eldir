@@ -700,7 +700,7 @@ function AddProjectDialog({
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="filtrer par nom (owner/repo)…"
-            className="min-w-0 flex-1 rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field min-w-0 flex-1 bg-eldir-cream"
           />
           {filtered.length > 0 && (
             <button

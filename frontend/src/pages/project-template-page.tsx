@@ -216,7 +216,7 @@ export function ProjectTemplatePage(): JSX.Element {
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={8}
               placeholder="Ex: 'Tu es l'agent maintainer du repo X. Convention : conventional commits, branches feature/. Stack: …'"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field"
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
               Surcharge le system prompt par défaut. Laisse vide pour utiliser le défaut.
@@ -228,7 +228,7 @@ export function ProjectTemplatePage(): JSX.Element {
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field"
             >
               {MODEL_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -277,7 +277,7 @@ export function ProjectTemplatePage(): JSX.Element {
                 'git clone --depth 1 -b stable https://github.com/flutter/flutter.git\n' +
                 'ln -sf $ELDIR_TOOLCHAIN/flutter/bin/flutter $ELDIR_TOOLCHAIN/bin/flutter'
               }
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field text-xs"
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
               Ce que le repo a besoin d&apos;avoir sur le serveur pour que
@@ -297,7 +297,7 @@ export function ProjectTemplatePage(): JSX.Element {
                 '# une ligne par fichier : fichier = commande\n' +
                 'adapter-matrix.py = ssh mon-serveur docker exec passerelle cat /opt/app/adapter.py'
               }
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field text-xs"
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
               Ce que la session doit lire mais qui ne vit pas dans le repo

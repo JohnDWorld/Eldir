@@ -86,7 +86,7 @@ export function NewRepoDialog({ onClose }: { onClose: () => void }): JSX.Element
               placeholder="mon-nouveau-repo"
               required
               maxLength={100}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream"
             />
           </label>
 
@@ -97,7 +97,7 @@ export function NewRepoDialog({ onClose }: { onClose: () => void }): JSX.Element
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={512}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream"
             />
           </label>
 

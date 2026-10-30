@@ -61,7 +61,7 @@ export function CommitDialog({
             required
             maxLength={1000}
             placeholder="feat(sessions): add per-session ring buffer"
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field bg-eldir-cream"
           />
         </label>
         <label className="flex items-center gap-2 font-mono text-xs text-eldir-ink">
@@ -163,7 +163,7 @@ export function OpenPrDialog({
             onChange={(e) => setTitle(e.target.value)}
             required
             maxLength={255}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field bg-eldir-cream"
           />
         </label>
         <label className="block">
@@ -173,7 +173,7 @@ export function OpenPrDialog({
             onChange={(e) => setBody(e.target.value)}
             rows={5}
             maxLength={8000}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field bg-eldir-cream"
           />
         </label>
         <label className="block">
@@ -184,7 +184,7 @@ export function OpenPrDialog({
             onChange={(e) => setBase(e.target.value)}
             placeholder="main"
             maxLength={120}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field bg-eldir-cream"
           />
         </label>
 

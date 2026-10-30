@@ -245,7 +245,7 @@ function CredentialForm({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={kind === 'oauth_token' ? 'sk-ant-oat…' : 'sk-ant-api…'}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field"
           />
         </label>
         <label className="block">
@@ -255,7 +255,7 @@ function CredentialForm({
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={120}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field"
           />
         </label>
         {error && (

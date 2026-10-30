@@ -86,7 +86,7 @@ function FormulaireJeton({
             onChange={(e) => setLibelle(e.target.value)}
             maxLength={LIBELLE_MAX}
             placeholder="ex. assistant de bureau"
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field"
           />
           <span className="mt-1 block text-xs text-eldir-ink-2">
             Ce nom signe ce que l'agent écrit dans les préférences du superviseur, et dit dans ton

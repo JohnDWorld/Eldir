@@ -199,7 +199,7 @@ function SubAgentDialog({
               onChange={(e) => setName(e.target.value)}
               maxLength={120}
               placeholder="ex: test-runner"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream"
               required
             />
           </label>
@@ -211,7 +211,7 @@ function SubAgentDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={255}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream"
             />
           </label>
 
@@ -222,7 +222,7 @@ function SubAgentDialog({
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={8}
               required
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream text-xs"
             />
           </label>
 

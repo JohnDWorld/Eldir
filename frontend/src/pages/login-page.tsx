@@ -68,7 +68,7 @@ export function LoginPage(): JSX.Element {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field"
             />
           </label>
 
@@ -80,7 +80,7 @@ export function LoginPage(): JSX.Element {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field"
             />
           </label>
 

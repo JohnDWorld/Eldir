@@ -79,9 +79,6 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
     }
   };
 
-  const champ =
-    'h-11 w-full min-w-0 rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange';
-
   return (
     <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -121,7 +118,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
             autoCapitalize="none"
             autoCorrect="off"
             placeholder="192.0.2.10 ou serveur.exemple.fr"
-            className={champ}
+            className="eldir-field min-w-0 bg-eldir-cream text-xs"
           />
         </label>
         <label className="block">
@@ -130,7 +127,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
             value={port}
             onChange={(e) => setPort(e.target.value)}
             inputMode="numeric"
-            className={champ}
+            className="eldir-field min-w-0 bg-eldir-cream text-xs"
           />
         </label>
         <label className="block sm:col-span-2">
@@ -143,7 +140,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
             autoCorrect="off"
             autoComplete="username"
             placeholder="deploy"
-            className={champ}
+            className="eldir-field min-w-0 bg-eldir-cream text-xs"
           />
         </label>
         {needsPassword && !connected && (
@@ -156,7 +153,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
               onChange={(e) => setPassword(e.target.value)}
               type="password"
               autoComplete="off"
-              className={champ}
+              className="eldir-field min-w-0 bg-eldir-cream text-xs"
             />
           </label>
         )}
