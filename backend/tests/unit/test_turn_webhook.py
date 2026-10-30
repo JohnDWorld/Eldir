@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import Callable
@@ -106,7 +107,11 @@ async def test_le_corps_signe_porte_l_heure_d_emission_en_utc(
     apres = datetime.now(UTC)
 
     requete = abonne.requetes[0]
-    horodatage = datetime.fromisoformat(json.loads(requete.corps)["horodatage"])
+    brut = json.loads(requete.corps)["horodatage"]
+    # Le contrat dit « à la seconde, en UTC » : un abonné qui compare des instants ou qui
+    # arrondit compte dessus.
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00", brut), brut
+    horodatage = datetime.fromisoformat(brut)
     assert horodatage.utcoffset() == timedelta(0), "une heure sans fuseau se lit de travers"
     assert avant <= horodatage <= apres
     attendu = hmac.new(b"secret-de-test", requete.corps, hashlib.sha256).hexdigest()
