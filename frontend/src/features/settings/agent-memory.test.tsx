@@ -81,6 +81,16 @@ describe('AgentMemoryPanel', () => {
     expect(screen.getByText('Un commit.')).toBeInTheDocument();
   });
 
+  it('coupe un nom d’agent sans espace au lieu de pousser la page de côté', async () => {
+    // Le nom est celui du jeton, libre jusqu'à 80 caractères. À 390px, ~48 caractères
+    // d'un seul tenant sortaient de l'écran (mesuré dans Chrome). jsdom ne fait pas de
+    // mise en page : on garde la classe qui en est la cause, pas l'effet.
+    const long = 'a'.repeat(80);
+    api.get.mockResolvedValue(memoire([entree(long, 'Toujours une PR.')]));
+    renderAvec(<AgentMemoryPanel />);
+    expect(await screen.findByText(`agent « ${long} »`)).toHaveClass('break-words');
+  });
+
   it('dit que la mémoire est pleine, et que seul l’agent lit le refus', async () => {
     api.get.mockResolvedValue(memoire([entree('A', 'a'), entree('B', 'b')], 2));
     renderAvec(<AgentMemoryPanel />);

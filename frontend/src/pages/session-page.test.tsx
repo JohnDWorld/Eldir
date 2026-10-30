@@ -67,19 +67,36 @@ describe('ChatStream - l’auteur d’un message', () => {
     expect(screen.queryByText(ENCART)).toBeNull();
   });
 
-  it('une origine inconnue n’est pas John, et se lit', () => {
-    rend(message('Depuis ailleurs', 'webhook'));
-    expect(screen.getByText('origine « webhook »')).toBeInTheDocument();
+  it.each([
+    // Un préfixe qui n'est pas en tête n'est pas le préfixe : `includes` en ferait un agent.
+    ['xagent:y', 'origine « xagent:y »'],
+    ['webhook', 'origine « webhook »'],
+    // Ni `null` ni autre chose qu'un texte n'est John : seule l'absence du champ l'est.
+    [null, 'origine inconnue'],
+    [42, 'origine inconnue'],
+  ])('l’origine %j n’est pas John, et se lit', (origin, libelle) => {
+    rend(message('Depuis ailleurs', origin));
+    expect(screen.getByText(libelle)).toBeInTheDocument();
+    expect(screen.getByText('Depuis ailleurs')).toBeInTheDocument();
   });
 
-  it('une origine qui n’est pas du texte n’est pas John non plus', () => {
-    rend(message('Étrange', 42));
-    expect(screen.getByText('origine inconnue')).toBeInTheDocument();
+  it('un libellé d’agent qui contient lui-même des deux-points est lu en entier', () => {
+    rend(message('Suite', 'agent:a:b'));
+    expect(screen.getByText('agent « a:b »')).toBeInTheDocument();
   });
 
   it('un agent au libellé vide se lit quand même', () => {
     rend(message('Anonyme', 'agent:'));
     expect(screen.getByText('agent sans nom')).toBeInTheDocument();
+  });
+
+  it('un libellé d’agent sans espace se coupe au lieu de pousser le fil de côté', () => {
+    // Un libellé de ~48 caractères d'un seul tenant débordait de l'écran à 390px
+    // (mesuré dans Chrome). jsdom ne fait pas de mise en page : on garde la classe
+    // qui en est la cause, pas l'effet.
+    const long = 'a'.repeat(80);
+    rend(message('Consigne', `agent:${long}`));
+    expect(screen.getByText(`agent « ${long} »`)).toHaveClass('break-words');
   });
 });
 
