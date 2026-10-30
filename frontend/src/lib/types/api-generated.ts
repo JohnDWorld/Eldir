@@ -1568,6 +1568,8 @@ export interface components {
              * @default []
              */
             skills: components["schemas"]["TemplateSkillRead"][];
+            /** Source Externe */
+            source_externe: boolean;
             /** Source Preset */
             source_preset: string | null;
             /**
@@ -1601,6 +1603,11 @@ export interface components {
             remote_host?: string | null;
             /** Setup Commands */
             setup_commands?: string[] | null;
+            /**
+             * Source Externe
+             * @default false
+             */
+            source_externe: boolean;
             /** System Prompt */
             system_prompt?: string | null;
         };

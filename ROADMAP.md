@@ -262,6 +262,11 @@ reconstruire la logique de dispatch, ou bien conduire l'interface à la main.
 - [x] **La porte de validation humaine ne bouge pas** : `git commit`, `git push`,
       `gh pr` et `glab mr` restent refusés au niveau du hook `PreToolUse`, quel que
       soit le transport, et un test le vérifie.
+- [x] **Un projet peut être marqué « alimenté de l'extérieur »** (migration 0013) :
+      les consignes reçues sont présentées à la session comme des données et non
+      comme des instructions, et l'accès SSH « Machine du projet » est refusé tant
+      que le drapeau est posé, y compris aux sessions déjà ouvertes. L'alias reste
+      enregistré, décocher le rétablit.
 - [x] **Et elle ne s'ouvre que par un geste humain** : `allow_publish` a été retiré
       de la surface externe. La surface sert à transmettre du texte écrit par des
       utilisateurs de La Boutique, donc non fiable : servi en HTTP, l'outil rendait
@@ -279,6 +284,35 @@ Volontairement **hors périmètre**, et ce sont des choix, pas des oublis :
 - **Pas d'autorisation fine par outil.** Un jeton donne les quatre outils servis ou
   rien. Un jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé,
   se branche. Ce jour-là, pas avant.
+
+### Phase 6 bis - Isoler les sessions du backend (V2)
+
+**Objectif** : qu'une session compromise ne soit plus une voisine de palier.
+
+Les points de durcissement livrés le 2026-10-30 (masque d'environnement, porte de
+publication réservée à un geste humain, jeton Git hors de portée, drapeau « source
+externe ») réduisent ce qu'une session peut atteindre. Ils ne changent pas le fait
+qu'elle **tourne dans le conteneur du backend**, sous le même utilisateur : elle voit
+le disque entier, donc les clones des autres projets, leurs transcripts et les clés
+SSH de leurs machines. L'inventaire complet est dans
+[`docs/securite-sessions.md`](./docs/securite-sessions.md).
+
+C'est structurel, et c'est la seule réponse complète. Tant qu'elle n'est pas là,
+n'héberge pas sur la même instance un projet sensible et un projet alimenté par des
+tickets publics.
+
+- [ ] **Un conteneur par session**, monté sur son seul worktree, son seul toolchain et
+      sa seule collecte. Les autres projets cessent d'être lisibles.
+- [ ] **Aucun accès à la base ni à Redis** depuis ce conteneur : la session parle au
+      backend, le backend parle à la base. Le masque d'environnement devient un filet,
+      plus la seule garde.
+- [ ] **Réseau sortant restreint** : l'API Anthropic, le provider Git du projet, et ce
+      que son toolchain réclame. Aujourd'hui une session joint n'importe quoi, et c'est
+      ce qui rend l'exfiltration plus grave que la publication.
+- [ ] **Les clés SSH des projets sortent du conteneur des sessions** : seul le backend
+      les monte, et il exécute la collecte pour elles.
+- [ ] Revoir le plafond de sessions concurrentes : un conteneur par session coûte plus
+      qu'un process.
 
 ### Phase 7 - Souveraineté complète (V2/V3)
 

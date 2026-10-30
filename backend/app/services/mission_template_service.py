@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,6 +24,7 @@ from app.db.models import (
     TemplateSubAgent,
     TemplateVersion,
 )
+from app.db.models import Session as SessionRow
 from app.schemas.mission_template import (
     MissionTemplateWrite,
     TemplateSkillWrite,
@@ -167,9 +169,54 @@ class MissionTemplateService:
             [e.model_dump() for e in payload.collect_commands] if payload.collect_commands else None
         )
         template.remote_host = payload.remote_host or None
+        passe_en_source_externe = payload.source_externe and not template.source_externe
+        template.source_externe = payload.source_externe
         # source_preset reste tel quel (modifié par apply_preset uniquement)
         await db.flush()
+        if passe_en_source_externe:
+            await self._fermer_l_acces_serveur_des_sessions(db, project_id=project_id)
         return template
+
+    async def _fermer_l_acces_serveur_des_sessions(
+        self, db: AsyncSession, *, project_id: str
+    ) -> None:
+        """Retire l'accès SSH aux sessions déjà créées de ce projet.
+
+        Une session fige son `remote_host` à sa création, pour que changer
+        l'alias du projet n'élargisse pas le périmètre d'une session en cours.
+        Mais cocher « source externe » est un resserrement, pas un
+        élargissement : sans ce passage, le drapeau laisserait ouvertes
+        précisément les sessions qui tournaient au moment où John a compris
+        qu'il fallait le cocher.
+        """
+        resultat = await db.execute(
+            select(SessionRow.id).where(
+                SessionRow.project_id == project_id,
+                SessionRow.remote_host.is_not(None),
+            )
+        )
+        identifiants = list(resultat.scalars().all())
+        if not identifiants:
+            return
+        await db.execute(
+            update(SessionRow)
+            .where(SessionRow.id.in_(identifiants))
+            .values(remote_host=None)
+        )
+        for session_id in identifiants:
+            self._manager_de_sessions().ferme_l_acces_serveur(session_id)
+        logger.info(
+            "template.source_externe.acces_serveur_ferme",
+            project_id=project_id,
+            sessions=len(identifiants),
+        )
+
+    @staticmethod
+    def _manager_de_sessions() -> Any:
+        # Import tardif : `singletons` importe les services, dont celui-ci.
+        from app.services.singletons import get_session_manager
+
+        return get_session_manager()
 
     async def delete(self, db: AsyncSession, *, project_id: str, user_id: str) -> None:
         template = await self.get(db, project_id=project_id, user_id=user_id)

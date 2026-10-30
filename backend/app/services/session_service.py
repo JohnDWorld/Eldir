@@ -168,7 +168,11 @@ class SessionService:
         # bout du prompt : stable d'un tour à l'autre, donc mis en cache par
         # le CLI avec le reste du system prompt. Persisté sur la row pour que
         # `resume()` reparte avec exactement le même prompt.
-        effective_system_prompt = await self._with_child_protocol(db, base_system_prompt)
+        effective_system_prompt = await self._with_child_protocol(
+            db,
+            base_system_prompt,
+            source_externe=bool(template and template.source_externe),
+        )
         effective_model = (
             model or (template.model if template else None) or get_settings().claude_default_model
         )
@@ -186,8 +190,10 @@ class SessionService:
             model=effective_model,
             system_prompt=effective_system_prompt,
             # Figé à la création : changer l'alias du projet ensuite ne doit
-            # pas élargir le périmètre d'une session déjà lancée.
-            remote_host=template.remote_host if template else None,
+            # pas élargir le périmètre d'une session déjà lancée. Resserrer,
+            # si : cocher « source externe » referme cette porte, y compris
+            # pour les sessions déjà créées (cf. mission_template_service).
+            remote_host=template.remote_host_effectif if template else None,
         )
         db.add(session)
         await db.flush()  # capture session.id pour nommer le worktree
@@ -664,14 +670,25 @@ class SessionService:
             )
         ]
 
-    async def _with_child_protocol(self, db: AsyncSession, system_prompt: str | None) -> str:
-        """Concatène le prompt du template et le protocole enfant Eldir."""
+    async def _with_child_protocol(
+        self, db: AsyncSession, system_prompt: str | None, *, source_externe: bool = False
+    ) -> str:
+        """Concatène le prompt du template, le protocole enfant Eldir, et le reste.
+
+        `source_externe` ajoute le bloc qui présente les consignes reçues comme
+        des données et non comme des instructions. C'est une garde en
+        profondeur, pas une barrière : un prompt se discute, et seule la porte
+        de publication, le masque d'environnement et le refus d'accès serveur
+        tiennent vraiment face à une injection. Le bloc arrive en dernier,
+        parce que c'est la place que le modèle lit avec le plus de poids.
+        """
         from app.services.system_prompt_service import system_prompt_service
 
-        protocol = await system_prompt_service.resolve(db, "child_protocol")
-        if not system_prompt:
-            return protocol
-        return f"{system_prompt.rstrip()}\n\n{protocol}"
+        blocs = [system_prompt.rstrip()] if system_prompt else []
+        blocs.append(await system_prompt_service.resolve(db, "child_protocol"))
+        if source_externe:
+            blocs.append(await system_prompt_service.resolve(db, "source_externe"))
+        return "\n\n".join(blocs)
 
     async def _inject_claude_env(self, db: AsyncSession, user_id: str) -> None:
         resolved = await claude_credential_service.resolve_active(db, user_id)

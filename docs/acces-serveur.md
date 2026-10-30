@@ -202,6 +202,14 @@ sauvegarde.
 Le bouton « déconnecter » retire la clé du `authorized_keys` distant, efface
 la paire de clés et le bloc de configuration, et vide l'alias du template.
 
+La case **« Ce projet reçoit des consignes de l'extérieur »** du Mission
+Template refuse l'accès sans rien effacer : l'alias reste enregistré, mais
+aucune session du projet ne peut s'y connecter, y compris celles déjà
+ouvertes. Un projet alimenté par des tickets d'utilisateurs reçoit du texte
+que personne de confiance n'a écrit, et une injection de prompt qui obtient
+un `ssh` obtient la machine. Décocher rétablit l'accès. Cf.
+[`securite-sessions.md`](./securite-sessions.md).
+
 Supprimer le projet dans Eldir fait la même chose, plus le reste : le clone,
 les worktrees, le toolchain installé (un SDK, c'est plusieurs Go) et les
 fichiers collectés. Si la machine est injoignable à ce moment-là, la

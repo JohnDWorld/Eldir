@@ -10,7 +10,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKey
@@ -47,6 +56,30 @@ class MissionTemplate(UUIDPrimaryKey, TimestampMixin, Base):
     # de la machine où tourne ce projet. NULL = aucun accès serveur, ce qui
     # est le défaut. Cf. `docs/acces-serveur.md`.
     remote_host: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Ce projet reçoit des consignes écrites par quelqu'un d'autre que son
+    # propriétaire : suggestions et tickets d'utilisateurs de La Boutique,
+    # transmis par la surface d'agent externe. Donc du texte non fiable, envoyé
+    # à des sessions qui tournent en `bypassPermissions`. Cf.
+    # `docs/securite-sessions.md`.
+    source_externe: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false"), default=False
+    )
+
+    @property
+    def remote_host_effectif(self) -> str | None:
+        """L'alias SSH réellement accordé à une session de ce projet.
+
+        `source_externe` l'annule. Un projet alimenté par du texte non fiable
+        n'ouvre pas de connexion sortante vers une machine : une injection de
+        prompt qui obtient un `ssh` obtient la machine elle-même, et le refus
+        du hook est la seule garde, puisque la session est en
+        `bypassPermissions`.
+
+        L'alias reste en base plutôt qu'effacé : retirer le drapeau doit rendre
+        le projet à son état d'avant, sans que John ait à retrouver sa
+        configuration.
+        """
+        return None if self.source_externe else self.remote_host
 
     skills: Mapped[list[TemplateSkill]] = relationship(
         "TemplateSkill",

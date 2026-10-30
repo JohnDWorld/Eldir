@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from pydantic import Field, field_validator
+from pydantic import Field, StrictBool, field_validator
 
 from app.schemas.common import EldirModel, TimestampedModel
 
@@ -96,6 +96,11 @@ class MissionTemplateWrite(EldirModel):
     # décrite dans le `~/.ssh/config` monté dans le conteneur, que l'agent ne
     # peut pas écrire. Un alias inventé ne résout rien.
     remote_host: str | None = Field(default=None, max_length=120, pattern=r"^[A-Za-z0-9._-]+$")
+    # Ce projet reçoit des consignes écrites par quelqu'un d'autre que son
+    # propriétaire (surface d'agent externe). `StrictBool` et pas `bool` : la
+    # coercion de pydantic accepte `"false"`, qui est vrai, et ce drapeau
+    # décide d'un accès SSH.
+    source_externe: StrictBool = False
 
 
 class MissionTemplateRead(TimestampedModel):
@@ -107,6 +112,7 @@ class MissionTemplateRead(TimestampedModel):
     setup_commands: list[str] | None
     collect_commands: list[CollectEntry] | None
     remote_host: str | None
+    source_externe: bool
     source_preset: str | None
     skills: list[TemplateSkillRead] = []
     sub_agents: list[TemplateSubAgentRead] = []

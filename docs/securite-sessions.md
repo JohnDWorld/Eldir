@@ -67,8 +67,11 @@ partagent le conteneur du backend. Une session d'un projet peut lire le code
 d'un autre, ses transcripts, et la clé SSH de sa machine.
 
 **Ce qui limite les dégâts** : le `.env` du backend n'est pas monté dans les
-worktrees. C'est tout, pour l'instant : une session reste un voisin de palier,
-pas un locataire isolé.
+worktrees, et la case « Ce projet reçoit des consignes de l'extérieur » du
+Mission Template refuse l'accès SSH aux projets alimentés par du texte non
+fiable, y compris à leurs sessions déjà ouvertes. Mais une session reste un
+voisin de palier, pas un locataire isolé : elle lit les clés SSH des *autres*
+projets dans `/home/eldir/.ssh`.
 
 **Le correctif** est la V2 inscrite au ROADMAP : un conteneur par session, sans
 accès à la base, avec un réseau sortant restreint. Tant qu'il n'est pas là,
@@ -95,9 +98,10 @@ chacune.
    ✅ En place. `allow_publish` n'est pas servi sur la surface externe
    (`HORS_SURFACE_EXTERNE` dans `app/mcp_http.py`) : un jeton d'agent ne peut
    pas l'ouvrir, même compromis.
-3. **Le jeton Git n'est jamais à portée d'une session.** ⏳ À faire : il reste
-   aujourd'hui dans le remote du clone, lisible par `git remote -v`, et un PAT
-   classique porte sur tous les dépôts de son propriétaire.
+3. **Le jeton Git n'est jamais à portée d'une session.** ✅ En place. Il ne
+   touche ni le disque ni la ligne de commande : git le demande à un credential
+   helper qui le lit dans l'environnement du seul sous-processus concerné, et
+   chaque sync assainit les dépôts clonés par une version d'avant.
 
 Chaque garde a son test, vérifié par mutation : on casse la ligne qu'il prétend
 couvrir et on confirme qu'il tombe.

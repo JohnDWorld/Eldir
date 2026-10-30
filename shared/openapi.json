@@ -1031,6 +1031,10 @@
             "title": "Skills",
             "type": "array"
           },
+          "source_externe": {
+            "title": "Source Externe",
+            "type": "boolean"
+          },
           "source_preset": {
             "anyOf": [
               {
@@ -1078,6 +1082,7 @@
           "setup_commands",
           "collect_commands",
           "remote_host",
+          "source_externe",
           "source_preset"
         ],
         "title": "MissionTemplateRead",
@@ -1154,6 +1159,11 @@
               }
             ],
             "title": "Setup Commands"
+          },
+          "source_externe": {
+            "default": false,
+            "title": "Source Externe",
+            "type": "boolean"
           },
           "system_prompt": {
             "anyOf": [

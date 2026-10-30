@@ -579,6 +579,21 @@ class SessionManager:
         finally:
             active.rendre_place()
 
+    def ferme_l_acces_serveur(self, session_id: str) -> None:
+        """Retire à une session active l'alias SSH qu'elle avait le droit d'atteindre.
+
+        Appelé quand un projet passe en source externe : le drapeau doit
+        refermer la porte des sessions déjà lancées, sinon il ne protège que
+        les sessions futures et laisse ouvertes exactement celles qui
+        tournaient quand John a compris qu'il fallait le cocher.
+
+        Sans effet si la session dort : son `remote_host` est aussi mis à NULL
+        en base, donc son prochain démarrage repart sans accès.
+        """
+        active = self._sessions.get(session_id)
+        if active is not None:
+            active.remote_host = None
+
     def set_publish_allowed(self, session_id: str, allowed: bool) -> None:
         """Autorise (ou retire) la publication pour une session active.
 
