@@ -2274,6 +2274,17 @@
       },
       "SystemPromptWrite": {
         "properties": {
+          "base_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Content"
+          },
           "content": {
             "minLength": 1,
             "title": "Content",

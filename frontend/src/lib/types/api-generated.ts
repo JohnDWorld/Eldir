@@ -2034,6 +2034,8 @@ export interface components {
         };
         /** SystemPromptWrite */
         SystemPromptWrite: {
+            /** Base Content */
+            base_content?: string | null;
             /** Content */
             content: string;
         };
