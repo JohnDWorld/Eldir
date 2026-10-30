@@ -19,7 +19,7 @@ from app.schemas.claude_credential import ClaudeCredentialCreate
 from app.services import supervisor_service
 from app.services.claude_credential_service import claude_credential_service
 from app.services.event_bus import EventBus
-from app.services.session_manager import SessionManager
+from app.services.session_manager import ActiveSession, SessionManager
 from app.services.session_service import SessionService
 from app.services.supervisor_service import (
     ERREUR_ABONNE_LONGUEUR_MAX,
@@ -760,15 +760,34 @@ FIN_DE_TOUR = ("stop", {"reason": "turn_complete"})
 INTERRUPTION = ("stop", {})
 
 
+# Ce que Claude écrit pendant le tour : le compte rendu du tour est celui de ce bloc.
+TEXTE_AVEC_CR = "Fini.\n<cr>\nFAIT: ajout de la compétence\nPRET: oui\n</cr>"
+
+
+def _activer(supervisor: SupervisorService, child: Session) -> ActiveSession:
+    """La session est active dans le manager, comme après un `start` ou un `resume`."""
+    manager = supervisor._manager  # type: ignore[attr-defined]
+    if child.id not in manager._sessions:
+        manager._sessions[child.id] = ActiveSession(
+            session_id=child.id, project_id=child.project_id, user_id=child.user_id, cwd="/tmp"
+        )
+    return manager._sessions[child.id]  # type: ignore[no-any-return]
+
+
 async def _tour_dispatche(
     supervisor: SupervisorService,
     child: Session,
     demandeur: str,
     fin: tuple[str, dict[str, Any]] = FIN_DE_TOUR,
+    texte: str | None = TEXTE_AVEC_CR,
 ) -> None:
-    """Les events du manager pour une consigne dispatchée : sa livraison, puis la fin du tour."""
+    """Les events du manager pour une consigne dispatchée : livraison, texte du tour, fin."""
     manager = supervisor._manager  # type: ignore[attr-defined]
+    actif = _activer(supervisor, child)
     await manager._publish(child.id, "user_message", {"text": CONSIGNE, "origin": demandeur})
+    actif.last_cr = None  # `send_message` le remet à zéro au début de chaque tour
+    if texte is not None:
+        await manager._on_text_block(actif, texte)
     await manager._publish(child.id, *fin)
 
 
@@ -874,31 +893,111 @@ async def test_l_abonne_http_apprend_la_fin_du_tour_et_qui_avait_demande_le_trav
     }
 
 
-@pytest.mark.parametrize("summary", [None, "", "  \n "], ids=["aucun", "vide", "blanc"])
-async def test_un_tour_sans_compte_rendu_envoie_null_et_non_une_chaine_vide(
+@pytest.mark.parametrize(
+    "texte",
+    [None, "J'ai terminé, sans rapport.", "<cr></cr>", "<cr>  \n </cr>"],
+    ids=["aucun_texte", "sans_bloc", "bloc_vide", "bloc_blanc"],
+)
+async def test_un_tour_sans_compte_rendu_envoie_null_et_non_celui_d_avant(
     db_session: AsyncSession,
     admin: User,
     supervisor: SupervisorService,
     monkeypatch: pytest.MonkeyPatch,
     reglages: Callable[..., None],
     abonne: ServeurAbonne,
-    summary: str | None,
+    texte: str | None,
 ) -> None:
-    """Une seule règle pour toute absence : `null`. `""` passerait pour un compte rendu vide."""
+    """Le compte rendu de la ligne (`PRET: oui`) est celui d'un tour précédent : donné pour
+    celui de ce tour, c'est le même mensonge qu'un faux `fin_de_tour`. Et `null`, pas
+    `""`, qui passerait pour un compte rendu vide."""
     reglages(turn_webhook_url=abonne.url("/ok"))
     project, child = await _projet_et_session_dispatchee(db_session, admin)
-    child.summary = summary
-    await db_session.commit()
+    assert "PRET: oui" in (child.summary or ""), "le compte rendu périmé est bien en base"
     await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+    manager = supervisor._manager  # type: ignore[attr-defined]
 
-    await _tour_dispatche(supervisor, child, "eldir")
+    await _tour_dispatche(supervisor, child, "eldir", texte=texte)
     await abonne.attendre(1)
+    await _attendre(lambda: manager.sent)
     await _fin_des_taches_de_fond(supervisor)
 
     charge = _charge_recue(abonne)
     assert charge["etat"] == "fin_de_tour"
     assert charge["cr"] is None
     assert charge["erreur"] is None
+    assert "Elle n'a pas produit de compte rendu" in manager.sent[0][1]
+    assert "PRET: oui" not in manager.sent[0][1], "le superviseur non plus ne lit pas le périmé"
+
+
+async def test_le_compte_rendu_est_lu_a_la_fin_du_tour_pas_quand_la_tache_s_execute(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    """Le tour suivant d'une consigne en file remet `last_cr` à zéro dès qu'il commence,
+    avant que la tâche du ping ait tourné."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+
+    await _tour_dispatche(supervisor, child, "eldir")
+    _activer(supervisor, child).last_cr = None  # le tour suivant vient de commencer
+    await abonne.attendre(1)
+    await _fin_des_taches_de_fond(supervisor)
+
+    assert _charge_recue(abonne)["cr"] == "FAIT: ajout de la compétence\nPRET: oui"
+
+
+async def test_une_erreur_publiee_apres_la_sortie_de_la_session_du_pool_previent_quand_meme(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    """`stop()` retire la session du pool avant de déconnecter le client, et la lecture du
+    tour tombe alors : son ERROR arrive pour une session qui n'est plus active."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+    manager = supervisor._manager  # type: ignore[attr-defined]
+    _activer(supervisor, child)
+    await manager._publish(child.id, "user_message", {"text": CONSIGNE, "origin": "eldir"})
+    manager._sessions.pop(child.id)
+
+    await manager._publish(child.id, "error", {"message": "CLI coupé"})
+    await abonne.attendre(1)
+    await _fin_des_taches_de_fond(supervisor)
+
+    assert (_charge_recue(abonne)["etat"], _charge_recue(abonne)["erreur"]) == (
+        "erreur",
+        "CLI coupé",
+    )
+
+
+async def test_un_tour_qui_tombe_apres_avoir_ecrit_un_compte_rendu_n_en_envoie_pas(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+
+    await _tour_dispatche(supervisor, child, "eldir", fin=("error", {"message": "CLI coupé"}))
+    await abonne.attendre(1)
+    await _fin_des_taches_de_fond(supervisor)
+
+    charge = _charge_recue(abonne)
+    assert charge["etat"] == "erreur"
+    assert charge["cr"] is None, "il a écrit un compte rendu, puis il est tombé : il n'est pas fini"
 
 
 @pytest.mark.parametrize(
@@ -1120,7 +1219,7 @@ async def test_un_envoi_qui_leve_apres_la_fin_du_tour_ne_previent_pas_une_second
     reglages(turn_webhook_url=abonne.url("/ok"))
     project, child = await _projet_et_session_dispatchee(db_session, admin)
     manager = supervisor._manager  # type: ignore[attr-defined]
-    manager._sessions[child.id] = object()
+    _activer(supervisor, child)
 
     async def envoi(session_id: str, content: str, *, origin: str) -> None:
         await manager._publish(session_id, "user_message", {"text": content, "origin": origin})
@@ -1150,7 +1249,7 @@ async def test_un_envoi_qui_leve_apres_la_livraison_previent_l_abonne(
     reglages(turn_webhook_url=abonne.url("/ok"))
     project, child = await _projet_et_session_dispatchee(db_session, admin)
     manager = supervisor._manager  # type: ignore[attr-defined]
-    manager._sessions[child.id] = object()
+    _activer(supervisor, child)
 
     async def envoi(session_id: str, content: str, *, origin: str) -> None:
         await manager._publish(session_id, "user_message", {"text": content, "origin": origin})
@@ -1278,7 +1377,7 @@ async def test_une_consigne_livree_sans_que_le_superviseur_la_voie_est_signalee(
     attend, personne ne sera prévenu : autant que le journal le dise."""
     project, child = await _projet_et_session_dispatchee(db_session, admin)
     manager = supervisor._manager  # type: ignore[attr-defined]
-    manager._sessions[child.id] = object()
+    _activer(supervisor, child)
 
     async def envoi_muet(*_: Any, **__: Any) -> None:
         return None
@@ -1547,12 +1646,6 @@ def supervisor_reel(
     return service, manager
 
 
-async def _ecrire_le_compte_rendu(db_session: AsyncSession, child: Session, cr: str) -> None:
-    """Ce que `_persist_event` fait à l'event `text` d'un tour, avant son STOP."""
-    child.summary = cr
-    await db_session.commit()
-
-
 async def test_le_tour_de_john_qui_finit_avant_la_consigne_ne_la_fait_pas_annoncer_finie(
     db_session: AsyncSession,
     admin: User,
@@ -1571,6 +1664,12 @@ async def test_le_tour_de_john_qui_finit_avant_la_consigne_ne_la_fait_pas_annonc
     client = manager.installer(child.id, project.id, admin.id)
     porte_de_john, porte_de_l_agent = asyncio.Event(), asyncio.Event()
     client.portes.extend([porte_de_john, porte_de_l_agent])
+    client.reponses.extend(
+        [
+            "Fait.\n<cr>\nFAIT: ce que John demandait\nPRET: oui\n</cr>",
+            "Fait.\n<cr>\nFAIT: le vrai travail\nPRET: non\n</cr>",
+        ]
+    )
 
     tour_de_john = asyncio.create_task(
         manager.send_message(child.id, "Et la suite ?", origin="user")
@@ -1589,7 +1688,6 @@ async def test_le_tour_de_john_qui_finit_avant_la_consigne_ne_la_fait_pas_annonc
 
     assert abonne.requetes == [], "le tour de John est fini, pas celui de la consigne"
 
-    await _ecrire_le_compte_rendu(db_session, child, "FAIT: le vrai travail\nPRET: non")
     porte_de_l_agent.set()
     await abonne.attendre(1)
     await _fin_des_taches_de_fond(service)
@@ -1603,7 +1701,7 @@ async def test_le_tour_de_john_qui_finit_avant_la_consigne_ne_la_fait_pas_annonc
         "cr": "FAIT: le vrai travail\nPRET: non",
         "erreur": None,
         "demandeur": "agent:Munin Bot",
-    }
+    }, "ni le compte rendu de la ligne, ni celui du tour de John"
 
 
 async def test_chaque_consigne_en_file_est_annoncee_a_la_fin_de_son_propre_tour(
@@ -1621,6 +1719,13 @@ async def test_chaque_consigne_en_file_est_annoncee_a_la_fin_de_son_propre_tour(
     client = manager.installer(child.id, project.id, admin.id)
     portes = [asyncio.Event() for _ in range(3)]
     client.portes.extend(portes)
+    client.reponses.extend(
+        [
+            "Fait.",
+            "<cr>\nFAIT: le premier\nPRET: oui\n</cr>",
+            "<cr>\nFAIT: le second\nPRET: oui\n</cr>",
+        ]
+    )
     actif = manager.get(child.id)
 
     tour_de_john = asyncio.create_task(
@@ -1651,9 +1756,11 @@ async def test_chaque_consigne_en_file_est_annoncee_a_la_fin_de_son_propre_tour(
     portes[2].set()
     await abonne.attendre(2)
     await _fin_des_taches_de_fond(service)
-    assert [_charge_recue(abonne, r)["demandeur"] for r in (0, 1)] == [
-        "agent:Premier",
-        "agent:Second",
+    assert [
+        (_charge_recue(abonne, r)["demandeur"], _charge_recue(abonne, r)["cr"]) for r in (0, 1)
+    ] == [
+        ("agent:Premier", "FAIT: le premier\nPRET: oui"),
+        ("agent:Second", "FAIT: le second\nPRET: oui"),
     ]
     assert len(abonne.requetes) == 2
 
@@ -1691,6 +1798,44 @@ async def test_une_consigne_dispatchee_est_annoncee_a_l_abonne_et_au_superviseur
     (id_du_superviseur,) = [sid for sid in manager.clients if sid != child.id]
     (ping,) = manager.clients[id_du_superviseur].demandes
     assert "a terminé son tour (consigne de agent:Munin Bot)." in ping
+
+
+async def test_un_tour_sans_bloc_de_compte_rendu_envoie_null_et_non_celui_du_tour_d_avant(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor_reel: tuple[SupervisorService, ManagerReel],
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    """Deux consignes à la suite sur la même session : la première écrit un compte rendu
+    (`PRET: oui`), la seconde n'en écrit pas. Le manager remet `last_cr` à zéro au début
+    de chaque tour : la seconde annonce `null`, pas le texte du tour d'avant."""
+    service, manager = supervisor_reel
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    client = manager.installer(child.id, project.id, admin.id)
+    client.reponses.extend(
+        ["<cr>\nFAIT: le premier tour\nPRET: oui\n</cr>", "J'ai terminé, sans rapport."]
+    )
+
+    for consigne, rang in (("Premier travail.", 1), ("Second travail.", 2)):
+        await service.outil_dispatch(
+            admin.id,
+            project_id=project.id,
+            consigne=consigne,
+            session_id=child.id,
+            libelle_agent="Munin Bot",
+        )
+        await abonne.attendre(rang)
+    await _fin_des_taches_de_fond(service)
+
+    premier, second = (_charge_recue(abonne, r) for r in (0, 1))
+    assert premier["cr"] == "FAIT: le premier tour\nPRET: oui"
+    assert (second["etat"], second["cr"]) == ("fin_de_tour", None)
+    (id_du_superviseur,) = [sid for sid in manager.clients if sid != child.id]
+    _, ping_du_second = manager.clients[id_du_superviseur].demandes
+    assert "Elle n'a pas produit de compte rendu" in ping_du_second
+    assert "le premier tour" not in ping_du_second
 
 
 @pytest.mark.parametrize("arret", ["route", "extinction", "suppression"])

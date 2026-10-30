@@ -39,10 +39,11 @@ def abonne() -> Iterator[ServeurAbonne]:
 
 @pytest.fixture
 def sdk_factice(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Un `ResultMessage` sans les champs du vrai : `_consume_response` l'importe à chaque tour.
+    """Des messages SDK sans les champs du vrai : `_consume_response` les importe à chaque tour.
 
     Le reste du SDK reste réel, le superviseur en a besoin pour monter ses outils.
     """
     import claude_agent_sdk
 
-    monkeypatch.setattr(claude_agent_sdk, "ResultMessage", type("ResultMessage", (), {}))
+    for nom in ("AssistantMessage", "TextBlock", "ResultMessage"):
+        monkeypatch.setattr(claude_agent_sdk, nom, type(nom, (), {}))

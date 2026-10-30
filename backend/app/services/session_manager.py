@@ -297,6 +297,17 @@ class SessionManager:
     def is_active(self, session_id: str) -> bool:
         return session_id in self._sessions
 
+    def cr_du_tour(self, session_id: str) -> str | None:
+        """Le compte rendu `<cr>` du tour en cours (ou qui vient de finir), ou `None`.
+
+        Remis à `None` au début de chaque tour : un tour qui n'émet aucun bloc `<cr>`
+        n'a pas de compte rendu, et ce n'est pas celui du tour d'avant. La colonne
+        `summary` d'une session, elle, garde le dernier compte rendu écrit, quel que soit
+        le tour qui l'a écrit.
+        """
+        active = self._sessions.get(session_id)
+        return active.last_cr if active is not None else None
+
     def register_persist_callback(self, callback) -> None:  # type: ignore[no-untyped-def]
         """Le service Session enregistre un callback pour persister les events en DB."""
         self._on_event_persist.append(callback)

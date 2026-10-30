@@ -23,13 +23,16 @@ from app.services.session_manager import ActiveSession, SessionManager
 class ClientFactice:
     """Un client SDK sans CLI. Chaque tour attend une porte, dans l'ordre où on les pose.
 
-    Sans porte posée, le tour se termine aussitôt.
+    Sans porte posée, le tour se termine aussitôt. `reponses` donne le texte que Claude écrit
+    à chaque tour, dans l'ordre (`None` : le tour ne dit rien) : c'est là qu'un bloc `<cr>`
+    apparaît, ou non.
     """
 
     def __init__(self) -> None:
         self.disconnect = AsyncMock()
         self.demandes: list[str] = []
         self.portes: deque[asyncio.Event] = deque()
+        self.reponses: deque[str | None] = deque()
 
     async def query(self, texte: str) -> None:
         self.demandes.append(texte)
@@ -37,7 +40,13 @@ class ClientFactice:
     async def receive_response(self) -> AsyncIterator[Any]:
         if self.portes:
             await self.portes.popleft().wait()
-        yield sys.modules["claude_agent_sdk"].ResultMessage()
+        sdk = sys.modules["claude_agent_sdk"]
+        texte = self.reponses.popleft() if self.reponses else None
+        if texte is not None:
+            bloc, message = sdk.TextBlock(), sdk.AssistantMessage()
+            bloc.text, message.content = texte, [bloc]
+            yield message
+        yield sdk.ResultMessage()
 
 
 class ManagerReel(SessionManager):

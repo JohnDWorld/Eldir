@@ -937,21 +937,31 @@ class SupervisorService:
                     child, project_name, demandeur=demandeur, erreur=MESSAGE_INTERRUPTION
                 )
             return
-        self._spawn(self._notify_turn_done(session_id, event_type, data, demandeur))
+        # Le compte rendu se lit ici, pas dans la tâche : le tour suivant d'une consigne en
+        # file le remet à zéro dès qu'il commence, avant que la tâche ait tourné. Et c'est
+        # celui du tour, pas la colonne `summary` : un tour sans bloc `<cr>` n'a pas de
+        # compte rendu, et `summary` garde celui du tour d'avant.
+        cr = self._manager.cr_du_tour(session_id)
+        self._spawn(self._notify_turn_done(session_id, event_type, data, demandeur, cr))
 
     async def _notify_turn_done(
-        self, session_id: str, event_type: str, data: dict[str, Any], demandeur: str
+        self,
+        session_id: str,
+        event_type: str,
+        data: dict[str, Any],
+        demandeur: str,
+        cr: str | None,
     ) -> None:
         """Annonce la fin d'un tour dispatché : au superviseur, et à l'abonné HTTP.
 
         `demandeur` est l'origine de la consigne : `eldir` si le superviseur l'a
-        donnée lui-même, `agent:<libellé>` si c'est un agent extérieur.
+        donnée lui-même, `agent:<libellé>` si c'est un agent extérieur. `cr` est le
+        compte rendu du tour qui vient de finir, `None` s'il n'en a pas produit.
         """
         fiche = await self._fiche(session_id)
         if fiche is None:
             return
         child, project_name = fiche
-        cr = (child.summary or "").strip()
         erreur = None
         if event_type == EVENT_TYPE_ERROR:
             erreur = str(data.get("message") or "erreur inconnue")
@@ -961,7 +971,7 @@ class SupervisorService:
         # plus s'il est déjà occupé : attendre derrière lui ferait avancer l'agent
         # extérieur d'un pas par réveil, ce que ce ping est là pour éviter. Et
         # l'inverse aussi : un abonné lent ne retient pas le superviseur.
-        self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur)
+        self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur, cr=cr)
 
         if erreur is not None:
             body = f"Elle a échoué : {erreur}"
@@ -999,14 +1009,21 @@ class SupervisorService:
             return child, project_name
 
     def _prevenir_l_abonne(
-        self, child: SessionRow, project_name: str, *, demandeur: str, erreur: str | None
+        self,
+        child: SessionRow,
+        project_name: str,
+        *,
+        demandeur: str,
+        erreur: str | None,
+        cr: str | None = None,
     ) -> None:
         """Lance le ping HTTP dans sa propre tâche. `erreur` absent = le tour s'est bien fini.
 
         Une seule règle pour toute absence : `null`. Pas de compte rendu pour ce tour
-        (`cr`), pas d'erreur (`erreur`). Le compte rendu d'une session en erreur est
-        absent : celui que la ligne porte encore date d'un tour précédent, et lu à côté
-        de `etat: erreur` il ferait croire à un travail fini et prêt.
+        (`cr`), pas d'erreur (`erreur`). `cr` est celui du tour qui vient de finir, jamais
+        celui que la ligne de session porte encore : il date peut-être d'un tour
+        précédent, et donné pour celui-ci il ferait croire à un travail fini et prêt.
+        En erreur il est absent, même si le tour en avait écrit un avant de tomber.
         """
         self._spawn(
             prevenir(
@@ -1015,7 +1032,7 @@ class SupervisorService:
                     "projet": project_name,
                     "branche": child.branch,
                     "etat": "fin_de_tour" if erreur is None else "erreur",
-                    "cr": None if erreur is not None else ((child.summary or "").strip() or None),
+                    "cr": None if erreur is not None else cr,
                     "erreur": _borner(erreur),
                     "demandeur": demandeur,
                 }
