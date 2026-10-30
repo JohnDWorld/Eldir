@@ -84,7 +84,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106", "S108", "PLR2004"]
+# S603/S607 : certains tests lancent un vrai `git` comme témoin, avec des
+# arguments écrits dans le test lui-même. Rien d'extérieur n'entre dans ces
+# commandes, et un double de `git` ne prouverait pas ce qu'ils vérifient (ce
+# que git écrit vraiment dans `.git/config`).
+"tests/**" = ["S105", "S106", "S108", "PLR2004", "S603", "S607"]
 "alembic/**" = ["E501", "N806"]
 # Singletons de process : le `global` est le pattern, pas un accident.
 "app/services/singletons.py" = ["PLW0603"]
