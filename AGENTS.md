@@ -57,7 +57,7 @@ npm run build                 # Vérifie que la build PWA passe
 - **Tailwind CSS + shadcn/ui**
 - **TanStack Query** pour le server state, **Zustand** pour le client state
 - **Zod** pour validation runtime
-- **npm** package manager (jamais yarn ni pnpm — `package-lock.json` est la source de vérité)
+- **npm** package manager (jamais yarn ni pnpm - `package-lock.json` est la source de vérité)
 - **PostgreSQL 16 + Redis 7**
 
 ## Code style - règles strictes
@@ -78,6 +78,18 @@ npm run build                 # Vérifie que la build PWA passe
 - Pas de `fetch()` direct dans les composants - passer par le client API centralisé dans `lib/api/`.
 - Pas de CSS inline ni fichiers `.css` - Tailwind exclusivement.
 - Types partagés avec le backend : générés depuis Pydantic, jamais redéfinis à la main.
+
+### Prose et commentaires
+- **Jamais de tiret cadratin ni de demi-cadratin.** Toujours le trait d'union du
+  clavier (`-`), ou reformuler avec une virgule, des parenthèses ou deux phrases.
+  Vaut partout : prose, commentaires, messages de commit, descriptions de PR,
+  prompts système, fichiers de données. Un job de CI (`ponctuation`) le refuse.
+- La règle n'est pas une préférence de relecture, c'est une contrainte de sortie.
+  Les prompts système de `backend/app/data/` sont injectés dans les sessions
+  Claude qui travaillent sur ce dépôt : un cadratin écrit là est un cadratin
+  qu'on enseigne, et il revient dans tout ce que la session produit.
+- Le reste suit l'usage du dépôt : français, phrases courtes, et un commentaire
+  qui dit *pourquoi* plutôt que *quoi*.
 
 ### Git
 - Conventional Commits obligatoire : `feat(scope): description`, `fix(scope): …`, `docs(scope): …`, etc.

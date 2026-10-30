@@ -37,7 +37,7 @@ Détails et installation manuelle : [`docs/installation.md`](./installation.md).
 
 Va dans **Settings > Git** et :
 
-- Option facile : clique **Connect with GitHub** (OAuth) — *requiert que ton admin Eldir ait configuré une app OAuth GitHub. Sinon utilise un PAT.*
+- Option facile : clique **Connect with GitHub** (OAuth) - *requiert que ton admin Eldir ait configuré une app OAuth GitHub. Sinon utilise un PAT.*
 - Option PAT : suis [`docs/github.md`](./github.md) pour générer un Personal Access Token avec les bonnes permissions, puis colle-le dans Eldir.
 
 ### Forgejo / Codeberg
@@ -58,7 +58,7 @@ Va dans **Projects** (menu du haut) et clique **+ ajouter un repo**.
 3. Coche **un ou plusieurs** repos, clique **Valider**
 4. Eldir clone côté serveur dans `/var/eldir/workspaces/{user_id}/{repo_slug}/`
 
-Si tu n'as **qu'un seul** repo coché, après le clone, Eldir te propose immédiatement de **générer un Mission Template avec Claude** (~30s à 2min). C'est fortement recommandé pour la première fois — tu auras un template adapté à ton repo sans avoir à le rédiger à la main.
+Si tu n'as **qu'un seul** repo coché, après le clone, Eldir te propose immédiatement de **générer un Mission Template avec Claude** (~30s à 2min). C'est fortement recommandé pour la première fois - tu auras un template adapté à ton repo sans avoir à le rédiger à la main.
 
 ## 4. (Optionnel mais conseillé) Générer un Mission Template
 
@@ -75,7 +75,7 @@ Trois façons d'avoir un template :
 | Mode | Quand l'utiliser |
 |---|---|
 | **✨ Générer avec Claude** | Tu démarres, tu ne veux pas réfléchir. Eldir analyse ton repo et propose un template. Recommandé. |
-| **Appliquer un preset** | Tu veux partir d'un template communautaire (Django, FastAPI, etc.) — voir presets dans `backend/app/data/template_presets/`. |
+| **Appliquer un preset** | Tu veux partir d'un template communautaire (Django, FastAPI, etc.) - voir presets dans `backend/app/data/template_presets/`. |
 | **Configurer manuellement** | Tu sais exactement ce que tu veux, tu pars de zéro. |
 
 Le template est éditable à tout moment depuis **Projects > [ton projet] > Template**. Détails dans [`docs/templates.md`](./templates.md).
