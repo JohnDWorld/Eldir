@@ -31,6 +31,9 @@ FORMES = [
     ("Basic {jeton}", False),
     ("Token {jeton}", False),
     ("Bearer {jeton} {jeton}", False),
+    # Une espace de trop, devant ou derrière le jeton : refusée, pas rognée.
+    ("Bearer  {jeton}", False),
+    ("Bearer {jeton} ", False),
     ("Bearer\t{jeton}", False),
     ("", False),
 ]
