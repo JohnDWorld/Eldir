@@ -185,6 +185,34 @@ describe('AgentMemoryPanel, vers les jetons', () => {
 
 const QUATRE = ['A', 'B', 'C', 'D'].map((agent) => entree(agent, `Fait ${agent}.`));
 
+describe('AgentMemoryPanel, rappel du brouillon', () => {
+  it.each([
+    ['une liste courte', 1],
+    ['une liste repliée', 4],
+  ])('ne rappelle rien quand il n’y a pas de brouillon, avec %s', async (_cas, n) => {
+    api.get.mockResolvedValue(memoire(lignes(n), 20));
+    renderAvec(<AgentMemoryPanel />);
+    await screen.findByText(/sur 20 préférences/);
+    expect(screen.queryByText(/modifications non sauvegardées/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/quitter cette page/)).not.toBeInTheDocument();
+  });
+
+  it('ne rappelle rien non plus quand il n’y a aucune ligne à retirer ni aucun lien à garder', async () => {
+    renderAvec(<AgentMemoryPanel verrouille />);
+    await screen.findByText(/aucun agent n'a enregistré de préférence/i);
+    expect(screen.queryByText(/modifications non sauvegardées/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['une liste courte', 1],
+    ['une liste repliée', 4],
+  ])('rappelle le brouillon quand il y en a un et des lignes, avec %s', async (_cas, n) => {
+    api.get.mockResolvedValue(memoire(lignes(n), 20));
+    renderAvec(<AgentMemoryPanel verrouille />);
+    expect(await screen.findByText(/modifications non sauvegardées/)).toBeInTheDocument();
+  });
+});
+
 describe('AgentMemoryPanel, liste repliée', () => {
   it('replie la liste au-delà de quelques lignes, et garde le sens au-dessus', async () => {
     api.get.mockResolvedValue(memoire(QUATRE, 4));
