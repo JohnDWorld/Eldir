@@ -168,6 +168,7 @@ Eldir est un projet open-source destiné à la communauté des devs qui veulent 
 - 🐛 [Signaler un bug](https://github.com/JohnDWorld/Eldir/issues/new)
 - 💡 [Proposer une feature](https://github.com/JohnDWorld/Eldir/issues/new)
 - 💬 [Discussions](https://github.com/JohnDWorld/Eldir/discussions)
+- 🔒 [Signaler une faille](./SECURITY.md) (jamais dans une issue publique)
 
 ## 📜 Licence
 

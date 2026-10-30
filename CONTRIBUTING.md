@@ -4,10 +4,10 @@ Merci de t'intéresser à Eldir. Ce projet est destiné à durer et à fédérer
 
 ## Avant de coder
 
-1. **Lis [`AGENTS.md`](./AGENTS.md)** — conventions strictes (DRY, types partagés, anti-patterns, commandes).
-2. **Lis [`CLAUDE.md`](./CLAUDE.md)** — détails Claude Agent SDK + design system.
-3. **Lis [`ROADMAP.md`](./ROADMAP.md)** — phase actuelle, dette résiduelle, décisions actées.
-4. **Identifie ta phase** — pas d'anticipation sans valider avec John dans une issue.
+1. **Lis [`AGENTS.md`](./AGENTS.md)** : conventions strictes (DRY, types partagés, anti-patterns, commandes).
+2. **Lis [`CLAUDE.md`](./CLAUDE.md)** : détails Claude Agent SDK + design system.
+3. **Lis [`ROADMAP.md`](./ROADMAP.md)** : phase actuelle, dette résiduelle, décisions actées.
+4. **Identifie ta phase** : pas d'anticipation sans valider avec John dans une issue.
 
 Si une décision n'est pas claire dans ces 3 fichiers : ouvre une issue, ne devine pas.
 
@@ -47,7 +47,7 @@ npx tsc --noEmit -p tsconfig.app.json
 npm test -- --run
 ```
 
-Aucune erreur tolérée. Le mode TypeScript est strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) — pas de `any`, pas de `!` non-justifié.
+Aucune erreur tolérée. Le mode TypeScript est strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) : pas de `any`, pas de `!` non-justifié.
 
 ## Types backend ↔ frontend
 
@@ -65,7 +65,7 @@ Résultat : `frontend/src/lib/types/api-generated.ts`. Le façade `frontend/src/
 docker exec eldir-backend uv run alembic revision --autogenerate -m "description courte"
 ```
 
-⚠️ **Relis le fichier généré** dans `backend/alembic/versions/` — Alembic rate parfois les renames, contraintes complexes, data migrations.
+⚠️ **Relis le fichier généré** dans `backend/alembic/versions/` : Alembic rate parfois les renames, contraintes complexes, data migrations.
 
 Puis :
 
@@ -112,6 +112,10 @@ Ouvre une [issue](https://github.com/JohnDWorld/Eldir/issues) avec :
 3. **Reproduction minimale**
 4. **Logs** (`docker logs eldir-backend`, console navigateur)
 5. **Comportement attendu** vs constaté
+
+**Une faille de sécurité ne va pas dans une issue** : voir
+[`SECURITY.md`](./SECURITY.md), qui dit où écrire en privé et ce qui est hors
+périmètre.
 
 ## Code of Conduct
 
