@@ -1012,6 +1012,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/supervisor/agent-memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agent Memory
+         * @description Les préférences que des agents extérieurs ont écrites dans le prompt du superviseur.
+         */
+        get: operations["read_agent_memory_api_v1_supervisor_agent_memory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/supervisor/agent-memory/forget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forget Agent Memory
+         * @description Retire une préférence d'agent (désignée par sa ligne exacte) et rend la mémoire restante.
+         */
+        post: operations["forget_agent_memory_api_v1_supervisor_agent_memory_forget_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/supervisor/session": {
         parameters: {
             query?: never;
@@ -1122,6 +1162,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AgentMemoryEntry */
+        AgentMemoryEntry: {
+            /** Agent */
+            agent: string;
+            /** Line */
+            line: string;
+            /** Text */
+            text: string;
+        };
+        /** AgentMemoryForget */
+        AgentMemoryForget: {
+            /** Line */
+            line: string;
+        };
+        /** AgentMemoryRead */
+        AgentMemoryRead: {
+            /** Entries */
+            entries: components["schemas"]["AgentMemoryEntry"][];
+            /** Max Entries */
+            max_entries: number;
+            /** Max Length */
+            max_length: number;
+        };
         /** AgentTokenCreated */
         AgentTokenCreated: {
             /**
@@ -2268,6 +2331,9 @@ export interface components {
     headers: never;
     pathItems: never;
 }
+export type SchemaAgentMemoryEntry = components['schemas']['AgentMemoryEntry'];
+export type SchemaAgentMemoryForget = components['schemas']['AgentMemoryForget'];
+export type SchemaAgentMemoryRead = components['schemas']['AgentMemoryRead'];
 export type SchemaAgentTokenCreated = components['schemas']['AgentTokenCreated'];
 export type SchemaAgentTokenInput = components['schemas']['AgentTokenInput'];
 export type SchemaAgentTokenRead = components['schemas']['AgentTokenRead'];
@@ -4714,6 +4780,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupStatusResponse"];
+                };
+            };
+        };
+    };
+    read_agent_memory_api_v1_supervisor_agent_memory_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMemoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_agent_memory_api_v1_supervisor_agent_memory_forget_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentMemoryForget"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMemoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

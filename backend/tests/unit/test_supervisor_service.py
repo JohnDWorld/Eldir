@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 from app.core.config import get_settings
+from app.core.exceptions import ConflictError, NotFoundError
 from app.db.base import Base
 from app.db.models import Project, Session, User
 from app.schemas.claude_credential import ClaudeCredentialCreate
@@ -25,6 +26,7 @@ from app.services.supervisor_service import (
     SUPERVISOR_KIND,
     SUPERVISOR_PREFS_SLUG,
     SupervisorService,
+    decouper_ligne_d_agent,
 )
 from app.services.system_prompt_service import system_prompt_service
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -491,6 +493,185 @@ async def test_une_ecriture_qui_ne_passe_jamais_est_refusee_par_une_phrase(
     assert len(tentatives) == supervisor_service.TENTATIVES_ECRITURE
     async with fabrique() as db:
         assert not (await system_prompt_service.get(db, SUPERVISOR_PREFS_SLUG)).is_overridden
+
+
+# ── Le ménage de John ───────────────────────────────────────────────────
+# Quand la mémoire des agents est pleine, l'agent reçoit un refus que lui seul lit.
+# John doit voir ces lignes et pouvoir en retirer, sans toucher aux siennes.
+async def _pose_les_preferences(supervisor: SupervisorService, corps: str) -> None:
+    async with supervisor._factory() as db:  # type: ignore[attr-defined]
+        await system_prompt_service.upsert(db, SUPERVISOR_PREFS_SLUG, corps)
+        await db.commit()
+
+
+async def test_la_memoire_des_agents_ne_liste_que_les_lignes_marquees(
+    supervisor: SupervisorService,
+) -> None:
+    await supervisor.remember_preference("Toujours une PR.")
+    await supervisor.remember_preference("Le format `[agent « x »]` est réservé aux agents.")
+    await supervisor.remember_preference("Fait A.", libelle_agent="A")
+    await supervisor.remember_preference("Fait B.", libelle_agent="B")
+
+    assert await supervisor.preferences_d_agents() == [
+        "- [agent « A »] Fait A.",
+        "- [agent « B »] Fait B.",
+    ]
+
+
+async def test_sans_preference_enregistree_la_memoire_des_agents_est_vide(
+    supervisor: SupervisorService,
+) -> None:
+    assert await supervisor.preferences_d_agents() == []
+
+
+async def test_ce_que_john_voit_est_ce_qui_fait_refuser_l_agent_et_le_menage_le_debloque(
+    supervisor: SupervisorService,
+) -> None:
+    """Le compte montré à John et la borne de `remember` sont une seule définition :
+    pleine côté écran, c'est pleine côté agent, et retirer une ligne rend une place."""
+    for i in range(PREFERENCES_AGENT_MAX):
+        await supervisor.remember_preference(f"Fait {i}.", libelle_agent="A")
+    vues = await supervisor.preferences_d_agents()
+    assert len(vues) == PREFERENCES_AGENT_MAX
+    assert (await supervisor.remember_preference("De trop.", libelle_agent="A")).startswith(
+        "Erreur : la mémoire des agents est pleine"
+    )
+
+    await supervisor.oublier_preference_d_agent(vues[3])
+
+    assert len(await supervisor.preferences_d_agents()) == PREFERENCES_AGENT_MAX - 1
+    assert await supervisor.remember_preference("De trop.", libelle_agent="A") == "Noté : De trop."
+
+
+async def test_oublier_retire_la_ligne_designee_et_rien_d_autre(
+    supervisor: SupervisorService,
+) -> None:
+    await supervisor.remember_preference("Toujours une PR.")
+    await supervisor.remember_preference("Fait A.", libelle_agent="A")
+    await supervisor.remember_preference("Fait B.", libelle_agent="B")
+    await supervisor.remember_preference("Jamais de push force.")
+
+    await supervisor.oublier_preference_d_agent("- [agent « A »] Fait A.")
+
+    assert await _preferences(supervisor) == [
+        "- Toujours une PR.",
+        "- [agent « B »] Fait B.",
+        "- Jamais de push force.",
+    ]
+
+
+async def test_oublier_ne_retire_jamais_une_ligne_de_john(supervisor: SupervisorService) -> None:
+    """La route de ménage ne sert qu'aux lignes d'agents : même désignée exactement, une
+    ligne sans marque, ou qui cite la marque au milieu de son texte, reste."""
+    await supervisor.remember_preference("Toujours une PR.")
+    await supervisor.remember_preference("Le format `[agent « x »]` est réservé aux agents.")
+    avant = await _preferences(supervisor)
+
+    for visee in (
+        "- Toujours une PR.",
+        "- Le format `[agent « x »]` est réservé aux agents.",
+    ):
+        with pytest.raises(NotFoundError):
+            await supervisor.oublier_preference_d_agent(visee)
+
+    assert await _preferences(supervisor) == avant
+
+
+async def test_oublier_une_ligne_deja_retiree_est_introuvable(
+    supervisor: SupervisorService,
+) -> None:
+    await supervisor.remember_preference("Fait A.", libelle_agent="A")
+    await supervisor.oublier_preference_d_agent("- [agent « A »] Fait A.")
+    with pytest.raises(NotFoundError):
+        await supervisor.oublier_preference_d_agent("- [agent « A »] Fait A.")
+
+
+async def test_oublier_sans_aucune_preference_enregistree_est_introuvable(
+    supervisor: SupervisorService,
+) -> None:
+    with pytest.raises(NotFoundError):
+        await supervisor.oublier_preference_d_agent("- [agent « A »] Fait A.")
+
+
+async def test_oublier_tolere_les_espaces_laisses_par_une_edition_a_la_main(
+    supervisor: SupervisorService,
+) -> None:
+    """Le schéma d'échange rogne les lignes qu'il rend : la ligne reçue en retour n'a
+    plus ses espaces de fin, et doit quand même désigner la ligne stockée."""
+    await _pose_les_preferences(
+        supervisor, "- Toujours une PR.\n- [agent « A »] Fait A.   \n- Autre chose."
+    )
+    await supervisor.oublier_preference_d_agent("- [agent « A »] Fait A.")
+    assert await _preferences(supervisor) == ["- Toujours une PR.", "- Autre chose."]
+
+
+async def test_oublier_la_derniere_ligne_laisse_une_memoire_vide_et_ecrivable(
+    supervisor: SupervisorService,
+) -> None:
+    await supervisor.remember_preference("Fait A.", libelle_agent="A")
+    await supervisor.oublier_preference_d_agent("- [agent « A »] Fait A.")
+    assert await supervisor.preferences_d_agents() == []
+    assert await supervisor.remember_preference("Fait B.", libelle_agent="B") == "Noté : Fait B."
+
+
+async def test_un_menage_et_une_ecriture_qui_se_chevauchent_gardent_les_deux_effets(
+    service_concurrent: tuple[SupervisorService, async_sessionmaker[AsyncSession]],
+    chevaucher: Callable[[], None],
+) -> None:
+    """Sans écriture conditionnée, la seconde écrase la première : soit la ligne
+    retirée revient, soit la préférence que l'agent vient de noter disparaît, et il a
+    reçu « Noté »."""
+    service, fabrique = service_concurrent
+    await service.remember_preference("Fait A.", libelle_agent="A")
+    chevaucher()
+
+    _, reponse = await asyncio.gather(
+        service.oublier_preference_d_agent("- [agent « A »] Fait A."),
+        service.remember_preference("De B.", libelle_agent="B"),
+    )
+
+    assert reponse == "Noté : De B."
+    assert await _stocke(fabrique) == ["- [agent « B »] De B."]
+
+
+async def test_un_menage_qui_ne_passe_jamais_est_refuse_par_un_conflit(
+    service_concurrent: tuple[SupervisorService, async_sessionmaker[AsyncSession]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, fabrique = service_concurrent
+    await service.remember_preference("Fait A.", libelle_agent="A")
+    tentatives: list[int] = []
+
+    async def perd_toujours(*_: Any, **__: Any) -> bool:
+        tentatives.append(1)
+        return False
+
+    monkeypatch.setattr(supervisor_service, "_ecrire_si_inchange", perd_toujours)
+
+    async with asyncio.timeout(10):
+        with pytest.raises(ConflictError):
+            await service.oublier_preference_d_agent("- [agent « A »] Fait A.")
+
+    assert len(tentatives) == supervisor_service.TENTATIVES_ECRITURE
+    assert await _stocke(fabrique) == ["- [agent « A »] Fait A."]
+
+
+@pytest.mark.parametrize(
+    ("ligne", "attendu"),
+    [
+        (
+            "- [agent « eldir du village »] Toujours une PR.",
+            ("eldir du village", "Toujours une PR."),
+        ),
+        # Un nom qui contient la suite de fermeture est coupé au premier `»] `, mais
+        # rien ne se perd : les deux moitiés sont rendues.
+        ("- [agent « a »] b »] fait", ("a", "b »] fait")),
+        # Une ligne retouchée à la main jusqu'à perdre sa fermeture.
+        ("- [agent « sans fin", ("nom illisible", "sans fin")),
+    ],
+)
+def test_on_decoupe_une_ligne_d_agent_en_nom_et_fait(ligne: str, attendu: tuple[str, str]) -> None:
+    assert decouper_ligne_d_agent(ligne) == attendu
 
 
 async def test_ping_uniquement_pour_les_sessions_dispatchees(

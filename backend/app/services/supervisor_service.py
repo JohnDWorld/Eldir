@@ -33,7 +33,7 @@ from app.core.constants import (
     SESSION_STATE_BLOCKED,
     SESSION_STATE_WAITING_INPUT,
 )
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.db.models import Project, SystemPromptOverride
 from app.db.models import Session as SessionRow
@@ -211,9 +211,37 @@ def _sur_une_ligne(texte: str) -> str:
     return " ".join(texte.split())
 
 
+def _est_ligne_d_agent(ligne: str) -> bool:
+    return ligne.startswith(f"- {MARQUE_AGENT}")
+
+
+def _lignes_d_agents(corps: str) -> list[str]:
+    """Les lignes de préférences qui portent la marque d'un agent (en tête de ligne).
+
+    La seule définition d'« une préférence d'agent » : la borne de `remember` et ce
+    que l'interface montre à John passent par elle, donc le compte affiché est
+    exactement celui qui fait refuser l'agent.
+    """
+    return [ligne for ligne in corps.splitlines() if _est_ligne_d_agent(ligne)]
+
+
 def _nb_preferences_d_agents(corps: str) -> int:
-    """Combien de lignes de préférences portent la marque d'un agent (en tête de ligne)."""
-    return sum(1 for ligne in corps.splitlines() if ligne.startswith(f"- {MARQUE_AGENT}"))
+    return len(_lignes_d_agents(corps))
+
+
+def decouper_ligne_d_agent(ligne: str) -> tuple[str, str]:
+    """Sépare `- [agent « nom »] fait` en (nom, fait).
+
+    La coupe se fait au premier ` »] ` : un nom de jeton qui contiendrait lui-même
+    cette suite serait coupé trop tôt, mais rien ne se perd, les deux moitiés
+    s'affichent côte à côte. Une ligne que John a retouchée à la main au point de
+    perdre sa fermeture rend un nom illisible et la ligne entière en guise de fait.
+    """
+    reste = ligne.removeprefix(f"- {MARQUE_AGENT}")
+    nom, separateur, fait = reste.partition(" »] ")
+    if not separateur:
+        return "nom illisible", reste
+    return nom, fait
 
 
 async def _ecrire_si_inchange(db: AsyncSession, *, lu: str | None, nouveau: str) -> bool:
@@ -661,6 +689,58 @@ class SupervisorService:
             )
         logger.info("supervisor.remember", fait=fait, agent=libelle_agent)
         return f"Noté : {fait}"
+
+    async def preferences_d_agents(self) -> list[str]:
+        """Les lignes de préférences écrites par des agents extérieurs, dans l'ordre du prompt."""
+        async with self._factory() as db:
+            current = await system_prompt_service.get(db, SUPERVISOR_PREFS_SLUG)
+        # Comme `remember_preference` : le défaut versionné n'est qu'un placeholder.
+        return _lignes_d_agents(current.content) if current.is_overridden else []
+
+    async def oublier_preference_d_agent(self, ligne: str) -> None:
+        """Retire du prompt UNE préférence d'agent, désignée par sa ligne exacte.
+
+        C'est le ménage que seul John peut faire quand la mémoire des agents est
+        pleine. Par la ligne et non par un rang : une liste affichée il y a une
+        minute peut avoir bougé, et un rang retirerait alors une autre ligne. Ne
+        retire jamais une ligne sans marque d'agent (celles de John).
+
+        Même protocole d'écriture que `remember_preference` : conditionnée sur le
+        texte lu, relue si quelqu'un a écrit entre-temps, pour qu'un agent qui
+        note une préférence pendant le ménage ne la voie pas écrasée.
+
+        Raises:
+            NotFoundError: aucune préférence d'agent n'est égale à `ligne`
+                (déjà retirée, ou ligne de John).
+            ConflictError: les préférences ont changé à chaque tentative.
+        """
+        for _ in range(TENTATIVES_ECRITURE):
+            async with self._factory() as db:
+                current = await system_prompt_service.get(db, SUPERVISOR_PREFS_SLUG)
+                lignes = current.content.splitlines() if current.is_overridden else []
+                # Égalité sur le texte rogné : une ligne retouchée à la main peut garder
+                # des espaces en fin, que le schéma d'échange retire en les rendant.
+                rang = next(
+                    (
+                        i
+                        for i, existante in enumerate(lignes)
+                        if _est_ligne_d_agent(existante) and existante.strip() == ligne.strip()
+                    ),
+                    None,
+                )
+                if rang is None:
+                    raise NotFoundError("Cette préférence n'existe plus.")
+                del lignes[rang]
+                ecrit = await _ecrire_si_inchange(
+                    db, lu=current.content, nouveau="\n".join(lignes).strip()
+                )
+                if ecrit:
+                    await db.commit()
+                    logger.info("supervisor.forget", ligne=ligne)
+                    return
+        raise ConflictError(
+            "Les préférences changent trop vite pour y écrire en sûreté. Réessaie dans un instant."
+        )
 
     # ── dispatch ────────────────────────────────────────────────
     async def _resolve_target(

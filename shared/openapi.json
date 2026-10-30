@@ -1,6 +1,68 @@
 {
   "components": {
     "schemas": {
+      "AgentMemoryEntry": {
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "text",
+          "line"
+        ],
+        "title": "AgentMemoryEntry",
+        "type": "object"
+      },
+      "AgentMemoryForget": {
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line"
+        ],
+        "title": "AgentMemoryForget",
+        "type": "object"
+      },
+      "AgentMemoryRead": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMemoryEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "max_entries": {
+            "title": "Max Entries",
+            "type": "integer"
+          },
+          "max_length": {
+            "title": "Max Length",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries",
+          "max_entries",
+          "max_length"
+        ],
+        "title": "AgentMemoryRead",
+        "type": "object"
+      },
       "AgentTokenCreated": {
         "properties": {
           "created_at": {
@@ -7112,6 +7174,116 @@
         "summary": "Status ",
         "tags": [
           "setup"
+        ]
+      }
+    },
+    "/api/v1/supervisor/agent-memory": {
+      "get": {
+        "description": "Les préférences que des agents extérieurs ont écrites dans le prompt du superviseur.",
+        "operationId": "read_agent_memory_api_v1_supervisor_agent_memory_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentMemoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Memory",
+        "tags": [
+          "supervisor"
+        ]
+      }
+    },
+    "/api/v1/supervisor/agent-memory/forget": {
+      "post": {
+        "description": "Retire une préférence d'agent (désignée par sa ligne exacte) et rend la mémoire restante.",
+        "operationId": "forget_agent_memory_api_v1_supervisor_agent_memory_forget_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentMemoryForget"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentMemoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget Agent Memory",
+        "tags": [
+          "supervisor"
         ]
       }
     },
