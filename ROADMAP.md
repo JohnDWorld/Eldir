@@ -307,7 +307,7 @@ Ces idées sont à intégrer au bon moment dans le phasage :
 |---|---|
 | **Nom du projet** | Eldir |
 | **Licence** | AGPL v3 (à valider définitivement) |
-| **Déploiement V1 cible** | johnserver |
+| **Déploiement V1 cible** | un VPS personnel derrière un VPN (Tailscale ou Headscale) |
 | **Mono-user vs multi-user V1** | Mono-user (multi-user en V2) |
 | **Stratégie tokens** | Alerte uniquement, jamais de blocage |
 | **LLM providers** | Claude only + Ollama local en complément |
