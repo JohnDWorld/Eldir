@@ -22,9 +22,13 @@ from redis.asyncio import Redis
 
 from app.core.config import Settings
 from app.core.exceptions import GitProviderError, ValidationError
+from app.core.logging import get_logger, journaliser_le_refus
+
+logger = get_logger(__name__)
 
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
+_CHEMIN_JETON = "/login/oauth/access_token"
 
 STATE_REDIS_PREFIX = "eldir:gh-oauth:state:"
 STATE_TTL_SECONDS = 600  # 10 minutes
@@ -82,18 +86,47 @@ async def exchange_code_for_token(settings: Settings, code: str) -> dict[str, An
             },
             headers={"Accept": "application/json"},
         )
+    # Les trois refus laissent une trace : c'est le chemin qui casse le plus
+    # souvent chez un nouvel installeur (client_id, secret ou callback mal
+    # recopiés), et le gestionnaire d'erreurs global ne journalise pas les
+    # erreurs métier. Sans ces lignes, l'échec ne laisse rien côté serveur.
     if response.status_code != 200:
+        journaliser_le_refus(
+            logger,
+            "github_oauth.refuse",
+            methode="POST",
+            chemin=_CHEMIN_JETON,
+            status=response.status_code,
+        )
         raise GitProviderError(
             f"GitHub OAuth token exchange a échoué (HTTP {response.status_code}).",
             details={"body": response.text[:500]},
         )
     payload = response.json()
     if "error" in payload:
+        # Le code d'erreur de GitHub (`bad_verification_code`…), jamais la
+        # réponse entière : c'est ce champ-là qui dit quoi corriger.
+        journaliser_le_refus(
+            logger,
+            "github_oauth.refuse",
+            methode="POST",
+            chemin=_CHEMIN_JETON,
+            status=response.status_code,
+            erreur=str(payload["error"]),
+        )
         raise GitProviderError(
             f"GitHub OAuth : {payload.get('error_description') or payload['error']}",
             details=payload,
         )
     access_token = payload.get("access_token")
     if not access_token:
+        journaliser_le_refus(
+            logger,
+            "github_oauth.refuse",
+            methode="POST",
+            chemin=_CHEMIN_JETON,
+            status=response.status_code,
+            erreur="sans access_token",
+        )
         raise GitProviderError("Réponse OAuth GitHub sans access_token.")
     return payload

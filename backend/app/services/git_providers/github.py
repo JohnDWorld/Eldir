@@ -15,7 +15,7 @@ from typing import Any
 import httpx
 
 from app.core.exceptions import GitProviderError
-from app.core.logging import get_logger
+from app.core.logging import get_logger, journaliser_le_refus
 from app.services.git_providers.base import (
     GitProviderInterface,
     PullRequestRef,
@@ -72,10 +72,8 @@ class GitHubProvider(GitProviderInterface):
             response = await client.request(method, path, params=params, json=json)
         if response.is_success:
             return response
-        # httpx n'écrit plus ses requêtes (cf. `configure_logging`) : sans cette ligne, un
-        # refus de l'API ne laisse aucune trace côté serveur. Le chemin, jamais l'URL
-        # complète ni les paramètres.
-        logger.warning(
+        journaliser_le_refus(
+            logger,
             "git_provider.refuse",
             provider=self.name,
             methode=method,
