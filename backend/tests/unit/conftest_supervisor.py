@@ -7,6 +7,7 @@ pas besoin de ça : seul `create_and_start` est appelé.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from app.db.models import Project, User
@@ -25,11 +26,33 @@ class ManagerFactice:
         return False
 
 
+class ManagerEspion(ManagerFactice):
+    """Une session déjà active, qui note ce qu'on lui envoie et sous quelle origine.
+
+    Le test d'une consigne dispatchée traverse le vrai `_run_child` : seule la
+    frontière du SDK, `send_message`, est remplacée, et c'est là que `origin` se lit.
+    """
+
+    def __init__(self) -> None:
+        self.recus: list[tuple[str, str, str]] = []
+        self.recu = asyncio.Event()
+
+    def is_active(self, _session_id: str) -> bool:
+        return True
+
+    async def send_message(self, session_id: str, content: str, *, origin: str) -> None:
+        self.recus.append((session_id, content, origin))
+        self.recu.set()
+
+
 class SessionsFactice:
     """Crée la ligne de session, sans worktree ni client SDK."""
 
     def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
         self._factory = factory
+
+    async def get(self, _db: AsyncSession, _session_id: str, _user_id: str) -> None:
+        return None
 
     async def create_and_start(
         self, db: AsyncSession, *, user_id: str, project_id: str
@@ -46,9 +69,11 @@ class SessionsFactice:
         return row
 
 
-def service_superviseur(factory: async_sessionmaker[AsyncSession]) -> SupervisorService:
+def service_superviseur(
+    factory: async_sessionmaker[AsyncSession], manager: ManagerFactice | None = None
+) -> SupervisorService:
     return SupervisorService(
-        manager=ManagerFactice(),  # type: ignore[arg-type]
+        manager=manager or ManagerFactice(),  # type: ignore[arg-type]
         sessions=SessionsFactice(factory),  # type: ignore[arg-type]
         session_factory=factory,
     )

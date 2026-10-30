@@ -56,8 +56,13 @@ EVENT_TYPE_USER_MESSAGE: Final[str] = "user_message"
 # Qui a écrit un `user_message` : John, ou Eldir lui-même (consigne dispatchée
 # par le superviseur, ping de fin de tour). Les events écrits avant l'ajout de
 # ce champ n'ont pas d'origine : ils sont traités comme venant de John.
+# Un agent extérieur (jeton sur `/api/mcp/`) est un second Eldir possible : son
+# origine est ce préfixe suivi du libellé de son jeton, sur une seule ligne,
+# pour que l'historique dise lequel des deux a décidé. Le frontend lit la même
+# forme (`MESSAGE_ORIGIN_AGENT_PREFIX` dans `lib/constants.ts`).
 MESSAGE_ORIGIN_USER: Final[str] = "user"
 MESSAGE_ORIGIN_ELDIR: Final[str] = "eldir"
+MESSAGE_ORIGIN_AGENT_PREFIX: Final[str] = "agent:"
 EVENT_TYPE_USAGE: Final[str] = "usage"
 
 # ── Budget tokens par session (Phase 5) ─────────────────────────

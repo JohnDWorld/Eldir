@@ -120,13 +120,16 @@ async def dispatch(
     session_id: str = "",
     nouveau_chantier: StrictBool = False,
 ) -> str:
-    user_id, _ = agent_courant()
+    # Le libellé du jeton signe la consigne : l'historique de la session dit lequel
+    # des deux Eldir l'a donnée.
+    user_id, libelle = agent_courant()
     return await get_supervisor_service().outil_dispatch(
         user_id,
         project_id=project_id,
         consigne=consigne,
         session_id=session_id,
         nouveau_chantier=nouveau_chantier,
+        libelle_agent=libelle,
     )
 
 

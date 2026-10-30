@@ -502,8 +502,9 @@ class SessionManager:
     ) -> None:
         """Envoie un message à la session.
 
-        `origin` dit qui parle : John (`user`) ou Eldir lui-même (`eldir`,
-        pour une consigne dispatchée ou un ping de fin de tour). Pour Claude
+        `origin` dit qui parle : John (`user`), Eldir lui-même (`eldir`, pour
+        une consigne dispatchée ou un ping de fin de tour) ou un agent extérieur
+        (`agent:<libellé de son jeton>`, cf. `origine_de_dispatch`). Pour Claude
         c'est le même message, mais l'UI doit pouvoir les distinguer : afficher
         un message d'Eldir comme s'il venait de John est un mensonge sur qui a
         demandé quoi.

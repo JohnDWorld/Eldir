@@ -29,6 +29,7 @@ from app.core.config import get_settings
 from app.core.constants import (
     EVENT_TYPE_ERROR,
     EVENT_TYPE_STOP,
+    MESSAGE_ORIGIN_AGENT_PREFIX,
     MESSAGE_ORIGIN_ELDIR,
     SESSION_STATE_BLOCKED,
     SESSION_STATE_WAITING_INPUT,
@@ -209,6 +210,25 @@ def _sur_une_ligne(texte: str) -> str:
     des lignes sans marque d'auteur, qui passeraient pour celles de John.
     """
     return " ".join(texte.split())
+
+
+def origine_de_dispatch(libelle_agent: str | None) -> str:
+    """Qui a envoyé cette consigne.
+
+    L'interface distingue déjà John d'Eldir, pour ne jamais faire passer une
+    consigne d'Eldir pour une demande de John. Avec un second cerveau possible,
+    il faut aussi distinguer les Eldir entre eux : en relisant son historique,
+    John cherche précisément à savoir lequel a décidé.
+
+    `None` dit « le superviseur interne », jamais un libellé vide : un agent dont
+    le libellé serait vide passerait pour lui. Le libellé est aplati en une ligne
+    ici, à l'écriture, parce que l'origine est un fait durable que tout lecteur de
+    l'historique reçoit tel quel (base, WebSocket, journaux), et que `emettre`
+    autorise les retours à la ligne dans un libellé.
+    """
+    if libelle_agent is None:
+        return MESSAGE_ORIGIN_ELDIR
+    return f"{MESSAGE_ORIGIN_AGENT_PREFIX}{_sur_une_ligne(libelle_agent)}"
 
 
 def _est_ligne_d_agent(ligne: str) -> bool:
@@ -498,11 +518,14 @@ class SupervisorService:
         consigne: str,
         session_id: str | None = None,
         nouveau_chantier: bool = False,
+        libelle_agent: str | None = None,
     ) -> str:
         """Transmet une consigne à une session projet et rend la main aussitôt.
 
         Sans `session_id`, reprend la session la plus récente du projet, ou en
         ouvre une neuve si `nouveau_chantier` ou si aucune n'a démarré.
+        `libelle_agent` est le nom du jeton d'un agent extérieur, `None` pour le
+        superviseur interne : il signe la consigne dans l'historique de la session.
 
         Returns:
             Du texte pour l'agent. Un refus (champ vide, projet ou session
@@ -523,7 +546,7 @@ class SupervisorService:
             return f"Erreur : {exc.message}"
 
         self._pending.add(target)
-        self._spawn(self._run_child(user_id, target, consigne))
+        self._spawn(self._run_child(user_id, target, consigne, libelle_agent))
         origine = "nouvelle session" if created else "session reprise"
         return (
             f"Consigne transmise à {project_name} ({origine} {target}). "
@@ -789,7 +812,9 @@ class SupervisorService:
             await db.commit()
             return created.id, project.name, True
 
-    async def _run_child(self, user_id: str, session_id: str, consigne: str) -> None:
+    async def _run_child(
+        self, user_id: str, session_id: str, consigne: str, libelle_agent: str | None
+    ) -> None:
         """Fait tourner le tour de la session enfant hors de la requête."""
         try:
             # La DB n'est utilisée que pour le contrôle d'accès et le resume :
@@ -799,7 +824,9 @@ class SupervisorService:
                 if not self._manager.is_active(session_id):
                     await self._sessions.resume(db, user_id=user_id, session_id=session_id)
                 await db.commit()
-            await self._manager.send_message(session_id, consigne, origin=MESSAGE_ORIGIN_ELDIR)
+            await self._manager.send_message(
+                session_id, consigne, origin=origine_de_dispatch(libelle_agent)
+            )
         except Exception as exc:
             logger.exception("supervisor.dispatch.failed", session_id=session_id)
             self._pending.discard(session_id)

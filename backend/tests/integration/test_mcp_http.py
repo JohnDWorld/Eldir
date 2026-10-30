@@ -53,7 +53,11 @@ from mcp.client.streamable_http import streamable_http_client
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from tests.unit.conftest_supervisor import pose_projet_et_session, service_superviseur
+from tests.unit.conftest_supervisor import (
+    ManagerEspion,
+    pose_projet_et_session,
+    service_superviseur,
+)
 
 _LISTE = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
 _ENTETES = {
@@ -392,10 +396,10 @@ async def test_un_agent_ne_dispatche_pas_chez_un_autre_porteur(
 ) -> None:
     service = service_superviseur(session_factory)
     monkeypatch.setattr(singletons, "_supervisor", service)
-    appels: list[tuple[str, str, str]] = []
+    appels: list[tuple[str, str, str, str | None]] = []
 
-    async def espion(user_id: str, session_id: str, consigne: str) -> None:
-        appels.append((user_id, session_id, consigne))
+    async def espion(user_id: str, session_id: str, consigne: str, libelle: str | None) -> None:
+        appels.append((user_id, session_id, consigne, libelle))
 
     monkeypatch.setattr(service, "_run_child", espion)
     _, projet_de_munin, _, _ = await _monde(session_factory)
@@ -415,11 +419,11 @@ async def test_dispatch_transmet_session_chantier_et_consigne_au_service(
 ) -> None:
     service = service_superviseur(session_factory)
     monkeypatch.setattr(singletons, "_supervisor", service)
-    appels: list[tuple[str, str, str]] = []
+    appels: list[tuple[str, str, str, str | None]] = []
     recu = asyncio.Event()
 
-    async def espion(user_id: str, session_id: str, consigne: str) -> None:
-        appels.append((user_id, session_id, consigne))
+    async def espion(user_id: str, session_id: str, consigne: str, libelle: str | None) -> None:
+        appels.append((user_id, session_id, consigne, libelle))
         recu.set()
 
     monkeypatch.setattr(service, "_run_child", espion)
@@ -432,7 +436,8 @@ async def test_dispatch_transmet_session_chantier_et_consigne_au_service(
     async with asyncio.timeout(5):
         await recu.wait()
     assert texte.startswith(f"Consigne transmise à Munin (session reprise {session_id}).")
-    assert appels == [(user_id, session_id, "Ajoute un test")]
+    # Le libellé du jeton (celui que `_jeton` pose par défaut) accompagne la consigne.
+    assert appels == [(user_id, session_id, "Ajoute un test", "agent du village")]
 
     # `nouveau_chantier` ouvre une session neuve, à côté.
     recu.clear()
@@ -460,7 +465,41 @@ async def test_dispatch_transmet_session_chantier_et_consigne_au_service(
     async with asyncio.timeout(5):
         await recu.wait()
     assert f"session reprise {session_id}" in texte
-    assert appels[2] == (user_id, session_id, "Suite")
+    assert appels[2] == (user_id, session_id, "Suite", "agent du village")
+
+
+async def test_la_consigne_d_un_agent_arrive_a_la_session_sous_son_nom(
+    url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """De la porte HTTP à `send_message` : l'historique de la session dit lequel des
+    deux Eldir a donné la consigne.
+
+    Rien n'est remplacé entre le jeton et la session enfant sauf le SDK : une
+    consigne d'agent signée « eldir » passerait pour celle du superviseur interne,
+    et c'est exactement ce que John cherche à démêler en relisant.
+    """
+    manager = ManagerEspion()
+    service = service_superviseur(session_factory, manager)
+    monkeypatch.setattr(singletons, "_supervisor", service)
+    user_id, project_id, session_id, _ = await _monde(session_factory)
+    # Un libellé à plusieurs lignes : `emettre` ne l'interdit pas.
+    jeton = await _jeton(session_factory, user_id, label="eldir\ndu village")
+
+    await _appelle(url_mcp, jeton, "dispatch", {"project_id": project_id, "consigne": "Par HTTP"})
+    async with asyncio.timeout(5):
+        await manager.recu.wait()
+    manager.recu.clear()
+    # Le superviseur interne de John, par le serveur MCP in-process.
+    await _en_process(
+        service, user_id, "dispatch", {"project_id": project_id, "consigne": "En process"}
+    )
+    async with asyncio.timeout(5):
+        await manager.recu.wait()
+
+    assert manager.recus == [
+        (session_id, "Par HTTP", "agent:eldir du village"),
+        (session_id, "En process", "eldir"),
+    ]
 
 
 async def test_remember_enregistre_la_preference(

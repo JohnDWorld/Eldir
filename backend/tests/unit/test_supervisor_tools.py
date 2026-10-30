@@ -7,6 +7,7 @@ comportements qui divergent, c'est la panne qu'on paie six mois plus tard.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -21,11 +22,19 @@ from app.core.constants import (
 from app.core.exceptions import NotFoundError
 from app.db.models import Project, User
 from app.db.models import Session as SessionRow
-from app.services.supervisor_service import SCHEMAS_OUTILS, SupervisorService
+from app.services.supervisor_service import (
+    SCHEMAS_OUTILS,
+    SupervisorService,
+    origine_de_dispatch,
+)
 from mcp import types
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from tests.unit.conftest_supervisor import pose_projet_et_session, service_superviseur
+from tests.unit.conftest_supervisor import (
+    ManagerEspion,
+    pose_projet_et_session,
+    service_superviseur,
+)
 
 # Un utilisateur qui ne ressemble à aucune valeur codée en dur dans le service :
 # si l'adaptateur oubliait de passer le `user_id` capturé, ça se verrait.
@@ -269,6 +278,69 @@ async def test_remember_refuse_un_fait_vide(
 ) -> None:
     service = service_superviseur(session_factory)
     assert await service.outil_remember("u1", fait=" ") == "Erreur : 'fait' est vide."
+
+
+def test_l_origine_nomme_l_agent_qui_a_dispatche() -> None:
+    """Avec deux cerveaux possibles, un historique qui ne dit pas lequel a
+    parlé ne répond pas à la seule question qu'on se pose en le relisant."""
+    assert origine_de_dispatch(None) == "eldir"
+    assert origine_de_dispatch("eldir du village") == "agent:eldir du village"
+
+
+def test_l_origine_d_un_agent_tient_sur_une_ligne() -> None:
+    """`emettre` autorise les retours à la ligne dans un libellé. L'origine est
+    écrite telle quelle dans l'historique de la session : elle n'a pas à y
+    ouvrir une seconde ligne."""
+    assert origine_de_dispatch("eldir\r\ndu\u2028village\n") == "agent:eldir du village"
+
+
+def test_un_agent_au_libelle_vide_n_est_pas_pris_pour_eldir() -> None:
+    """`None` dit « pas un agent », jamais un libellé vide : il passerait pour le
+    superviseur interne, donc pour l'autre cerveau."""
+    assert origine_de_dispatch("") == "agent:"
+    assert origine_de_dispatch(" \n ") == "agent:"
+
+
+@pytest.mark.asyncio
+async def test_la_consigne_d_un_agent_arrive_sous_son_nom(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Par le vrai `outil_dispatch` et le vrai `_run_child`, jusqu'à `send_message`."""
+    async with session_factory() as db:
+        user_id, project_id, session_id = await pose_projet_et_session(db)
+    manager = ManagerEspion()
+    service = service_superviseur(session_factory, manager)
+    texte = await service.outil_dispatch(
+        user_id,
+        project_id=project_id,
+        consigne="Ajoute un test",
+        session_id=session_id,
+        libelle_agent="eldir du village",
+    )
+    assert texte.startswith("Consigne transmise")
+    async with asyncio.timeout(5):
+        await manager.recu.wait()
+    assert manager.recus == [(session_id, "Ajoute un test", "agent:eldir du village")]
+
+
+@pytest.mark.asyncio
+async def test_le_superviseur_interne_ne_signe_pas_ses_consignes_d_un_agent(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Par l'adaptateur in-process (celui que le SDK appelle), jamais un libellé."""
+    async with session_factory() as db:
+        user_id, project_id, session_id = await pose_projet_et_session(db)
+    manager = ManagerEspion()
+    service = service_superviseur(session_factory, manager)
+    await _appelle(
+        service,
+        "dispatch",
+        {"project_id": project_id, "consigne": "x", "session_id": session_id},
+        user_id,
+    )
+    async with asyncio.timeout(5):
+        await manager.recu.wait()
+    assert manager.recus[0][2] == "eldir"
 
 
 def test_la_description_de_list_projects_annonce_qu_elle_sert_a_trier_ce_qui_dort() -> None:
