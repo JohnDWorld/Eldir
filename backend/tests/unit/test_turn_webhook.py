@@ -77,7 +77,8 @@ async def test_le_ping_part_vraiment_avec_le_bon_corps_et_la_bonne_signature(
     requete = abonne.requetes[0]
     assert (requete.methode, requete.chemin) == ("POST", "/ok")
     assert requete.entetes["content-type"] == "application/json"
-    assert json.loads(requete.corps) == CHARGE, "accents compris, rien d'échappé en perdant du sens"
+    assert json.loads(requete.corps) == CHARGE, "les accents survivent à l'aller-retour"
+    assert requete.corps.isascii(), "aucun abonné n'a à deviner l'encodage"
     attendu = hmac.new(b"secret-de-test", requete.corps, hashlib.sha256).hexdigest()
     assert requete.entetes["x-eldir-signature"] == f"sha256={attendu}", (
         "recalculée par l'abonné sur les octets reçus"

@@ -45,7 +45,8 @@ async def prevenir(charge: dict[str, Any]) -> None:
         url = settings.turn_webhook_url.strip()
         if not url:
             return
-        corps = json.dumps(charge, ensure_ascii=False).encode()
+        # ASCII pur (les accents partent échappés) : aucun abonné n'a à deviner l'encodage.
+        corps = json.dumps(charge).encode()
         entetes = {"Content-Type": "application/json"}
         # Un secret vide signerait avec une clé que tout le monde connaît.
         secret = settings.turn_webhook_secret
