@@ -63,6 +63,47 @@ beforeEach(() => {
   donnees.sessions = [];
 });
 
+/** Le rang d'affichage d'un élément, lu dans ses classes `order-N` / `md:order-N`. */
+function rang(element: Element, large: boolean): number {
+  const prefixe = large ? 'md:order-' : 'order-';
+  for (const classe of element.className.split(/\s+/)) {
+    // Sous `md`, une classe `md:order-N` existe ; au-dessus elle l'emporte sur
+    // la classe nue, qui reste le rang mobile.
+    if (classe.startsWith(prefixe)) return Number(classe.slice(prefixe.length));
+  }
+  return Number.NaN;
+}
+
+describe('OpsHomePage, priorité du contenu sur un téléphone', () => {
+  it('montre les sessions AVANT le rail des projets sur mobile, et l’inverse au bureau', () => {
+    // Empilées, les trois colonnes mettaient le rail des projets en premier :
+    // avec douze projets il fallait défiler ~650px avant la première carte de
+    // session, donc avant la seule chose qu'on vient voir.
+    donnees.sessions = [session('chaude-0001', { ouverteJours: 1, activeMinutes: 10 })];
+    renderPage();
+    const sessions = screen
+      .getByRole('heading', { name: /sessions en cours/i })
+      .closest('section')!;
+    const rail = screen.getByRole('heading', { name: /^projets/i }).closest('aside')!;
+
+    expect(rang(sessions, false)).toBeLessThan(rang(rail, false));
+    // Au bureau les trois colonnes sont côte à côte : le rail reprend sa place
+    // à gauche, et l'ordre du source redevient l'ordre visuel.
+    expect(rang(rail, true)).toBeLessThan(rang(sessions, true));
+  });
+
+  it('place les deux tuiles qui demandent un geste en tête', () => {
+    // Six tuiles sur 375px passent en trois colonnes : en 3e et 4e position,
+    // « À toi » et « Bloquées » se retrouvaient de part et d'autre d'un saut
+    // de ligne, l'une en haut à droite et l'autre en bas à gauche.
+    renderPage();
+    const libelles = screen
+      .getAllByText(/^(À toi|Bloquées|Actives|Projets|Tokens|Dépense)$/)
+      .map((n) => n.textContent);
+    expect(libelles.slice(0, 2)).toEqual(['À toi', 'Bloquées']);
+  });
+});
+
 describe('OpsHomePage, âge des sessions', () => {
   it('lit la dernière activité, pas l’ouverture : une session chaude ne paraît pas abandonnée', () => {
     donnees.sessions = [session('chaude-0001', { ouverteJours: 5, activeMinutes: 10 })];
