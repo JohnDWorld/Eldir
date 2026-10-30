@@ -21,6 +21,9 @@ def configure_logging() -> None:
         stream=sys.stdout,
         level=level,
     )
+    # httpx journalise chaque requête en INFO, URL complète comprise. Celle d'un
+    # abonné au ping de fin de tour peut porter un jeton.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
@@ -43,3 +46,25 @@ def configure_logging() -> None:
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     return structlog.get_logger(name)
+
+
+def journaliser_le_refus(
+    logger: structlog.stdlib.BoundLogger,
+    evenement: str,
+    *,
+    methode: str,
+    chemin: str,
+    status: int,
+    **champs: Any,
+) -> None:
+    """Trace le refus d'une API appelée en sortie.
+
+    Les journaux de requêtes d'`httpx` sont muselés juste au-dessus : sans cette
+    ligne, un refus d'une API distante ne laisse aucune trace côté serveur, et
+    l'exception levée n'est tracée nulle part non plus. Le chemin, jamais l'URL
+    complète : l'URL de base ou ses paramètres peuvent porter un jeton.
+
+    Le logger est passé par l'appelant, pas pris ici : chaque module garde le
+    sien, et c'est celui-là que ses tests observent.
+    """
+    logger.warning(evenement, methode=methode, chemin=chemin, status=status, **champs)

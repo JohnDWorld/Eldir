@@ -9,6 +9,7 @@ Layout disque :
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import shutil
 from dataclasses import dataclass
@@ -59,13 +60,41 @@ class FileChange:
     deletions: int
 
 
-def _inject_token(clone_url: str, token: str) -> str:
-    """Injecte un PAT dans l'URL HTTPS pour le clone."""
-    parsed = urlparse(clone_url)
-    if parsed.scheme not in {"http", "https"}:
-        return clone_url
-    # username `x-access-token` est conventionnel chez GitHub.
-    netloc = f"x-access-token:{token}@{parsed.hostname}"
+# Comment git obtient le jeton, sans qu'il touche le disque ni la ligne de
+# commande : il le demande à ce helper, qui le lit dans l'environnement du seul
+# sous-processus git concerné.
+#
+# Avant, le jeton était injecté dans l'URL. Celle du clone atterrissait dans
+# `.git/config`, donc sous les yeux de la session qui travaille dans ce dépôt :
+# un `git remote -v` suffisait. Et `push -u <url>` écrivait en plus l'URL
+# complète dans `branch.<branche>.remote`, donc dans le même fichier.
+#
+# Le hook `PreToolUse` refuse bien `git push` comme commande, mais il filtre
+# des commandes, pas des destinations : un `curl` vers l'API du provider avec
+# ce jeton ne ressemble pas à un push. Le risque n'était donc pas la
+# publication, c'était l'exfiltration, et avec un PAT classique elle portait
+# sur tous les dépôts du porteur.
+#
+# `test "$1" = get` : git appelle aussi le helper pour `store` et `erase`, où
+# il ne doit rien répondre. Le jeton ne doit être ni stocké ni effacé, il ne
+# vit que le temps de l'appel.
+_AIDE_CREDENTIEL = (
+    '!f() { test "$1" = get && '
+    'printf "username=x-access-token\\npassword=%s\\n" "$ELDIR_GIT_TOKEN"; }; f'
+)
+
+
+def _sans_identifiants(url: str) -> str:
+    """Retire le `utilisateur:motdepasse@` d'une URL HTTP(S).
+
+    Sert à assainir les dépôts déjà clonés par une version d'Eldir qui mettait
+    le jeton dans l'URL du remote : ils portent le jeton sur le disque jusqu'à
+    ce qu'on le retire, et un reclone n'est pas une option raisonnable.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or "@" not in parsed.netloc:
+        return url
+    netloc = parsed.hostname or ""
     if parsed.port:
         netloc = f"{netloc}:{parsed.port}"
     return urlunparse(parsed._replace(netloc=netloc))
@@ -110,13 +139,15 @@ class WorktreeService:
 
         if (dest / ".git").is_dir():
             logger.info("clone.skip.exists", repo=repo_full_name, dest=str(dest))
+            await self._nettoyer_identifiants(dest)
             branch = default_branch or await self._detect_default_branch(dest)
             return CloneResult(path=dest, default_branch=branch, repo_slug=repo_slug)
 
         dest.parent.mkdir(parents=True, exist_ok=True)
-        url = _inject_token(clone_url, token) if token else clone_url
         logger.info("clone.start", repo=repo_full_name, dest=str(dest))
-        await self._run_git("clone", url, str(dest), cwd=dest.parent)
+        # L'URL clonée est celle du dépôt, sans identifiant : c'est elle que
+        # git écrit dans `.git/config`, et la session la lit.
+        await self._run_git("clone", clone_url, str(dest), cwd=dest.parent, token=token)
 
         branch = default_branch or await self._detect_default_branch(dest)
         logger.info("clone.done", repo=repo_full_name, branch=branch)
@@ -202,20 +233,17 @@ class WorktreeService:
         remote: str = "origin",
         set_upstream: bool = True,
     ) -> None:
-        """Push la branche. Si token, injecte temporairement le PAT dans l'URL."""
-        if token:
-            remote_url = await self._run_git("remote", "get-url", remote, cwd=repo_path)
-            push_url = _inject_token(remote_url, token)
-            args = ["push"]
-            if set_upstream:
-                args.append("-u")
-            args += [push_url, branch]
-        else:
-            args = ["push"]
-            if set_upstream:
-                args.append("-u")
-            args += [remote, branch]
-        await self._run_git(*args, cwd=repo_path)
+        """Push la branche, le jeton passant par le credential helper.
+
+        On pousse vers le *nom* du remote, jamais vers une URL : `push -u` écrit
+        sa cible dans `branch.<branche>.remote`, et une URL avec jeton y restait
+        sur le disque.
+        """
+        args = ["push"]
+        if set_upstream:
+            args.append("-u")
+        args += [remote, branch]
+        await self._run_git(*args, cwd=repo_path, token=token)
 
     async def fetch_remote(
         self,
@@ -224,17 +252,19 @@ class WorktreeService:
         remote: str = "origin",
         token: str | None = None,
     ) -> None:
-        """Fetch un remote, en réécrivant son URL si un token plus frais est dispo.
+        """Fetch un remote, le jeton passant par le credential helper.
 
-        Ainsi un rotation de PAT n'invalide pas la sync : on remet le token
-        courant dans l'URL de l'origine avant de fetch.
+        Cette méthode écrivait le jeton courant dans l'URL du remote avant de
+        fetch, pour qu'une rotation de PAT n'invalide pas la sync. Le helper
+        rend ça inutile : il lit le jeton frais à chaque appel. Surtout, comme
+        `RepoWatcher` appelle cette méthode périodiquement, elle repoisonnait
+        `.git/config` à intervalle régulier, et nettoyer après le clone n'aurait
+        servi à rien.
+
+        C'est maintenant l'inverse : chaque sync assainit le dépôt.
         """
-        if token:
-            remote_url = await self._run_git("remote", "get-url", remote, cwd=repo_path)
-            new_url = _inject_token(remote_url, token)
-            if new_url != remote_url:
-                await self._run_git("remote", "set-url", remote, new_url, cwd=repo_path)
-        await self._run_git("fetch", remote, "--prune", cwd=repo_path)
+        await self._nettoyer_identifiants(repo_path)
+        await self._run_git("fetch", remote, "--prune", cwd=repo_path, token=token)
 
     async def branch_ahead_behind(
         self,
@@ -341,11 +371,55 @@ class WorktreeService:
         except WorkspaceError:
             return "main"
 
-    async def _run_git(self, *args: str, cwd: Path) -> str:
+    async def _nettoyer_identifiants(self, repo_path: Path) -> None:
+        """Retire du `.git/config` local tout identifiant laissé dans une URL.
+
+        Les dépôts clonés par une version d'Eldir qui injectait le jeton dans
+        l'URL le portent sur le disque, lisible par la session qui travaille
+        dedans. On balaie la configuration locale entière plutôt que la seule
+        `remote.origin.url` : `push -u` en écrivait une copie dans
+        `branch.<branche>.remote`, et deviner où elles sont toutes est moins
+        sûr que de les chercher.
+
+        Un worktree partage le `config` de son dépôt principal, donc nettoyer
+        ici couvre aussi les sessions en cours. Idempotent : sur un dépôt sain,
+        aucune écriture.
+        """
+        sortie = await self._run_git("config", "--local", "--list", cwd=repo_path)
+        for ligne in sortie.splitlines():
+            cle, separateur, valeur = ligne.partition("=")
+            if not separateur:
+                continue
+            propre = _sans_identifiants(valeur)
+            if propre == valeur:
+                continue
+            await self._run_git("config", "--local", "--replace-all", cle, propre, cwd=repo_path)
+            logger.info("remote.identifiant.retire", repo=str(repo_path), cle=cle)
+
+    async def _run_git(self, *args: str, cwd: Path, token: str | None = None) -> str:
+        prefixe: tuple[str, ...] = ()
+        env: dict[str, str] | None = None
+        if token:
+            # La valeur vide réinitialise la liste des helpers : git n'utilise
+            # que le nôtre, et jamais un helper système qui, lui, stockerait le
+            # jeton dans un fichier.
+            prefixe = (
+                "-c",
+                "credential.helper=",
+                "-c",
+                f"credential.helper={_AIDE_CREDENTIEL}",
+            )
+            # Le jeton passe par l'environnement de ce seul sous-processus : ni
+            # dans la ligne de commande (lisible dans /proc), ni sur le disque.
+            # `GIT_TERMINAL_PROMPT=0` pour qu'un refus d'authentification sorte
+            # en erreur au lieu d'attendre une saisie qui ne viendra jamais.
+            env = {**os.environ, "ELDIR_GIT_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
         process = await asyncio.create_subprocess_exec(
             "git",
+            *prefixe,
             *args,
             cwd=str(cwd),
+            env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

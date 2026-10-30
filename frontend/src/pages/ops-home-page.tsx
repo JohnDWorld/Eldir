@@ -158,10 +158,13 @@ export function OpsHomePage(): JSX.Element {
       .sort(
         (a, b) =>
           rang[a.state] - rang[b.state] ||
-          +new Date(b.created_at) - +new Date(a.created_at),
+          +new Date(b.updated_at) - +new Date(a.updated_at),
       );
   }, [userSessions]);
 
+  // L'âge est celui de la dernière activité (`updated_at`), pas de l'ouverture :
+  // une session ouverte il y a cinq jours et travaillée il y a dix minutes est
+  // chaude, elle ne doit pas se lire « il y a 5 j » comme une session abandonnée.
   const cards: SessionCardData[] = sortedUserSessions
     .map((s) => ({
       id: s.id.slice(0, 8),
@@ -169,7 +172,7 @@ export function OpsHomePage(): JSX.Element {
         (s.project_id ? projectNameById.get(s.project_id) : 'Eldir') ?? 'Projet inconnu',
       state: s.state,
       summary: resumeLisible(s.summary),
-      age: formatAge(s.created_at),
+      age: formatAge(s.updated_at),
     }));
 
   return (
@@ -385,8 +388,8 @@ export function OpsHomePage(): JSX.Element {
                           ? 'Eldir · superviseur'
                           : (s.summary ?? 'tâche interne')}
                       </span>
-                      <span className="shrink-0 text-eldir-gray">
-                        {formatAge(s.created_at)}
+                      <span className="shrink-0 text-eldir-gray" title="Dernière activité">
+                        {formatAge(s.updated_at)}
                       </span>
                     </Link>
                   </li>

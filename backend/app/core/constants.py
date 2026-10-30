@@ -53,11 +53,22 @@ EVENT_TYPE_STOP: Final[str] = "stop"
 EVENT_TYPE_ERROR: Final[str] = "error"
 EVENT_TYPE_USER_MESSAGE: Final[str] = "user_message"
 
+# Raison portée par un STOP. Deux producteurs : la fin d'un tour (`turn_complete`,
+# Claude a répondu jusqu'au bout) et `SessionManager.stop()`, qui publie un STOP
+# sans charge quand la session est arrêtée, supprimée ou qu'Eldir s'éteint. Seul
+# le premier dit « le tour est fini » ; le second l'interrompt.
+STOP_REASON_TURN_COMPLETE: Final[str] = "turn_complete"
+
 # Qui a écrit un `user_message` : John, ou Eldir lui-même (consigne dispatchée
 # par le superviseur, ping de fin de tour). Les events écrits avant l'ajout de
 # ce champ n'ont pas d'origine : ils sont traités comme venant de John.
+# Un agent extérieur (jeton sur `/api/mcp/`) est un second Eldir possible : son
+# origine est ce préfixe suivi du libellé de son jeton, sur une seule ligne,
+# pour que l'historique dise lequel des deux a décidé. Le frontend lit la même
+# forme (`MESSAGE_ORIGIN_AGENT_PREFIX` dans `lib/constants.ts`).
 MESSAGE_ORIGIN_USER: Final[str] = "user"
 MESSAGE_ORIGIN_ELDIR: Final[str] = "eldir"
+MESSAGE_ORIGIN_AGENT_PREFIX: Final[str] = "agent:"
 EVENT_TYPE_USAGE: Final[str] = "usage"
 
 # ── Budget tokens par session (Phase 5) ─────────────────────────
@@ -68,3 +79,13 @@ DEFAULT_SESSION_TOKEN_BUDGET: Final[int] = 1_000_000
 PROVIDER_GITHUB: Final[str] = "github"
 PROVIDER_FORGEJO: Final[str] = "forgejo"
 SUPPORTED_PROVIDERS: Final[frozenset[str]] = frozenset({PROVIDER_GITHUB, PROVIDER_FORGEJO})
+
+# ── Credential Claude dans l'environnement ──────────────────────
+# Les deux seules variables d'environnement par lesquelles le CLI Claude
+# s'authentifie, selon le type de credential stocké. C'est aussi la seule
+# chose qu'un sous-processus Claude a besoin de voir de l'environnement du
+# backend : `app.core.config.env_a_masquer_pour_cli` masque tout le reste.
+ENV_VAR_CREDENTIEL_PAR_KIND: Final[dict[str, str]] = {
+    "oauth_token": "CLAUDE_CODE_OAUTH_TOKEN",
+    "api_key": "ANTHROPIC_API_KEY",
+}

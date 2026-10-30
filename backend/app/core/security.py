@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
@@ -24,6 +24,24 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 # ── JWT ─────────────────────────────────────────────────────────
+def extract_bearer(authorization: str | None) -> str:
+    """Rend le jeton d'un en-tête `Authorization: Bearer <jeton>`, ou lève.
+
+    Le seul endroit qui décide de la forme de l'en-tête : l'API REST et la garde
+    MCP passent ici, pour qu'aucune forme ne soit acceptée par l'une et refusée
+    par l'autre. Le schéma se compare sans tenir compte de la casse (RFC 7235).
+    Un jeton est un seul mot : vide, ou coupé par une espace (deux jetons collés,
+    une espace en trop), l'en-tête est mal formé, et c'est ici qu'on le dit plutôt
+    que de laisser le décodeur répondre « Jeton invalide » à une forme qui n'en
+    est pas une. Ne dit rien de la valeur du jeton, que le décodeur de chaque
+    porte examine.
+    """
+    schema, _, jeton = (authorization or "").partition(" ")
+    if schema.lower() != "bearer" or jeton.split() != [jeton]:
+        raise AuthenticationError("Header Authorization manquant ou mal formé.")
+    return jeton
+
+
 def create_access_token(
     subject: str,
     *,
@@ -40,7 +58,14 @@ def create_access_token(
     )
 
 
-def decode_access_token(token: str) -> dict[str, Any]:
+def _decode_jwt(token: str) -> dict[str, Any]:
+    """Décodeur nu : vérifie la signature et l'expiration, rien d'autre.
+
+    Privé exprès. Il ne dit pas à quelle porte le jeton est destiné, donc le
+    brancher directement sur un transport ouvre cette porte à tous les types de
+    jeton (c'était le trou des jetons d'agent). Passer par `decode_session_token`
+    ou `decode_agent_token`, qui nomment la porte.
+    """
     settings = get_settings()
     try:
         return jwt.decode(
@@ -48,8 +73,51 @@ def decode_access_token(token: str) -> dict[str, Any]:
             settings.jwt_secret.get_secret_value(),
             algorithms=[settings.jwt_algorithm],
         )
+    except ExpiredSignatureError as exc:
+        raise AuthenticationError("Jeton expiré.") from exc
     except JWTError as exc:
-        raise AuthenticationError("Token invalide ou expiré.") from exc
+        raise AuthenticationError("Jeton invalide.") from exc
+
+
+# Valeur du claim `kind` d'un jeton d'agent externe. Un jeton de connexion n'en
+# porte aucun. Les deux fonctions ci-dessous sont, avec `_decode_jwt`, le seul
+# endroit qui décide à quelle porte un jeton est destiné.
+KIND_AGENT = "agent"
+
+
+def decode_session_token(token: str) -> dict[str, Any]:
+    """Décode un jeton de connexion (API REST, WebSocket) et refuse tout autre.
+
+    Liste blanche : un jeton de connexion ne porte aucun `kind`, et tout jeton
+    qui en porte un est refusé, y compris un type futur. Le jeton d'agent est
+    signé par la même clé et porte un `sub` : sans ce refus, il vaudrait dix ans
+    de connexion complète, et la table de révocation, que ce chemin ne consulte
+    pas, ne protégerait rien. Il n'ouvre que la surface MCP.
+
+    Les messages partent tels quels en motif de fermeture WebSocket : 123 octets
+    au plus.
+    """
+    payload = _decode_jwt(token)
+    kind = payload.get("kind")
+    if kind == KIND_AGENT:
+        raise AuthenticationError(
+            "Jeton d'agent : réservé à la surface MCP, il n'ouvre ni l'API ni le WebSocket."
+        )
+    if kind is not None:
+        raise AuthenticationError("Ce jeton n'est pas un jeton de connexion.")
+    return payload
+
+
+def decode_agent_token(token: str) -> dict[str, Any]:
+    """Décode un jeton d'agent (surface MCP) et refuse tout autre.
+
+    La signature ne suffit pas : l'appelant doit encore vérifier le `jti` dans la
+    table, qui est la liste blanche de révocation (`agent_token_service`).
+    """
+    payload = _decode_jwt(token)
+    if payload.get("kind") != KIND_AGENT:
+        raise AuthenticationError("Ce jeton n'est pas un jeton d'agent.")
+    return payload
 
 
 # ── Chiffrement symétrique (Fernet) pour credentials Git en DB ──

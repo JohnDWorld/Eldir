@@ -14,6 +14,13 @@ class GitCredential(UUIDPrimaryKey, TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    # NULL = jeton global de l'utilisateur, le défaut. Renseigné, le jeton ne
+    # sert qu'à ce projet : sa fuite n'expose que le dépôt qu'il sert, à
+    # condition qu'il soit lui-même restreint côté provider (PAT fine-grained
+    # GitHub, jeton par dépôt Forgejo). Cf. `docs/securite-sessions.md`.
+    project_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True, nullable=True
+    )
     provider: Mapped[str] = mapped_column(String(20), nullable=False)
     base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     label: Mapped[str | None] = mapped_column(String(120), nullable=True)

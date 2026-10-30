@@ -4,12 +4,15 @@ Toutes les variables d'environnement passent par cette classe Settings.
 Aucun `os.getenv()` ne doit exister ailleurs dans le code.
 """
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, PostgresDsn, RedisDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.constants import ENV_VAR_CREDENTIEL_PAR_KIND
 
 
 class Settings(BaseSettings):
@@ -124,6 +127,26 @@ class Settings(BaseSettings):
     # boucle y empilerait des centaines de consignes que personne ne relira.
     session_queue_max: int = 5
 
+    # ── Surface d'agent externe (MCP sur HTTP) ──────────────────
+    # Hôtes autorisés à joindre /api/mcp/, séparés par des virgules, port
+    # compris ou en `hote:*` (ex "eldir.exemple.lan,127.0.0.1:8000"). Vide =
+    # protection anti-DNS-rebinding désactivée : le jeton d'agent est la garde,
+    # et aucun cookie n'est en jeu sur cette surface, donc rien à rejouer
+    # depuis un navigateur. À renseigner si l'endpoint est exposé au-delà du
+    # VPN : un `Host` hors liste est alors refusé en 421.
+    mcp_allowed_hosts: str = ""
+
+    # ── Ping de fin de tour vers un abonné externe ──────────────
+    # Un agent branché sur /api/mcp/ vit dans un autre processus : il ne voit
+    # pas le réveil en mémoire du superviseur. Un seul abonné pour l'instant,
+    # une table viendra quand il y en aura deux. URL vide = pas de ping.
+    # L'URL peut porter un jeton : elle n'est jamais journalisée.
+    turn_webhook_url: str = ""
+    # Sert à signer le corps (HMAC SHA-256). Vide = ping non signé.
+    turn_webhook_secret: SecretStr | None = None
+    # Délai total d'un ping (connexion, réponse, tout compris).
+    turn_webhook_timeout_seconds: float = 10.0
+
     @property
     def is_dev(self) -> bool:
         return self.app_env == "dev"
@@ -131,6 +154,27 @@ class Settings(BaseSettings):
     @property
     def is_test(self) -> bool:
         return self.app_env == "test"
+
+    @property
+    def mcp_hosts(self) -> list[str]:
+        return [h.strip() for h in self.mcp_allowed_hosts.split(",") if h.strip()]
+
+    @property
+    def mcp_origins(self) -> list[str]:
+        """Les origines autorisées sur /api/mcp/, dérivées des hôtes déclarés.
+
+        Le même drapeau allume les deux contrôles du middleware de transport, et
+        sa validation d'`Origin` rend vrai sur un en-tête absent mais faux sur
+        toute valeur hors liste. Laisser la liste vide refusait donc en 403 tout
+        client qui envoie un `Origin`, c'est-à-dire tout agent hébergé ou piloté
+        par un navigateur, et précisément sur le chemin de durcissement que la
+        documentation recommande.
+
+        Les deux schémas : derrière un proxy TLS le navigateur envoie `https://`,
+        un agent en clair sur le réseau privé `http://`. Le `Host` reste la garde
+        du nom, et le jeton celle de l'accès.
+        """
+        return [f"{schema}://{hote}" for hote in self.mcp_hosts for schema in ("https", "http")]
 
     @property
     def ollama_enabled(self) -> bool:
@@ -149,3 +193,33 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Retourne l'instance Settings singleton (cache LRU)."""
     return Settings()
+
+
+def env_a_masquer_pour_cli() -> dict[str, str]:
+    """Ce qu'un sous-processus Claude ne doit pas voir de l'environnement du backend.
+
+    Une session tourne en `bypassPermissions` et le SDK lui transmet
+    l'environnement du backend en entier (`inherited_env` dans
+    `subprocess_cli.py`), `options.env` étant fusionné par-dessus et non à la
+    place. On ne choisit donc pas ce qu'on donne : on écrase nommément ce
+    qu'on retire, en rendant la valeur vide.
+
+    Sans ce masque, une session lit `JWT_SECRET`, forge un jeton de connexion
+    (sans claim `kind`, donc accepté par `decode_session_token`) et appelle
+    l'API en tant que son propriétaire : elle s'autorise la publication
+    elle-même, sans qu'aucune commande git ne passe devant le hook. Avec
+    `ENCRYPTION_KEY` et `DATABASE_URL` elle déchiffre en plus les credentials
+    Git de tous les projets.
+
+    La liste se dérive des champs de `Settings`, seul endroit où Eldir lit
+    l'environnement : un secret ajouté à la configuration est masqué sans
+    qu'on ait à y penser. On compare aux clés réellement présentes plutôt
+    qu'aux noms attendus, parce que `Settings` est insensible à la casse et
+    lirait aussi bien `jwt_secret` que `JWT_SECRET`.
+
+    Seule exception, le credential Claude : le CLI de la session s'authentifie
+    avec. Il reste un risque connu, documenté dans `docs/securite-sessions.md`.
+    """
+    champs = set(Settings.model_fields)
+    gardes = set(ENV_VAR_CREDENTIEL_PAR_KIND.values())
+    return {cle: "" for cle in os.environ if cle.lower() in champs and cle not in gardes}

@@ -69,7 +69,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 ## 📦 Phasage
 
 > **Statut au 2026-09-04** : Phases 0 → 6 livrées (V1 complet) + **superviseur** livré.
-> Prochain chantier potentiel : **Phase 7 - Souveraineté complète** (Forgejo/Headscale dans le wizard, mode agent local, backup chiffré) — c'est V2.
+> Prochain chantier potentiel : **Phase 7 - Souveraineté complète** (Forgejo/Headscale dans le wizard, mode agent local, backup chiffré), c'est V2.
 > Reste pour V2 : compaction auto contexte, mode plan-only, sub-agents Haiku auto-routing, OllamaSubAgent invocable par Claude.
 
 ### Phase 0 - Fondations ✅
@@ -98,9 +98,10 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [x] **Pipeline DRY** :
   - [x] Génération automatique des types TS depuis schémas Pydantic (script + CI)
   - [x] Client API frontend généré ou centralisé
-- [x] Doc d'installation v0 (`docs/install.md`)
+- [x] Doc d'installation v0 (`docs/installation.md`)
 - [ ] Templates de PR et issues GitHub
-- [ ] `CONTRIBUTING.md` et `CODE_OF_CONDUCT.md`
+- [x] `CONTRIBUTING.md`
+- [ ] `CODE_OF_CONDUCT.md`
 
 ### Phase 1 - MVP : 1 user, 1 projet, 1 session ✅
 
@@ -145,7 +146,7 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [x] Création de repo Forgejo depuis le dashboard (`ForgejoProvider.create_repo` implémenté via API REST v1)
 - [x] UI "Ajouter un Git provider" dans les settings
 - [x] Gestion multi-providers simultanés (un user peut avoir GitHub + Forgejo connectés)
-- [ ] Documentation provider Forgejo (`docs/providers/forgejo.md`)
+- [x] Documentation provider Forgejo (`docs/providers/forgejo.md`)
 
 ### Phase 4 - Mission Templates & Skills ✅
 
@@ -202,9 +203,9 @@ Remis à V2 :
       une consigne de prompt ne suffisait pas). Le commit et la PR restent
       déclenchés par l'utilisateur depuis le dashboard.
 - [x] **Session superviseur** : session Claude sans projet ni worktree
-      (`project_id` NULL, `system_kind='supervisor'`), avec 4 outils MCP in-process
-      (`list_projects`, `list_sessions`, `dispatch`, `remember`) et rien d'autre
-      (`disallowed_tools` sur tous les outils intégrés).
+      (`project_id` NULL, `system_kind='supervisor'`), avec 5 outils MCP in-process
+      (`list_projects`, `list_sessions`, `dispatch`, `allow_publish`, `remember`) et
+      rien d'autre (`disallowed_tools` sur tous les outils intégrés).
 - [x] **Ping de fin de tour** : `dispatch` rend la main immédiatement, la session
       enfant travaille en tâche de fond, et son STOP réveille le superviseur avec
       son compte rendu.
@@ -218,8 +219,104 @@ Remis à V2 :
       disque affiché. Sans ça un agent ne peut pas vérifier son travail
       (`flutter analyze` introuvable) et le signale à chaque tour.
       Doc : [`docs/templates.md`](./docs/templates.md#toolchain-du-repo-setup_commands).
-- [ ] Parallélisme explicite : dispatcher deux chantiers simultanés sur un même repo
-      sans passer par la création manuelle de la seconde session.
+- [x] **Parallélisme explicite** : `dispatch` prend un `nouveau_chantier` qui ouvre
+      une session neuve à côté des existantes, dans son propre worktree, au lieu de
+      reprendre la plus récente. Un chantier par sujet indépendant.
+- [x] **Écrire à une session qui travaille** : `POST /sessions/{id}/messages` lance le
+      tour en tâche de fond et rend la main tout de suite, le front n'éteint plus le
+      champ de saisie, et une session n'accepte qu'un nombre borné de messages en
+      attente (`SESSION_QUEUE_MAX`, 5 par défaut). Une file sans borne alimentée par
+      un processus automatique n'est pas une file, c'est une fuite.
+
+### Surface d'agent externe ✅
+
+> Livré le 2026-10-30. Doc : [`docs/agent-externe.md`](./docs/agent-externe.md).
+> Conception : [`docs/specs/2026-10-29-surface-agent-externe.md`](./docs/specs/2026-10-29-surface-agent-externe.md).
+
+Les cinq outils du superviseur étaient le bon contrat pour piloter Eldir, mais ils
+n'étaient joignables que depuis le processus. Un agent extérieur devait ou bien
+reconstruire la logique de dispatch, ou bien conduire l'interface à la main.
+
+- [x] **Un seul corps par outil, deux transports** : les descriptions et les schémas
+      vivent dans une table unique, donc il ne peut pas exister deux descriptions ni
+      deux comportements du même outil. Un test compare le texte rendu, outil par
+      outil, par les deux chemins.
+- [x] **`/api/mcp/`** en MCP streamable HTTP, sans état, derrière un jeton d'agent.
+- [x] **Jeton d'agent révocable** : JWT longue durée portant `kind="agent"` et un
+      `jti` inscrit en table (migration 0012). La borne n'est pas l'expiration, c'est
+      la révocation. UI dans Settings > Agents extérieurs : création avec libellé,
+      clair affiché une seule fois, date de dernier usage, révocation.
+- [x] **Portes nommées** : un jeton d'agent n'ouvre ni l'API REST ni le WebSocket, et
+      un jeton de connexion n'ouvre pas `/api/mcp/`. Deux listes blanches explicites.
+- [x] **`list_projects` enrichi** : dernière activité et nombre de sessions qui
+      attendent un geste humain, sans quoi « relance-moi sur un projet oublié » n'a
+      aucune donnée pour tenir.
+- [x] **L'origine d'une consigne nomme son auteur** : avec deux cerveaux possibles,
+      relire l'historique d'une session doit dire lequel a décidé.
+- [x] **`remember` borné et attribué** : la ligne d'un agent porte la marque de son
+      jeton, le superviseur la lit comme une suggestion, et le plafond refuse la
+      préférence de trop sans rien oublier.
+- [x] **Ping de fin de tour en HTTP**, signé en HMAC SHA-256, avec son horodatage et
+      son identifiant dans le corps signé. Sans lui, un agent externe avance d'un pas
+      par tic de cron au lieu d'enchaîner.
+- [x] **La porte de validation humaine ne bouge pas** : `git commit`, `git push`,
+      `gh pr` et `glab mr` restent refusés au niveau du hook `PreToolUse`, quel que
+      soit le transport, et un test le vérifie.
+- [x] **Un jeton Git par projet** (migration 0014) : une fuite n'expose que le
+      dépôt qu'elle sert, à condition que le jeton soit lui-même restreint côté
+      provider. `project_id` NULL reste le jeton global, et le repli : aucune
+      installation existante n'a à recréer ses jetons.
+- [x] **Un projet peut être marqué « alimenté de l'extérieur »** (migration 0013) :
+      les consignes reçues sont présentées à la session comme des données et non
+      comme des instructions, et l'accès SSH « Machine du projet » est refusé tant
+      que le drapeau est posé, y compris aux sessions déjà ouvertes. L'alias reste
+      enregistré, décocher le rétablit.
+- [x] **Et elle ne s'ouvre que par un geste humain** : `allow_publish` a été retiré
+      de la surface externe. La surface sert à transmettre du texte écrit par des
+      utilisateurs de La Boutique, donc non fiable : servi en HTTP, l'outil rendait
+      la publication ouvrable par injection de prompt, pour dix ans et sans
+      périmètre. Le superviseur interne le garde. Cf.
+      [`docs/securite-sessions.md`](./docs/securite-sessions.md).
+
+Volontairement **hors périmètre**, et ce sont des choix, pas des oublis :
+
+- **Aucun plafond de dépense autonome.** Un agent qui dispatche brûle des tokens sans
+  qu'un humain regarde. La politique du projet est tranchée (*alerte uniquement,
+  jamais de blocage*) et l'alerte de budget par session reste la seule garde.
+- **Pas de file de messages durable.** Le plafond ci-dessus borne une file en mémoire :
+  un redémarrage perd les messages en attente, comme il perd les sessions actives.
+- **Pas d'autorisation fine par outil.** Un jeton donne les quatre outils servis ou
+  rien. Un jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé,
+  se branche. Ce jour-là, pas avant.
+
+### Phase 6 bis - Isoler les sessions du backend (V2)
+
+**Objectif** : qu'une session compromise ne soit plus une voisine de palier.
+
+Les points de durcissement livrés le 2026-10-30 (masque d'environnement, porte de
+publication réservée à un geste humain, jeton Git hors de portée, drapeau « source
+externe ») réduisent ce qu'une session peut atteindre. Ils ne changent pas le fait
+qu'elle **tourne dans le conteneur du backend**, sous le même utilisateur : elle voit
+le disque entier, donc les clones des autres projets, leurs transcripts et les clés
+SSH de leurs machines. L'inventaire complet est dans
+[`docs/securite-sessions.md`](./docs/securite-sessions.md).
+
+C'est structurel, et c'est la seule réponse complète. Tant qu'elle n'est pas là,
+n'héberge pas sur la même instance un projet sensible et un projet alimenté par des
+tickets publics.
+
+- [ ] **Un conteneur par session**, monté sur son seul worktree, son seul toolchain et
+      sa seule collecte. Les autres projets cessent d'être lisibles.
+- [ ] **Aucun accès à la base ni à Redis** depuis ce conteneur : la session parle au
+      backend, le backend parle à la base. Le masque d'environnement devient un filet,
+      plus la seule garde.
+- [ ] **Réseau sortant restreint** : l'API Anthropic, le provider Git du projet, et ce
+      que son toolchain réclame. Aujourd'hui une session joint n'importe quoi, et c'est
+      ce qui rend l'exfiltration plus grave que la publication.
+- [ ] **Les clés SSH des projets sortent du conteneur des sessions** : seul le backend
+      les monte, et il exécute la collecte pour elles.
+- [ ] Revoir le plafond de sessions concurrentes : un conteneur par session coûte plus
+      qu'un process.
 
 ### Phase 7 - Souveraineté complète (V2/V3)
 
@@ -255,7 +352,7 @@ Ces idées sont à intégrer au bon moment dans le phasage :
 |---|---|
 | **Nom du projet** | Eldir |
 | **Licence** | AGPL v3 (à valider définitivement) |
-| **Déploiement V1 cible** | johnserver |
+| **Déploiement V1 cible** | un VPS personnel derrière un VPN (Tailscale ou Headscale) |
 | **Mono-user vs multi-user V1** | Mono-user (multi-user en V2) |
 | **Stratégie tokens** | Alerte uniquement, jamais de blocage |
 | **LLM providers** | Claude only + Ollama local en complément |

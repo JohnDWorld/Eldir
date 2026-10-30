@@ -210,6 +210,8 @@ export interface GitCredentialRead {
   base_url: string | null;
   label: string | null;
   masked_token: string;
+  /** null = jeton global. Renseigné, le jeton ne sert que ce projet. */
+  project_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -219,6 +221,7 @@ export interface GitCredentialCreate {
   token: string;
   base_url?: string | null;
   label?: string | null;
+  project_id?: string | null;
 }
 
 // ── Remote repos (providers/{name}/repos) ──────────────────────
@@ -294,6 +297,53 @@ export interface SystemPromptRead {
 
 export interface SystemPromptWrite {
   content: string;
+  /**
+   * Le texte que l'éditeur avait sous les yeux. Le backend conditionne
+   * l'écriture dessus et répond 409 si quelqu'un a écrit entre-temps : sans
+   * lui, sauvegarder efface sans trace la préférence qu'un agent vient
+   * d'enregistrer.
+   */
+  base_content?: string;
+}
+
+// ── Mémoire des agents (préférences écrites par des agents extérieurs) ──
+export interface AgentMemoryEntry {
+  /** Nom du jeton qui a écrit la ligne : posé par Eldir, jamais lu dans le texte. */
+  agent: string;
+  text: string;
+  /** La ligne telle que stockée dans le prompt : elle désigne l'entrée pour la retirer. */
+  line: string;
+}
+
+export interface AgentMemoryRead {
+  entries: AgentMemoryEntry[];
+  /** Nombre de préférences que les agents se partagent (borne de `remember`). */
+  max_entries: number;
+  /** Longueur maximale d'une préférence, en caractères. */
+  max_length: number;
+}
+
+export interface AgentMemoryForget {
+  line: string;
+}
+
+// ── Jetons d'agent externe (Settings > Agents) ─────────────────
+export interface AgentTokenInput {
+  label: string;
+}
+
+/** Un jeton émis. Jamais le clair : Eldir ne le conserve pas. */
+export interface AgentTokenRead {
+  id: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+/** Réponse à la création, et seul endroit où le clair existe. */
+export interface AgentTokenCreated extends AgentTokenRead {
+  token: string;
 }
 
 // ── Costs (Phase 5 - Optimisation tokens) ──────────────────────

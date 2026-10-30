@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 @pytest.fixture
 async def two_projects(db_session: AsyncSession) -> list[Project]:
-    user = User(email="john@example.com", hashed_password="x")
+    user = User(email="jarl@exemple.lan", hashed_password="x")
     db_session.add(user)
     await db_session.flush()
     projects = [

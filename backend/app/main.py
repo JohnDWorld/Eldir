@@ -14,12 +14,13 @@ from app.core.bootstrap import emit_bootstrap_token_if_needed
 from app.core.config import get_settings
 from app.core.exceptions import EldirError
 from app.core.logging import configure_logging, get_logger
+from app.mcp_http import construire_app_mcp
 from app.services.singletons import init_singletons, shutdown_singletons
 from app.ws import ws_router
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     logger = get_logger("eldir.lifespan")
     logger.info("app.startup", env=get_settings().app_env)
@@ -33,7 +34,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         except Exception:
             logger.exception("singletons.init.error")
     try:
-        yield
+        # L'app MCP montée a son propre lifespan, que FastAPI ne joue pas pour
+        # une sous-app : son gestionnaire de sessions doit tourner ici, sinon
+        # toute requête vers /api/mcp/ échoue. Imbriqué DANS le try : à l'arrêt
+        # il se ferme (et coupe les appels en cours) avant les singletons que
+        # ces appels utilisent.
+        async with app.state.mcp.session_manager.run():
+            yield
     finally:
         if not get_settings().is_test:
             await shutdown_singletons()
@@ -48,6 +55,15 @@ def create_app() -> FastAPI:
         debug=settings.app_debug,
         lifespan=lifespan,
     )
+    # Un serveur MCP par application, pas un par module : son gestionnaire de
+    # sessions ne tourne qu'une fois, et chaque `create_app()` rejoue le lifespan.
+    # Conséquence : rejouer le lifespan d'UNE MÊME application (un `with
+    # TestClient(app):` répété sur le même objet, un redémarrage en place) lève
+    # `RuntimeError: StreamableHTTPSessionManager .run() can only be called once
+    # per instance`. Il faut appeler `create_app()` de nouveau, comme le font les
+    # tests de `tests/integration/test_mcp_http.py`.
+    mcp, mcp_app = construire_app_mcp()
+    app.state.mcp = mcp
 
     app.add_middleware(
         CORSMiddleware,
@@ -70,6 +86,9 @@ def create_app() -> FastAPI:
 
     app.include_router(api_router, prefix=settings.api_prefix)
     app.include_router(ws_router)
+    # Surface d'agent externe. Montée hors du routeur v1 : le transport MCP
+    # parle JSON-RPC sur SSE, pas du REST versionné.
+    app.mount("/api/mcp", mcp_app)
     return app
 
 

@@ -7,6 +7,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from '@/lib/api/client';
 import type {
+  AgentMemoryForget,
+  AgentMemoryRead,
+  AgentTokenCreated,
+  AgentTokenInput,
+  AgentTokenRead,
   ClaudeCredentialCreate,
   ClaudeCredentialRead,
   ClaudeCredentialTestResult,
@@ -76,6 +81,8 @@ export const queryKeys = {
     ['projects', projectId, 'template', 'versions'] as const,
   costsDashboard: ['costs', 'dashboard'] as const,
   costsSession: (id: string) => ['costs', 'sessions', id] as const,
+  agentTokens: ['agent-tokens'] as const,
+  agentMemory: ['supervisor', 'agent-memory'] as const,
   systemPrompts: ['system-prompts'] as const,
   systemPrompt: (slug: string) => ['system-prompts', slug] as const,
   ollamaStatus: ['ollama', 'status'] as const,
@@ -606,6 +613,7 @@ export type MissionTemplate = {
   setup_commands: string[] | null;
   collect_commands: CollectEntry[] | null;
   remote_host: string | null;
+  source_externe: boolean;
   source_preset: string | null;
   skills: TemplateSkill[];
   sub_agents: TemplateSubAgent[];
@@ -620,6 +628,7 @@ export type MissionTemplateWrite = {
   setup_commands: string[] | null;
   collect_commands: CollectEntry[] | null;
   remote_host: string | null;
+  source_externe: boolean;
 };
 
 /** Outils du repo installés sur le serveur (cf. ToolchainService). */
@@ -1164,6 +1173,9 @@ export function useUpsertSystemPrompt(slug: string) {
     onSuccess: (data) => {
       qc.setQueryData(queryKeys.systemPrompt(slug), data);
       qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+      // Les préférences des agents vivent dans un de ces prompts : une édition à
+      // la main change ce que la mémoire des agents affiche.
+      qc.invalidateQueries({ queryKey: queryKeys.agentMemory });
     },
   });
 }
@@ -1176,7 +1188,63 @@ export function useResetSystemPrompt(slug: string) {
     onSuccess: (data) => {
       qc.setQueryData(queryKeys.systemPrompt(slug), data);
       qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+      qc.invalidateQueries({ queryKey: queryKeys.agentMemory });
     },
+  });
+}
+
+// ── Mémoire des agents (Settings > Prompts) ────────────────────
+export function useAgentMemory() {
+  return useQuery({
+    queryKey: queryKeys.agentMemory,
+    queryFn: () => apiClient.get<AgentMemoryRead>('/supervisor/agent-memory'),
+  });
+}
+
+export function useForgetAgentMemory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (line: string) =>
+      apiClient.post<AgentMemoryRead, AgentMemoryForget>('/supervisor/agent-memory/forget', {
+        line,
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.agentMemory, data);
+      // Le prompt édité à côté contient la ligne retirée : sans cela, l'éditeur la
+      // garderait et un « sauvegarder » la remettrait.
+      qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
+    },
+    // Retirer une ligne déjà partie (autre onglet, agent) : on relit ce qui reste.
+    onError: () => qc.invalidateQueries({ queryKey: queryKeys.agentMemory }),
+  });
+}
+
+// ── Jetons d'agent externe (Settings > Agents) ─────────────────
+export function useAgentTokens() {
+  return useQuery({
+    queryKey: queryKeys.agentTokens,
+    queryFn: () => apiClient.get<AgentTokenRead[]>('/agent-tokens'),
+  });
+}
+
+export function useCreateAgentToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AgentTokenInput) =>
+      apiClient.post<AgentTokenCreated, AgentTokenInput>('/agent-tokens', body),
+    // Le clair ne vit que dans le composant qui l'affiche. Avec le `reset()` de
+    // l'appelant, `gcTime: 0` retire la mutation du cache dès qu'elle est
+    // terminée au lieu de lui laisser cinq minutes.
+    gcTime: 0,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.agentTokens }),
+  });
+}
+
+export function useRevokeAgentToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete<void>(`/agent-tokens/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.agentTokens }),
   });
 }
 

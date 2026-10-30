@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.worktree_service import _inject_token, slugify
+from app.services.worktree_service import slugify
 
 
 def test_slugify_basic() -> None:
@@ -16,13 +16,5 @@ def test_slugify_empty_fallback() -> None:
     assert slugify("") == "repo"
 
 
-def test_inject_token_https() -> None:
-    url = _inject_token("https://github.com/owner/repo.git", "ghp_abc")
-    assert url == "https://x-access-token:ghp_abc@github.com/owner/repo.git"
-
-
-def test_inject_token_ssh_passthrough() -> None:
-    # On ne touche pas aux URL SSH (git@github.com:...).
-    assert (
-        _inject_token("git@github.com:owner/repo.git", "ghp_abc") == "git@github.com:owner/repo.git"
-    )
+# Le jeton n'est plus injecté dans les URL : il passe par un credential helper,
+# et les tests de cette garde vivent dans `test_jeton_git.py`.

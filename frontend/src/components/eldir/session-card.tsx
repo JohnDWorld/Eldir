@@ -15,6 +15,7 @@ export interface SessionCardData {
   projectName: string;
   state: SessionState;
   summary: string | null;
+  /** Depuis la dernière activité de la session (pas depuis son ouverture). */
   age: string;
 }
 
@@ -47,7 +48,10 @@ export function SessionCard({ data, selected, onClick }: SessionCardProps): JSX.
           {data.summary}
         </p>
       )}
-      <div className="mt-2.5 flex items-center gap-1 font-mono text-2xs text-eldir-gray">
+      <div
+        className="mt-2.5 flex items-center gap-1 font-mono text-2xs text-eldir-gray"
+        title="Dernière activité"
+      >
         <Clock size={11} aria-hidden="true" />
         <span>{data.age}</span>
       </div>

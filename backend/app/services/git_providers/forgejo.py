@@ -17,11 +17,14 @@ from typing import Any
 import httpx
 
 from app.core.exceptions import GitProviderError
+from app.core.logging import get_logger, journaliser_le_refus
 from app.services.git_providers.base import (
     GitProviderInterface,
     PullRequestRef,
     RepoRef,
 )
+
+logger = get_logger(__name__)
 
 DEFAULT_TIMEOUT = 15.0
 DEFAULT_PAGE_SIZE = 50
@@ -73,6 +76,14 @@ class ForgejoProvider(GitProviderInterface):
             response = await client.request(method, path, params=params, json=json)
         if response.is_success:
             return response
+        journaliser_le_refus(
+            logger,
+            "git_provider.refuse",
+            provider=self.name,
+            methode=method,
+            chemin=path,
+            status=response.status_code,
+        )
         try:
             body = response.json()
         except ValueError:

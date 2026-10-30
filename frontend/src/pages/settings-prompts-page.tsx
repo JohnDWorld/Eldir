@@ -7,22 +7,31 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
+import { ApiError } from '@/lib/api/client';
 import {
   useResetSystemPrompt,
   useSystemPrompts,
   useUpsertSystemPrompt,
 } from '@/lib/api/queries';
 import { BackLink } from '@/components/eldir/back-link';
+import { AgentMemoryPanel } from '@/features/settings/agent-memory';
+import { SUPERVISOR_PREFS_SLUG } from '@/lib/constants';
 import type { SystemPromptRead } from '@/lib/types/api';
 import { cn } from '@/lib/utils';
 
 export function SettingsPromptsPage(): JSX.Element {
   const prompts = useSystemPrompts();
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  // `?prompt=<slug>` ouvre directement un prompt (la page des agents renvoie vers
+  // celui des préférences).
+  const [searchParams] = useSearchParams();
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(searchParams.get('prompt'));
 
   useEffect(() => {
-    if (selectedSlug === null && prompts.data && prompts.data.length > 0) {
+    // Un slug absent de la liste (lien périmé) vaut « rien de choisi ».
+    const connu = prompts.data?.some((p) => p.slug === selectedSlug) ?? false;
+    if (!connu && prompts.data && prompts.data.length > 0) {
       setSelectedSlug(prompts.data[0]?.slug ?? null);
     }
   }, [prompts.data, selectedSlug]);
@@ -123,10 +132,13 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
   const onSave = async () => {
     setStatus(null);
     try {
-      await upsert.mutateAsync({ content });
+      // `base_content` : le texte chargé, pas celui de l'éditeur. Un agent peut
+      // avoir écrit une préférence ici pendant que le brouillon était ouvert ;
+      // le backend refuse alors en 409 plutôt que de l'effacer en silence.
+      await upsert.mutateAsync({ content, base_content: prompt.content });
       setStatus('Sauvegardé.');
-    } catch {
-      setStatus('Erreur lors de la sauvegarde.');
+    } catch (e) {
+      setStatus(e instanceof ApiError ? e.message : 'Erreur lors de la sauvegarde.');
     }
   };
 
@@ -162,7 +174,7 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
               </p>
             )}
             <div className="mt-2 font-mono text-2xs text-eldir-gray">
-              slug : <code>{prompt.slug}</code>
+              slug : <code className="break-all">{prompt.slug}</code>
             </div>
           </div>
           <div className="flex flex-col items-end gap-1 font-mono text-2xs">
@@ -179,6 +191,8 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
           </div>
         </div>
       </header>
+
+      {prompt.slug === SUPERVISOR_PREFS_SLUG && <AgentMemoryPanel verrouille={dirty} />}
 
       <label className="block">
         <span className="eldir-caps mb-1 block">Contenu du prompt</span>

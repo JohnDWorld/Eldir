@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,20 +37,50 @@ class GitCredentialService:
         return cred
 
     async def get_active(
-        self, db: AsyncSession, user_id: str, provider: str
+        self,
+        db: AsyncSession,
+        user_id: str,
+        provider: str,
+        project_id: str | None = None,
     ) -> GitCredential | None:
-        result = await db.execute(
-            select(GitCredential)
-            .where(
+        """Le jeton à utiliser : celui du projet s'il existe, sinon le global.
+
+        Un jeton par projet borne ce qu'une fuite expose, à condition qu'il soit
+        lui-même restreint côté provider (PAT fine-grained GitHub, jeton par
+        dépôt Forgejo). Le repli sur le jeton global garde l'installation
+        existante fonctionnelle : personne n'a à recréer ses jetons pour que la
+        synchronisation reparte.
+        """
+        if project_id is not None:
+            propre = await self._premier(
+                db,
                 GitCredential.user_id == user_id,
                 GitCredential.provider == provider,
+                GitCredential.project_id == project_id,
             )
-            .order_by(GitCredential.created_at.desc())
+            if propre is not None:
+                return propre
+        return await self._premier(
+            db,
+            GitCredential.user_id == user_id,
+            GitCredential.provider == provider,
+            GitCredential.project_id.is_(None),
+        )
+
+    async def _premier(self, db: AsyncSession, *conditions: Any) -> GitCredential | None:
+        result = await db.execute(
+            select(GitCredential).where(*conditions).order_by(GitCredential.created_at.desc())
         )
         return result.scalars().first()
 
-    async def get_active_token(self, db: AsyncSession, user_id: str, provider: str) -> str | None:
-        cred = await self.get_active(db, user_id, provider)
+    async def get_active_token(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        provider: str,
+        project_id: str | None = None,
+    ) -> str | None:
+        cred = await self.get_active(db, user_id, provider, project_id)
         if cred is None:
             return None
         return decrypt_secret(cred.encrypted_token)
@@ -64,14 +96,24 @@ class GitCredentialService:
         if payload.provider == "forgejo" and not payload.base_url:
             raise GitProviderError("Forgejo nécessite une base_url.")
 
-        # Remplace l'existant du même provider (mono-user V1).
-        existing = await self.get_active(db, user_id, payload.provider)
+        # Remplace l'existant de même portée : un jeton de projet ne chasse
+        # pas le jeton global, et inversement. Sans cette condition, poser le
+        # jeton d'un projet supprimait celui qui sert tous les autres.
+        existing = await self._premier(
+            db,
+            GitCredential.user_id == user_id,
+            GitCredential.provider == payload.provider,
+            GitCredential.project_id == payload.project_id
+            if payload.project_id is not None
+            else GitCredential.project_id.is_(None),
+        )
         if existing is not None:
             await db.delete(existing)
             await db.flush()
 
         cred = GitCredential(
             user_id=user_id,
+            project_id=payload.project_id,
             provider=payload.provider,
             base_url=str(payload.base_url) if payload.base_url else None,
             label=payload.label,

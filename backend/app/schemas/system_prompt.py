@@ -18,3 +18,9 @@ class SystemPromptRead(EldirModel):
 
 class SystemPromptWrite(EldirModel):
     content: str = Field(min_length=1)
+    # Le texte que l'éditeur avait sous les yeux. Fourni, l'écriture est
+    # conditionnée dessus et refusée en 409 si quelqu'un a écrit entre-temps :
+    # sans ça, une sauvegarde manuelle efface sans trace la préférence qu'un
+    # agent vient d'enregistrer, alors qu'il a reçu « Noté ». Optionnel, pour
+    # qu'un appel en ligne de commande puisse encore écraser volontairement.
+    base_content: str | None = None

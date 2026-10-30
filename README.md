@@ -41,6 +41,7 @@ Eldir est un **dashboard web self-hosted** qui te permet de :
 - 🌐 Travailler avec **GitHub ET Forgejo** dans la même vue unifiée
 - 📲 Tout piloter depuis ton **téléphone** (PWA installable)
 - 💰 Voir les coûts en tokens **en temps réel**
+- 🔌 **Brancher ton propre agent** sur Eldir en MCP, derrière un jeton révocable ([doc](./docs/agent-externe.md))
 - 🏠 Tout héberger **sur ton serveur**, tes données restent chez toi
 
 ## ⚖️ Eldir vs Claude Cowork
@@ -137,9 +138,9 @@ Développement phasé. Statut à jour dans [ROADMAP.md](./ROADMAP.md).
 - ✅ **Phase 3** - Multi-provider Git (GitHub + Forgejo)
 - ✅ **Phase 4** - Mission Templates & Skills
 - ✅ **Phase 5** - Optimisation tokens (dashboard de coûts, prompt caching, mode économe)
-- ✅ **Phase 6** - Intégration Ollama (mode "données sensibles" — masquage/anonymisation/résumé en local)
+- ✅ **Phase 6** - Intégration Ollama (mode "données sensibles" : masquage/anonymisation/résumé en local)
 - ✅ **Superviseur** - une seule conversation qui pilote toutes les sessions, comptes rendus `<cr>`, sync auto des repos
-- ⏳ **Phase 7** - Souveraineté complète (Headscale + Forgejo intégrés) — V2
+- ⏳ **Phase 7** - Souveraineté complète (Headscale + Forgejo intégrés), V2
 
 [→ Roadmap détaillée](./ROADMAP.md)
 
@@ -167,6 +168,7 @@ Eldir est un projet open-source destiné à la communauté des devs qui veulent 
 - 🐛 [Signaler un bug](https://github.com/JohnDWorld/Eldir/issues/new)
 - 💡 [Proposer une feature](https://github.com/JohnDWorld/Eldir/issues/new)
 - 💬 [Discussions](https://github.com/JohnDWorld/Eldir/discussions)
+- 🔒 [Signaler une faille](./SECURITY.md) (jamais dans une issue publique)
 
 ## 📜 Licence
 

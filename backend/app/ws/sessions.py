@@ -1,8 +1,9 @@
 """WebSocket /ws/sessions/{session_id} - stream live des events.
 
 Auth via query param `?token=<jwt>` (les WS browser ne supportent pas les
-headers Authorization personnalisés sans hacks). Le token est validé avant
-de joindre le pubsub.
+headers Authorization personnalisés sans hacks). La connexion est acceptée
+puis le token validé avant de joindre le pubsub ; un refus ferme en 1008 avec
+un motif lisible.
 """
 
 from __future__ import annotations
@@ -14,12 +15,11 @@ from sqlalchemy import select
 
 from app.core.exceptions import AuthenticationError
 from app.core.logging import get_logger
-from app.core.security import decode_access_token
+from app.core.security import decode_session_token
 from app.db.models import Session
 from app.db.session import async_session_factory
 from app.services.event_bus import EventBus
 from app.services.singletons import get_redis_client
-from app.services.ws_manager import ws_manager
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -31,15 +31,21 @@ async def session_stream(
     session_id: str,
     token: str = Query(..., description="JWT access token"),
 ) -> None:
+    # 0. Accepter d'abord : un `close` émis avant `accept` devient, côté serveur
+    #    ASGI, un refus HTTP 403 sans corps. Le client ne recevrait ni code ni
+    #    motif, et ne saurait pas pourquoi on lui ferme la porte.
+    await ws.accept()
+
     # 1. Auth
     try:
-        payload = decode_access_token(token)
-    except AuthenticationError:
-        await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        payload = decode_session_token(token)
+    except AuthenticationError as exc:
+        # Le motif dit pourquoi : un jeton d'agent ne s'ouvre pas ici.
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason=exc.message)
         return
     user_id = payload.get("sub")
     if not isinstance(user_id, str):
-        await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason="Jeton sans sujet valide.")
         return
 
     # 2. Autorisation : la session appartient bien à cet user
@@ -48,18 +54,22 @@ async def session_stream(
             select(Session).where(Session.id == session_id, Session.user_id == user_id)
         )
         if result.scalar_one_or_none() is None:
-            await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+            # Même motif pour « n'existe pas » et « n'est pas à toi » : on ne
+            # renseigne pas sur l'existence d'une session qu'on ne possède pas.
+            await ws.close(code=status.WS_1008_POLICY_VIOLATION, reason="Session introuvable.")
             return
 
     # 3. Branchement pubsub
     try:
         redis = get_redis_client()
     except RuntimeError:
-        await ws.close(code=status.WS_1011_INTERNAL_ERROR)
+        await ws.close(
+            code=status.WS_1011_INTERNAL_ERROR, reason="Le bus d'événements est indisponible."
+        )
         return
 
     bus = EventBus(redis)
-    await ws_manager.connect(session_id, ws)
+    logger.info("ws.session.connect", session_id=session_id)
     relay_task = asyncio.create_task(_relay(bus, session_id, ws))
     try:
         # Keepalive : on lit les pings du client (sinon WebSocketDisconnect)
@@ -69,7 +79,6 @@ async def session_stream(
         logger.info("ws.session.disconnect", session_id=session_id)
     finally:
         relay_task.cancel()
-        ws_manager.disconnect(session_id, ws)
 
 
 async def _relay(bus: EventBus, session_id: str, ws: WebSocket) -> None:

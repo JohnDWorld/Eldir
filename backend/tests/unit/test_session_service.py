@@ -98,8 +98,13 @@ class _FakeManager(SessionManager):
         self._sessions[session_id] = type("Active", (), {"session_id": session_id})()  # type: ignore[misc]
         return self._sessions[session_id]
 
-    async def send_message(self, session_id: str, content: str) -> None:  # type: ignore[override]
-        self.last_message = (session_id, content)
+    async def send_message(  # type: ignore[override]
+        self, session_id: str, content: str, *, origin: str, place_reservee: bool = False
+    ) -> None:
+        self.last_message = (session_id, content, origin)
+
+    def reserver_place_file(self, _session_id: str) -> None:
+        return None
 
     async def stop(self, session_id: str) -> None:  # type: ignore[override]
         self._sessions.pop(session_id, None)
@@ -202,6 +207,32 @@ async def test_send_message_starts_if_not_active(
         content="hello",
     )
     assert service._manager.is_active(session.id) is True
+    # La route de John : son message est signé de lui, pas d'Eldir.
+    assert service._manager.last_message == (session.id, "hello", "user")  # type: ignore[attr-defined]
+
+
+async def test_send_message_en_fond_signe_le_message_de_john(
+    db_session: AsyncSession,
+    admin: User,
+    project: Project,
+    service: SessionService,
+) -> None:
+    """Le chemin de `POST /sessions/{id}/messages`, celui de l'interface."""
+    await claude_credential_service.create(
+        db_session,
+        admin.id,
+        ClaudeCredentialCreate(kind="oauth_token", value="sk-ant-oat01-test"),
+    )
+    await db_session.commit()
+    session = await service.create_and_start(db_session, user_id=admin.id, project_id=project.id)
+
+    await service.send_message_en_fond(
+        db_session, user_id=admin.id, session_id=session.id, content="hello"
+    )
+    # Le tour part en tâche de fond : on l'attend.
+    await asyncio.gather(*service._tasks)
+
+    assert service._manager.last_message == (session.id, "hello", "user")  # type: ignore[attr-defined]
 
 
 async def test_resume_repart_de_zero_si_le_transcript_a_disparu(

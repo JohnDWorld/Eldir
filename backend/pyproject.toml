@@ -22,6 +22,9 @@ dependencies = [
     "httpx>=0.27.2",
     "websockets>=13.1",
     "claude-agent-sdk>=0.1.0",
+    # Importé directement par `app/mcp_http.py` (surface MCP HTTP) : ne pas
+    # dépendre d'un transitif de claude-agent-sdk, qui peut le changer sans prévenir.
+    "mcp>=1.27.1",
     "cryptography>=43.0.0",
     "structlog>=24.4.0",
     "python-multipart>=0.0.12",
@@ -81,7 +84,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106", "S108", "PLR2004"]
+# S603/S607 : certains tests lancent un vrai `git` comme témoin, avec des
+# arguments écrits dans le test lui-même. Rien d'extérieur n'entre dans ces
+# commandes, et un double de `git` ne prouverait pas ce qu'ils vérifient (ce
+# que git écrit vraiment dans `.git/config`).
+"tests/**" = ["S105", "S106", "S108", "PLR2004", "S603", "S607"]
 "alembic/**" = ["E501", "N806"]
 # Singletons de process : le `global` est le pattern, pas un accident.
 "app/services/singletons.py" = ["PLW0603"]

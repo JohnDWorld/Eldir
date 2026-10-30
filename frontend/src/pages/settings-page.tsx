@@ -1,13 +1,14 @@
 /**
  * SettingsPage - hub d'entrée pour les sous-sections de réglages.
  *
- * Une liste, pas une grille de cartes : quatre destinations et un
+ * Une liste, pas une grille de cartes : cinq destinations et un
  * interrupteur, on les parcourt de haut en bas. Chaque ligne dit ce qu'elle
  * règle, sans surtitre au-dessus du titre.
  */
 
 import {
   Bell,
+  Bot,
   Check,
   ChevronRight,
   FileText,
@@ -100,6 +101,12 @@ export function SettingsPage(): JSX.Element {
           title="Prompts Eldir"
           description="Les prompts qu'Eldir envoie à Claude pour ses tâches internes, comme la génération de template. Réinitialisables."
           icon={<FileText size={17} aria-hidden="true" />}
+        />
+        <SettingsRow
+          to="/settings/agents"
+          title="Agents extérieurs"
+          description="Les jetons qui laissent un autre assistant piloter Eldir en MCP. Chacun se révoque d'un geste."
+          icon={<Bot size={17} aria-hidden="true" />}
         />
         <SettingsRow
           to="/settings/ollama"

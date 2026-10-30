@@ -209,7 +209,9 @@ class ProjectService:
             )
 
         repo_path = Path(project.workspace_path)
-        token = await git_credential_service.get_active_token(db, user_id, project.provider)
+        token = await git_credential_service.get_active_token(
+            db, user_id, project.provider, project.id
+        )
         default_branch = project.default_branch
         upstream_ref = f"origin/{default_branch}"
 

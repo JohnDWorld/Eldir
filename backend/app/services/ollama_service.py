@@ -21,7 +21,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.exceptions import EldirError
-from app.core.logging import get_logger
+from app.core.logging import get_logger, journaliser_le_refus
 
 logger = get_logger(__name__)
 
@@ -146,6 +146,13 @@ class OllamaService:
         async with httpx.AsyncClient(base_url=self._base_url(), timeout=self._timeout()) as client:
             response = await client.get("/api/tags")
         if not response.is_success:
+            journaliser_le_refus(
+                logger,
+                "ollama.refuse",
+                methode="GET",
+                chemin="/api/tags",
+                status=response.status_code,
+            )
             raise EldirError(f"Ollama /api/tags a retourné {response.status_code}.")
         data = response.json()
         models = data.get("models", []) if isinstance(data, dict) else []
@@ -182,6 +189,13 @@ class OllamaService:
             response = await client.post("/api/generate", json=body)
 
         if not response.is_success:
+            journaliser_le_refus(
+                logger,
+                "ollama.refuse",
+                methode="POST",
+                chemin="/api/generate",
+                status=response.status_code,
+            )
             raise EldirError(
                 f"Ollama /api/generate a retourné {response.status_code} : {response.text[:200]}"
             )

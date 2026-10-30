@@ -4,6 +4,41 @@
  */
 
 export interface paths {
+    "/api/v1/agent-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Agent Tokens */
+        get: operations["list_agent_tokens_api_v1_agent_tokens_get"];
+        put?: never;
+        /** Create Agent Token */
+        post: operations["create_agent_token_api_v1_agent_tokens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Agent Token */
+        delete: operations["revoke_agent_token_api_v1_agent_tokens__token_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/github/oauth/callback": {
         parameters: {
             query?: never;
@@ -977,6 +1012,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/supervisor/agent-memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Agent Memory
+         * @description Les préférences que des agents extérieurs ont écrites dans le prompt du superviseur.
+         */
+        get: operations["read_agent_memory_api_v1_supervisor_agent_memory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/supervisor/agent-memory/forget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forget Agent Memory
+         * @description Retire une préférence d'agent (désignée par sa ligne exacte) et rend la mémoire restante.
+         */
+        post: operations["forget_agent_memory_api_v1_supervisor_agent_memory_forget_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/supervisor/session": {
         parameters: {
             query?: never;
@@ -1087,6 +1162,68 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AgentMemoryEntry */
+        AgentMemoryEntry: {
+            /** Agent */
+            agent: string;
+            /** Line */
+            line: string;
+            /** Text */
+            text: string;
+        };
+        /** AgentMemoryForget */
+        AgentMemoryForget: {
+            /** Line */
+            line: string;
+        };
+        /** AgentMemoryRead */
+        AgentMemoryRead: {
+            /** Entries */
+            entries: components["schemas"]["AgentMemoryEntry"][];
+            /** Max Entries */
+            max_entries: number;
+            /** Max Length */
+            max_length: number;
+        };
+        /** AgentTokenCreated */
+        AgentTokenCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Token */
+            token: string;
+        };
+        /** AgentTokenInput */
+        AgentTokenInput: {
+            /** Label */
+            label: string;
+        };
+        /** AgentTokenRead */
+        AgentTokenRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Revoked At */
+            revoked_at: string | null;
+        };
         /** BatchItemRead */
         BatchItemRead: {
             /** Detail */
@@ -1290,6 +1427,8 @@ export interface components {
             base_url?: string | null;
             /** Label */
             label?: string | null;
+            /** Project Id */
+            project_id?: string | null;
             /**
              * Provider
              * @enum {string}
@@ -1313,6 +1452,8 @@ export interface components {
             label: string | null;
             /** Masked Token */
             masked_token: string;
+            /** Project Id */
+            project_id: string | null;
             /**
              * Provider
              * @enum {string}
@@ -1431,6 +1572,8 @@ export interface components {
              * @default []
              */
             skills: components["schemas"]["TemplateSkillRead"][];
+            /** Source Externe */
+            source_externe: boolean;
             /** Source Preset */
             source_preset: string | null;
             /**
@@ -1464,6 +1607,11 @@ export interface components {
             remote_host?: string | null;
             /** Setup Commands */
             setup_commands?: string[] | null;
+            /**
+             * Source Externe
+             * @default false
+             */
+            source_externe: boolean;
             /** System Prompt */
             system_prompt?: string | null;
         };
@@ -1897,6 +2045,8 @@ export interface components {
         };
         /** SystemPromptWrite */
         SystemPromptWrite: {
+            /** Base Content */
+            base_content?: string | null;
             /** Content */
             content: string;
         };
@@ -2194,6 +2344,12 @@ export interface components {
     headers: never;
     pathItems: never;
 }
+export type SchemaAgentMemoryEntry = components['schemas']['AgentMemoryEntry'];
+export type SchemaAgentMemoryForget = components['schemas']['AgentMemoryForget'];
+export type SchemaAgentMemoryRead = components['schemas']['AgentMemoryRead'];
+export type SchemaAgentTokenCreated = components['schemas']['AgentTokenCreated'];
+export type SchemaAgentTokenInput = components['schemas']['AgentTokenInput'];
+export type SchemaAgentTokenRead = components['schemas']['AgentTokenRead'];
 export type SchemaBatchItemRead = components['schemas']['BatchItemRead'];
 export type SchemaBatchStateRead = components['schemas']['BatchStateRead'];
 export type SchemaBootstrapClaudeCredentialIn = components['schemas']['BootstrapClaudeCredentialIn'];
@@ -2268,6 +2424,103 @@ export type SchemaUserRead = components['schemas']['UserRead'];
 export type SchemaValidationError = components['schemas']['ValidationError'];
 export type $defs = Record<string, never>;
 export interface operations {
+    list_agent_tokens_api_v1_agent_tokens_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTokenRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_agent_token_api_v1_agent_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentTokenInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTokenCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_agent_token_api_v1_agent_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     oauth_callback_api_v1_auth_github_oauth_callback_get: {
         parameters: {
             query?: {
@@ -4540,6 +4793,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupStatusResponse"];
+                };
+            };
+        };
+    };
+    read_agent_memory_api_v1_supervisor_agent_memory_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMemoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_agent_memory_api_v1_supervisor_agent_memory_forget_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentMemoryForget"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMemoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

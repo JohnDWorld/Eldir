@@ -51,7 +51,7 @@ async def upsert_prompt(
     user_id: CurrentUserId,
     db: DbDep,
 ) -> SystemPromptRead:
-    item = await system_prompt_service.upsert(db, slug, payload.content)
+    item = await system_prompt_service.upsert(db, slug, payload.content, lu=payload.base_content)
     await db.commit()
     return _to_schema(item)
 

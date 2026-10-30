@@ -37,7 +37,7 @@ Eldir est un projet open-source destiné à durer et à fédérer une communaut�
 │  - SessionManager (orchestre les agents)    │
 │  - GitProviderInterface (GitHub|Forgejo)    │
 │  - WorktreeService (isole les repos)        │
-│  - WebSocketManager (streaming temps réel)  │
+│  - EventBus Redis (streaming temps réel)    │
 └──────────────┬──────────────────────────────┘
                │
        ┌───────┴────────┐

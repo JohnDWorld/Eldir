@@ -10,6 +10,7 @@ import { OpsHomePage } from '@/pages/ops-home-page';
 import { ProjectsPage } from '@/pages/projects-page';
 import { ProjectTemplatePage } from '@/pages/project-template-page';
 import { SessionPage } from '@/pages/session-page';
+import { SettingsAgentsPage } from '@/pages/settings-agents-page';
 import { SettingsClaudePage } from '@/pages/settings-claude-page';
 import { SettingsGitPage } from '@/pages/settings-git-page';
 import { SettingsOllamaPage } from '@/pages/settings-ollama-page';
@@ -54,6 +55,7 @@ export function App(): JSX.Element {
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
             <Route path="/costs" element={<CostsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/agents" element={<SettingsAgentsPage />} />
             <Route path="/settings/claude" element={<SettingsClaudePage />} />
             <Route path="/settings/git" element={<SettingsGitPage />} />
             <Route path="/settings/prompts" element={<SettingsPromptsPage />} />

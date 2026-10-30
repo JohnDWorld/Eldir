@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.core.child_report import extract_cr, state_after_turn
-from app.core.config import get_settings
+from app.core.config import env_a_masquer_pour_cli, get_settings
 from app.core.constants import (
     EVENT_TYPE_ERROR,
     EVENT_TYPE_STATE,
@@ -33,14 +33,15 @@ from app.core.constants import (
     EVENT_TYPE_TOOL_USE,
     EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
-    MESSAGE_ORIGIN_USER,
     SESSION_CONNECT_TIMEOUT_S,
     SESSION_DISCONNECT_TIMEOUT_S,
     SESSION_STATE_IDLE,
     SESSION_STATE_THINKING,
     SESSION_STATE_TOOL_USE,
+    STOP_REASON_TURN_COMPLETE,
 )
 from app.core.exceptions import (
+    SessionAlreadyStartingError,
     SessionLimitError,
     SessionNotFoundError,
     SessionQueueFullError,
@@ -55,6 +56,11 @@ if TYPE_CHECKING:
     from claude_agent_sdk import ClaudeSDKClient
 
 logger = get_logger(__name__)
+
+# Ce que l'UI et les abonnés lisent quand le flux du CLI se ferme sans résultat.
+MESSAGE_FLUX_SANS_RESULTAT = (
+    "Le flux du CLI s'est fermé sans résultat : le tour n'est pas allé au bout."
+)
 
 # ── Porte de validation humaine ─────────────────────────────────
 # Les sessions tournent en `bypassPermissions` (pas de TTY côté serveur),
@@ -277,6 +283,9 @@ class SessionManager:
 
     def __init__(self, event_bus: EventBus) -> None:
         self._sessions: dict[str, ActiveSession] = {}
+        # Les sessions dont le client SDK est en cours de connexion : elles ne
+        # sont pas encore dans `_sessions` et un second démarrage les doublerait.
+        self._en_demarrage: set[str] = set()
         self._bus = event_bus
         # Callbacks branchés par l'API au démarrage : (session_id, event_type, data)
         self._on_event_persist: list = []
@@ -296,6 +305,17 @@ class SessionManager:
 
     def is_active(self, session_id: str) -> bool:
         return session_id in self._sessions
+
+    def cr_du_tour(self, session_id: str) -> str | None:
+        """Le compte rendu `<cr>` du tour en cours (ou qui vient de finir), ou `None`.
+
+        Remis à `None` au début de chaque tour : un tour qui n'émet aucun bloc `<cr>`
+        n'a pas de compte rendu, et ce n'est pas celui du tour d'avant. La colonne
+        `summary` d'une session, elle, garde le dernier compte rendu écrit, quel que soit
+        le tour qui l'a écrit.
+        """
+        active = self._sessions.get(session_id)
+        return active.last_cr if active is not None else None
 
     def register_persist_callback(self, callback) -> None:  # type: ignore[no-untyped-def]
         """Le service Session enregistre un callback pour persister les events en DB."""
@@ -421,6 +441,12 @@ class SessionManager:
         options_kwargs: dict[str, Any] = {
             "cwd": cwd,
             "stderr": _on_cli_stderr,
+            # Le SDK transmet l'environnement du backend en entier : ce masque
+            # retire les secrets d'Eldir de ce que la session peut lire. Cf.
+            # `env_a_masquer_pour_cli` - sans lui, `JWT_SECRET` suffit à une
+            # session pour se forger un jeton de connexion et s'autoriser la
+            # publication sans passer par le hook.
+            "env": env_a_masquer_pour_cli(),
             # Pas de TTY côté serveur → le mode "default" bloque toute action
             # qui demande approbation. Chaque session vit dans son worktree
             # isolé et l'UI Eldir streame chaque tool_use en temps réel, donc
@@ -445,9 +471,21 @@ class SessionManager:
             )
         )
 
-        options = ClaudeAgentOptions(**options_kwargs)
-        client = ClaudeSDKClient(options=options)
+        # Garde de ré-entrée. Tout ce qui précède est synchrone : le `connect`
+        # ci-dessous est le seul `await` avant que la session entre dans le
+        # pool, donc c'est là que deux démarrages concurrents se croisent. Sans
+        # cette garde ils montent deux clients, `self._sessions` n'en garde
+        # qu'un, et il reste un processus orphelin, un compteur de sessions
+        # actives faux et deux tours concurrents dans le même arbre de travail.
+        if session_id in self._sessions or session_id in self._en_demarrage:
+            raise SessionAlreadyStartingError(
+                f"La session {session_id} démarre déjà ou tourne déjà. "
+                "Attends la fin de son démarrage avant de lui parler."
+            )
+        self._en_demarrage.add(session_id)
         try:
+            options = ClaudeAgentOptions(**options_kwargs)
+            client = ClaudeSDKClient(options=options)
             await asyncio.wait_for(client.connect(), timeout=SESSION_CONNECT_TIMEOUT_S)
         except TimeoutError as exc:
             # Vu en production : le CLI démarre, reste en attente, et la
@@ -470,6 +508,11 @@ class SessionManager:
                 f"Démarrage de session interrompu après "
                 f"{SESSION_CONNECT_TIMEOUT_S}s (voir les logs `session.cli.stderr`)."
             ) from exc
+        finally:
+            # Retiré quoi qu'il arrive : un marqueur qui fuit sur un démarrage
+            # tombé interdirait toute reprise de cette session jusqu'au
+            # redémarrage. Aucun `await` entre ici et l'inscription au pool.
+            self._en_demarrage.discard(session_id)
         active.client = client
 
         self._sessions[session_id] = active
@@ -497,16 +540,21 @@ class SessionManager:
         session_id: str,
         content: str,
         *,
-        origin: str = MESSAGE_ORIGIN_USER,
+        origin: str,
         place_reservee: bool = False,
     ) -> None:
         """Envoie un message à la session.
 
-        `origin` dit qui parle : John (`user`) ou Eldir lui-même (`eldir`,
-        pour une consigne dispatchée ou un ping de fin de tour). Pour Claude
+        `origin` dit qui parle : John (`user`), Eldir lui-même (`eldir`, pour
+        une consigne dispatchée ou un ping de fin de tour) ou un agent extérieur
+        (`agent:<libellé de son jeton>`, cf. `origine_de_dispatch`). Pour Claude
         c'est le même message, mais l'UI doit pouvoir les distinguer : afficher
         un message d'Eldir comme s'il venait de John est un mensonge sur qui a
         demandé quoi.
+
+        `origin` est obligatoire, sans valeur par défaut : un défaut `user`
+        signerait « John » tout appel qui oublie de dire qui parle, soit le
+        mensonge que ce champ existe pour empêcher. Un oubli est une erreur.
         """
         active = self.get(session_id)
         if active.client is None:
@@ -530,6 +578,21 @@ class SessionManager:
                 await self._publish_state(session_id, state_after_turn(active.last_cr))
         finally:
             active.rendre_place()
+
+    def ferme_l_acces_serveur(self, session_id: str) -> None:
+        """Retire à une session active l'alias SSH qu'elle avait le droit d'atteindre.
+
+        Appelé quand un projet passe en source externe : le drapeau doit
+        refermer la porte des sessions déjà lancées, sinon il ne protège que
+        les sessions futures et laisse ouvertes exactement celles qui
+        tournaient quand John a compris qu'il fallait le cocher.
+
+        Sans effet si la session dort : son `remote_host` est aussi mis à NULL
+        en base, donc son prochain démarrage repart sans accès.
+        """
+        active = self._sessions.get(session_id)
+        if active is not None:
+            active.remote_host = None
 
     def set_publish_allowed(self, session_id: str, allowed: bool) -> None:
         """Autorise (ou retire) la publication pour une session active.
@@ -576,6 +639,10 @@ class SessionManager:
         )
 
         sdk_session_id_captured = active.sdk_session_id
+        # Un tour finit par un résultat, une erreur ou un arrêt. Un flux qui se ferme sans
+        # aucun des trois (le CLI quitte proprement en plein tour) ne publierait rien :
+        # le tour aurait fini sans que personne le sache.
+        resultat_vu = False
 
         try:
             async for message in active.client.receive_response():
@@ -602,42 +669,8 @@ class SessionManager:
                             await self._publish_state(active.session_id, SESSION_STATE_TOOL_USE)
 
                 elif isinstance(message, ResultMessage):
-                    # Capture usage / coût du tour avant de signaler la fin.
-                    usage = getattr(message, "usage", None) or {}
-                    model_usage = getattr(message, "model_usage", None) or {}
-                    primary_model: str | None = None
-                    if isinstance(model_usage, dict) and model_usage:
-                        # Le SDK renvoie {"claude-opus-5": {...}} : on prend
-                        # la clé qui totalise le plus de tokens output.
-                        try:
-                            primary_model = max(
-                                model_usage.items(),
-                                key=lambda kv: int((kv[1] or {}).get("output_tokens", 0)),
-                            )[0]
-                        except (TypeError, ValueError):  # pragma: no cover
-                            primary_model = next(iter(model_usage.keys()), None)
-                    await self._publish(
-                        active.session_id,
-                        EVENT_TYPE_USAGE,
-                        {
-                            "input_tokens": int(usage.get("input_tokens", 0) or 0),
-                            "output_tokens": int(usage.get("output_tokens", 0) or 0),
-                            "cache_read_tokens": int(usage.get("cache_read_input_tokens", 0) or 0),
-                            "cache_write_tokens": int(
-                                usage.get("cache_creation_input_tokens", 0) or 0
-                            ),
-                            "cost_usd": float(getattr(message, "total_cost_usd", 0.0) or 0.0),
-                            "duration_ms": int(getattr(message, "duration_ms", 0) or 0),
-                            "num_turns": int(getattr(message, "num_turns", 1) or 1),
-                            "model": primary_model,
-                        },
-                    )
-                    # Fin de tour
-                    await self._publish(
-                        active.session_id,
-                        EVENT_TYPE_STOP,
-                        {"reason": "turn_complete"},
-                    )
+                    resultat_vu = True
+                    await self._publier_le_resultat(active, message)
                     break
 
         except Exception as exc:
@@ -647,6 +680,51 @@ class SessionManager:
                 EVENT_TYPE_ERROR,
                 {"message": str(exc), "type": type(exc).__name__},
             )
+        else:
+            if not resultat_vu:
+                logger.warning("session.consume.sans_resultat", session_id=active.session_id)
+                await self._publish(
+                    active.session_id,
+                    EVENT_TYPE_ERROR,
+                    {"message": MESSAGE_FLUX_SANS_RESULTAT, "type": "StreamEndedWithoutResult"},
+                )
+
+    async def _publier_le_resultat(self, active: ActiveSession, message: Any) -> None:
+        """Publie l'usage du tour, puis son STOP `turn_complete` : le tour est allé au bout."""
+        # Capture usage / coût du tour avant de signaler la fin.
+        usage = getattr(message, "usage", None) or {}
+        model_usage = getattr(message, "model_usage", None) or {}
+        primary_model: str | None = None
+        if isinstance(model_usage, dict) and model_usage:
+            # Le SDK renvoie {"claude-opus-5": {...}} : on prend
+            # la clé qui totalise le plus de tokens output.
+            try:
+                primary_model = max(
+                    model_usage.items(),
+                    key=lambda kv: int((kv[1] or {}).get("output_tokens", 0)),
+                )[0]
+            except (TypeError, ValueError):  # pragma: no cover
+                primary_model = next(iter(model_usage.keys()), None)
+        await self._publish(
+            active.session_id,
+            EVENT_TYPE_USAGE,
+            {
+                "input_tokens": int(usage.get("input_tokens", 0) or 0),
+                "output_tokens": int(usage.get("output_tokens", 0) or 0),
+                "cache_read_tokens": int(usage.get("cache_read_input_tokens", 0) or 0),
+                "cache_write_tokens": int(usage.get("cache_creation_input_tokens", 0) or 0),
+                "cost_usd": float(getattr(message, "total_cost_usd", 0.0) or 0.0),
+                "duration_ms": int(getattr(message, "duration_ms", 0) or 0),
+                "num_turns": int(getattr(message, "num_turns", 1) or 1),
+                "model": primary_model,
+            },
+        )
+        # Fin de tour
+        await self._publish(
+            active.session_id,
+            EVENT_TYPE_STOP,
+            {"reason": STOP_REASON_TURN_COMPLETE},
+        )
 
     async def _on_text_block(self, active: ActiveSession, texte: str) -> None:
         """Publie un bloc de texte et retient son compte rendu s'il en porte un."""

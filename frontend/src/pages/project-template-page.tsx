@@ -61,6 +61,10 @@ export function ProjectTemplatePage(): JSX.Element {
   // nom de fichier ne peut pas contenir '=' (validé côté backend), donc
   // couper au premier '=' est sans ambiguïté.
   const [collectCommands, setCollectCommands] = useState('');
+  // Ce projet reçoit des consignes écrites par des tiers (surface d'agent
+  // externe). Coché, il ferme l'accès SSH « Machine du projet » et dit aux
+  // sessions que les consignes reçues sont des données.
+  const [sourceExterne, setSourceExterne] = useState(false);
   const [feedback, setFeedback] = useState<
     { kind: 'success' | 'error'; text: string } | null
   >(null);
@@ -75,6 +79,7 @@ export function ProjectTemplatePage(): JSX.Element {
       setAllowedTools(new Set());
       setSetupCommands('');
       setCollectCommands('');
+      setSourceExterne(false);
       return;
     }
     setSystemPrompt(template.data.system_prompt ?? '');
@@ -86,6 +91,7 @@ export function ProjectTemplatePage(): JSX.Element {
         .map((e) => `${e.fichier} = ${e.commande}`)
         .join('\n'),
     );
+    setSourceExterne(template.data.source_externe);
   }, [template.data]);
 
   const toggleTool = (tool: string) => {
@@ -109,6 +115,7 @@ export function ProjectTemplatePage(): JSX.Element {
         // Posé par le panneau « Machine du projet », pas par ce formulaire :
         // on le renvoie tel quel pour ne pas l'effacer en enregistrant.
         remote_host: template.data?.remote_host ?? null,
+        source_externe: sourceExterne,
       });
       setFeedback({ kind: 'success', text: 'Template enregistré.' });
     } catch (err) {
@@ -307,6 +314,30 @@ export function ProjectTemplatePage(): JSX.Element {
                 </>
               )}
             </p>
+          </label>
+
+          <label className="flex cursor-pointer gap-3 rounded-eldir border border-eldir-gold/50 bg-eldir-gold/5 p-4">
+            <input
+              type="checkbox"
+              checked={sourceExterne}
+              onChange={(e) => setSourceExterne(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 accent-eldir-orange"
+            />
+            <span className="min-w-0">
+              <span className="eldir-caps mb-1 block">
+                Ce projet reçoit des consignes de l&apos;extérieur
+              </span>
+              <span className="block font-mono text-2xs text-eldir-gray">
+                À cocher si les consignes de ce projet viennent de suggestions
+                ou de tickets écrits par tes utilisateurs, et pas seulement de
+                toi. Les sessions traiteront ce texte comme des données et non
+                comme des instructions, et l&apos;accès SSH{' '}
+                <span className="whitespace-nowrap">« Machine du projet »</span>{' '}
+                est refusé tant que la case est cochée, y compris aux sessions
+                déjà ouvertes. L&apos;alias reste enregistré : décocher le
+                rétablit.
+              </span>
+            </span>
           </label>
         </div>
 

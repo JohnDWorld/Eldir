@@ -18,6 +18,17 @@
 - **Le dépôt est public.** Aucun secret, aucune adresse de machine, aucun nom d'hôte personnel, aucune adresse e-mail dans un fichier commité. Les exemples de doc utilisent `eldir.exemple.lan` ou `127.0.0.1`.
 - **Trois lots, trois branches** : `feat/sessions-paralleles-et-file` (tâches 1-2), `feat/surface-agent-externe` (tâches 3-10), `docs/finition-publique` (tâches 11-13).
 - **Portes de qualité**, qui doivent passer avant chaque commit : backend `uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest -q`, frontend `npm run lint && npx tsc --noEmit && npm test && npm run build`.
+- **Un jeton d'agent ne vaut QUE sur la surface MCP.** Corrigé en tâche 5 après
+  un trou que ce plan ne voyait pas : `get_current_user_id` et le WebSocket
+  acceptaient tout JWT signé et en prenaient le `sub`, donc un jeton d'agent
+  valait dix ans d'accès complet, non révocable par ce chemin. Depuis,
+  `core/security.py` est le seul endroit qui décide : `decode_session_token`
+  pour les portes de connexion (elle refuse un jeton d'agent),
+  `agent_token_service.authentifier` pour la surface MCP (elle refuse un jeton
+  de connexion). **Toute nouvelle porte passe par l'une des deux, jamais par un
+  décodeur nu.** C'est la leçon qui compte : le défaut n'était pas un oubli de
+  logique, c'était une mauvaise valeur par défaut, la fonction évidente étant la
+  dangereuse.
 - **Jamais de régression sur la porte de validation humaine.** `git commit`, `git push` et `gh pr` restent refusés par le hook `PreToolUse`, quel que soit le transport.
 
 ---
@@ -1156,7 +1167,7 @@ Et dans `outil_list_projects`, après la liste des projets :
         lines: list[str] = []
         for p in projects:
             dernier, attente = par_projet.get(p.id, (None, 0))
-            suffixe = f" · {attente} session attend un geste de ta part" if attente else ""
+            suffixe = f" · {attente} session attend un geste de John" if attente else ""
             lines.append(
                 f"- {p.name} (id={p.id}) · {p.provider}:{p.repo_full_name} "
                 f"· branche {p.default_branch} · dernière activité : "
@@ -1207,7 +1218,10 @@ projet et par appel, pour dire ce que l'état waiting_input dit déjà.
 - Test: `backend/tests/unit/test_agent_token_service.py`
 
 **Interfaces:**
-- Consomme : `create_access_token(subject, *, expires_minutes, extra_claims)` et `decode_access_token(token)` de `app/core/security.py`.
+- Consomme : `create_access_token(subject, *, expires_minutes, extra_claims)` de
+  `app/core/security.py`, et `decode_agent_token(token)` de ce même module, qui
+  refuse un jeton de connexion. Le décodeur nu est privé (`_decode_jwt`) et ne
+  s'appelle pas depuis un service.
 - Produit :
 
 ```python
@@ -1395,7 +1409,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthenticationError, NotFoundError
-from app.core.security import create_access_token, decode_access_token
+from app.core.security import create_access_token, decode_agent_token
 from app.db.models import AgentToken
 
 # Dix ans : un agent ne se reconnecte pas derrière un formulaire. La borne
@@ -1444,7 +1458,7 @@ async def revoquer(db: AsyncSession, *, user_id: str, token_id: str) -> None:
 
 async def authentifier(db: AsyncSession, *, jeton: str) -> tuple[str, str]:
     """Rend (user_id, libellé) ou lève. Met à jour la date de dernier usage."""
-    charge = decode_access_token(jeton)
+    charge = decode_agent_token(jeton)
     if charge.get("kind") != _KIND:
         raise AuthenticationError("Ce jeton n'est pas un jeton d'agent.")
     jti = charge.get("jti")

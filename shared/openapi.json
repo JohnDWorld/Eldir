@@ -1,6 +1,186 @@
 {
   "components": {
     "schemas": {
+      "AgentMemoryEntry": {
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "text",
+          "line"
+        ],
+        "title": "AgentMemoryEntry",
+        "type": "object"
+      },
+      "AgentMemoryForget": {
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line"
+        ],
+        "title": "AgentMemoryForget",
+        "type": "object"
+      },
+      "AgentMemoryRead": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMemoryEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "max_entries": {
+            "title": "Max Entries",
+            "type": "integer"
+          },
+          "max_length": {
+            "title": "Max Length",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries",
+          "max_entries",
+          "max_length"
+        ],
+        "title": "AgentMemoryRead",
+        "type": "object"
+      },
+      "AgentTokenCreated": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "created_at",
+          "last_used_at",
+          "revoked_at",
+          "token"
+        ],
+        "title": "AgentTokenCreated",
+        "type": "object"
+      },
+      "AgentTokenInput": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "AgentTokenInput",
+        "type": "object"
+      },
+      "AgentTokenRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "created_at",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "title": "AgentTokenRead",
+        "type": "object"
+      },
       "BatchItemRead": {
         "properties": {
           "detail": {
@@ -515,6 +695,18 @@
             ],
             "title": "Label"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "provider": {
             "enum": [
               "github",
@@ -574,6 +766,17 @@
             "title": "Masked Token",
             "type": "string"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "provider": {
             "enum": [
               "github",
@@ -595,7 +798,8 @@
           "provider",
           "base_url",
           "label",
-          "masked_token"
+          "masked_token",
+          "project_id"
         ],
         "title": "GitCredentialRead",
         "type": "object"
@@ -851,6 +1055,10 @@
             "title": "Skills",
             "type": "array"
           },
+          "source_externe": {
+            "title": "Source Externe",
+            "type": "boolean"
+          },
           "source_preset": {
             "anyOf": [
               {
@@ -898,6 +1106,7 @@
           "setup_commands",
           "collect_commands",
           "remote_host",
+          "source_externe",
           "source_preset"
         ],
         "title": "MissionTemplateRead",
@@ -974,6 +1183,11 @@
               }
             ],
             "title": "Setup Commands"
+          },
+          "source_externe": {
+            "default": false,
+            "title": "Source Externe",
+            "type": "boolean"
           },
           "system_prompt": {
             "anyOf": [
@@ -2094,6 +2308,17 @@
       },
       "SystemPromptWrite": {
         "properties": {
+          "base_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Content"
+          },
           "content": {
             "minLength": 1,
             "title": "Content",
@@ -2879,6 +3104,167 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/agent-tokens": {
+      "get": {
+        "operationId": "list_agent_tokens_api_v1_agent_tokens_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentTokenRead"
+                  },
+                  "title": "Response List Agent Tokens Api V1 Agent Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Agent Tokens",
+        "tags": [
+          "agent-tokens"
+        ]
+      },
+      "post": {
+        "operationId": "create_agent_token_api_v1_agent_tokens_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentTokenInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentTokenCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Agent Token",
+        "tags": [
+          "agent-tokens"
+        ]
+      }
+    },
+    "/api/v1/agent-tokens/{token_id}": {
+      "delete": {
+        "operationId": "revoke_agent_token_api_v1_agent_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "title": "Token Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Agent Token",
+        "tags": [
+          "agent-tokens"
+        ]
+      }
+    },
     "/api/v1/auth/github/oauth/callback": {
       "get": {
         "operationId": "oauth_callback_api_v1_auth_github_oauth_callback_get",
@@ -6833,6 +7219,116 @@
         "summary": "Status ",
         "tags": [
           "setup"
+        ]
+      }
+    },
+    "/api/v1/supervisor/agent-memory": {
+      "get": {
+        "description": "Les préférences que des agents extérieurs ont écrites dans le prompt du superviseur.",
+        "operationId": "read_agent_memory_api_v1_supervisor_agent_memory_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentMemoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Agent Memory",
+        "tags": [
+          "supervisor"
+        ]
+      }
+    },
+    "/api/v1/supervisor/agent-memory/forget": {
+      "post": {
+        "description": "Retire une préférence d'agent (désignée par sa ligne exacte) et rend la mémoire restante.",
+        "operationId": "forget_agent_memory_api_v1_supervisor_agent_memory_forget_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentMemoryForget"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentMemoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget Agent Memory",
+        "tags": [
+          "supervisor"
         ]
       }
     },

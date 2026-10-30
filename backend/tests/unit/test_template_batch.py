@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 @pytest.fixture
 async def user(db_session: AsyncSession) -> User:
-    row = User(email="john@example.com", hashed_password="x", is_admin=True)
+    row = User(email="jarl@exemple.lan", hashed_password="x", is_admin=True)
     db_session.add(row)
     await db_session.commit()
     await db_session.refresh(row)

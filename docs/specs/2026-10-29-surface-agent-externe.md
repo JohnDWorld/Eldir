@@ -150,9 +150,13 @@ sortie ne dit qu'un projet dort. Il n'y a pas de notion d'oubli faute de date.
 
 **Changement** : on ajoute à la sortie existante la dernière activité et le
 nombre de sessions qui attendent un geste humain
-(`dernière activité : il y a 12 j · 1 session attend ta relecture`). Pas de
+(`dernière activité : il y a 12 j · 1 session attend un geste de John`). Pas de
 sixième outil : la question « quoi avancer » et la question « quel projet »
 sont la même, et deux outils qui se consultent toujours ensemble sont un outil.
+
+Le libellé dit « un geste de John » et pas « ta relecture » : cette sortie est
+lue par un agent, et lui dire « ta » lui laisse croire que le geste lui
+incombe, alors que son travail est précisément de relancer John.
 
 Les deux chiffres viennent du SQL (le `max(updated_at)` des sessions du projet
 et un compte par état), donc l'outil reste une requête. Compter les commits non

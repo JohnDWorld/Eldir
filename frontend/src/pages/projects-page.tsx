@@ -858,7 +858,7 @@ function PostCloneOfferDialog({
           </p>
           <div className="rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-3 text-xs">
             Le template peut toujours être édité ensuite à la main depuis{' '}
-            <code>Projects → {projectName} → Template</code>.
+            <code className="break-words">Projects → {projectName} → Template</code>.
           </div>
         </div>
         <footer className="flex flex-col gap-2 border-t border-eldir-gray-3 px-4 py-3">

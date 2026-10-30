@@ -7,7 +7,10 @@ import json
 import httpx
 import pytest
 from app.core.exceptions import GitProviderError
+from app.services.git_providers import github
 from app.services.git_providers.github import GitHubProvider
+
+from tests.unit.serveur_abonne import Journal
 
 
 def _make_transport(handler):  # type: ignore[no-untyped-def]
@@ -65,6 +68,40 @@ async def test_get_repo_404_raises() -> None:
     with pytest.raises(GitProviderError) as exc:
         await provider.get_repo("missing/repo")
     assert exc.value.details["status"] == 404
+
+
+async def test_un_refus_de_l_api_laisse_une_trace_sans_l_url_complete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """httpx n'écrit plus ses requêtes : sans cette ligne, un 403 ne laisse rien côté serveur."""
+    journal = Journal()
+    monkeypatch.setattr(github, "logger", journal)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"message": "Forbidden"})
+
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, _make_transport(handler))
+    with pytest.raises(GitProviderError):
+        await provider.list_repos()
+
+    # Le chemin seul : ni l'hôte, ni les paramètres de pagination, ni le jeton.
+    assert journal.appels == [
+        (
+            "git_provider.refuse",
+            {"provider": "github", "methode": "GET", "chemin": "/user/repos", "status": 403},
+        )
+    ]
+
+
+async def test_un_succes_ne_laisse_pas_de_trace(monkeypatch: pytest.MonkeyPatch) -> None:
+    journal = Journal()
+    monkeypatch.setattr(github, "logger", journal)
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, _make_transport(lambda request: httpx.Response(200, json=[])))
+
+    assert await provider.list_repos() == []
+    assert journal.appels == []
 
 
 async def test_create_repo_sends_payload() -> None:
