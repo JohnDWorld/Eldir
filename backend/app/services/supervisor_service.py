@@ -1003,9 +1003,10 @@ class SupervisorService:
     ) -> None:
         """Lance le ping HTTP dans sa propre tâche. `erreur` absent = le tour s'est bien fini.
 
-        Le compte rendu d'une session en erreur est vide : celui que la ligne porte
-        encore date d'un tour précédent, et lu à côté de `etat: erreur` il ferait
-        croire à un travail fini et prêt.
+        Une seule règle pour toute absence : `null`. Pas de compte rendu pour ce tour
+        (`cr`), pas d'erreur (`erreur`). Le compte rendu d'une session en erreur est
+        absent : celui que la ligne porte encore date d'un tour précédent, et lu à côté
+        de `etat: erreur` il ferait croire à un travail fini et prêt.
         """
         self._spawn(
             prevenir(
@@ -1014,7 +1015,7 @@ class SupervisorService:
                     "projet": project_name,
                     "branche": child.branch,
                     "etat": "fin_de_tour" if erreur is None else "erreur",
-                    "cr": (child.summary or "").strip() if erreur is None else "",
+                    "cr": None if erreur is not None else ((child.summary or "").strip() or None),
                     "erreur": _borner(erreur),
                     "demandeur": demandeur,
                 }

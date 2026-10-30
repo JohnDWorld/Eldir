@@ -874,6 +874,33 @@ async def test_l_abonne_http_apprend_la_fin_du_tour_et_qui_avait_demande_le_trav
     }
 
 
+@pytest.mark.parametrize("summary", [None, "", "  \n "], ids=["aucun", "vide", "blanc"])
+async def test_un_tour_sans_compte_rendu_envoie_null_et_non_une_chaine_vide(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+    summary: str | None,
+) -> None:
+    """Une seule règle pour toute absence : `null`. `""` passerait pour un compte rendu vide."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    child.summary = summary
+    await db_session.commit()
+    await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+
+    await _tour_dispatche(supervisor, child, "eldir")
+    await abonne.attendre(1)
+    await _fin_des_taches_de_fond(supervisor)
+
+    charge = _charge_recue(abonne)
+    assert charge["etat"] == "fin_de_tour"
+    assert charge["cr"] is None
+    assert charge["erreur"] is None
+
+
 @pytest.mark.parametrize(
     ("donnees", "erreur"),
     [
@@ -910,7 +937,7 @@ async def test_un_tour_en_erreur_part_aussi_vers_l_abonne_avec_son_message(
         "projet": "munin",
         "branche": "claude/x",
         "etat": "erreur",
-        "cr": "",
+        "cr": None,
         "erreur": erreur,
         "demandeur": "eldir",
     }
@@ -1037,7 +1064,7 @@ async def test_une_consigne_qui_n_a_pas_pu_partir_previent_l_abonne_une_seule_fo
         "projet": "munin",
         "branche": "claude/x",
         "etat": "erreur",
-        "cr": "",
+        "cr": None,
         "erreur": erreur,
         "demandeur": demandeur,
     }
@@ -1170,7 +1197,7 @@ async def test_un_stop_d_interruption_n_est_pas_une_fin_de_tour(
         "projet": "munin",
         "branche": "claude/x",
         "etat": "erreur",
-        "cr": "",
+        "cr": None,
         "erreur": MESSAGE_INTERRUPTION,
         "demandeur": "agent:Munin Bot",
     }
@@ -1707,7 +1734,7 @@ async def test_arreter_la_session_pendant_la_consigne_ne_l_annonce_pas_finie(
         "projet": "munin",
         "branche": "claude/x",
         "etat": "erreur",
-        "cr": "",
+        "cr": None,
         "erreur": MESSAGE_INTERRUPTION,
         "demandeur": "agent:Munin Bot",
     }
