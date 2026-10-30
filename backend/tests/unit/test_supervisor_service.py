@@ -1504,6 +1504,52 @@ async def test_une_consigne_livree_sans_que_le_superviseur_la_voie_est_signalee(
     assert supervisor._attendues == {}  # type: ignore[attr-defined]
 
 
+@pytest.mark.parametrize("chemin", ["fin_de_tour", "consigne_non_partie", "interruption"])
+async def test_une_session_disparue_avant_le_ping_est_signalee_au_journal(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+    chemin: str,
+) -> None:
+    """La ligne a disparu entre l'événement et la lecture de sa fiche : pas de ping possible,
+    mais l'abonné qui n'entend rien doit au moins laisser une trace à John."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+
+    async def supprimer_la_ligne() -> None:
+        await db_session.delete(child)
+        await db_session.commit()
+
+    if chemin == "consigne_non_partie":
+
+        async def supprime_puis_refuse(*_: Any, **__: Any) -> None:
+            await supprimer_la_ligne()
+            raise RuntimeError("session illisible")
+
+        monkeypatch.setattr(supervisor._sessions, "get", supprime_puis_refuse)  # type: ignore[attr-defined]
+        await supervisor.outil_dispatch(
+            admin.id, project_id=project.id, consigne=CONSIGNE, session_id=child.id
+        )
+    else:
+        await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+        fin = FIN_DE_TOUR if chemin == "fin_de_tour" else INTERRUPTION
+        manager = supervisor._manager  # type: ignore[attr-defined]
+        _activer(supervisor, child)
+        await manager._publish(child.id, "user_message", {"text": CONSIGNE, "origin": "eldir"})
+        await supprimer_la_ligne()
+        await manager._publish(child.id, *fin)
+    await _fin_des_taches_de_fond(supervisor)
+
+    assert abonne.requetes == []
+    absentes = supervisor_service.logger.appels  # type: ignore[attr-defined]
+    assert [a for a in absentes if a[0] == "supervisor.fiche.absente"] == [
+        ("supervisor.fiche.absente", {"session_id": child.id})
+    ]
+
+
 async def test_un_ping_d_echec_qui_echoue_ne_prive_pas_le_superviseur_de_son_avis(
     db_session: AsyncSession,
     admin: User,

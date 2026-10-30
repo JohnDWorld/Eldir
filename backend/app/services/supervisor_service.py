@@ -1023,6 +1023,9 @@ class SupervisorService:
         async with self._factory() as db:
             child = await db.get(SessionRow, session_id)
             if child is None:
+                # Tous les pings passent par ici : sans cette ligne, une session supprimée
+                # entre l'événement et la tâche ne produit ni ping ni trace.
+                logger.warning("supervisor.fiche.absente", session_id=session_id)
                 return None
             project_name = "projet inconnu"
             if child.project_id:
