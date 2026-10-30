@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from app.api.v1.agent_tokens import router as agent_tokens_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.auth_github_oauth import router as auth_github_oauth_router
 from app.api.v1.batch import router as batch_router
@@ -44,3 +45,4 @@ api_router.include_router(settings_claude_router)
 api_router.include_router(settings_git_router)
 api_router.include_router(system_prompts_router)
 api_router.include_router(ollama_router)
+api_router.include_router(agent_tokens_router)

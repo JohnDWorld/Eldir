@@ -110,3 +110,11 @@ async def jeton_agent_revoque(session_factory: async_sessionmaker[AsyncSession])
         await agent_token_service.revoquer(db, user_id="u-test", token_id=ligne.id)
         await db.commit()
     return clair
+
+
+@pytest.fixture
+def entetes_john() -> dict[str, str]:
+    """L'en-tête d'un jeton de connexion pour `u-test`, le même propriétaire que `jeton_agent`."""
+    from app.core.security import create_access_token
+
+    return {"Authorization": f"Bearer {create_access_token('u-test')}"}
