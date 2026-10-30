@@ -5,12 +5,18 @@
  * porte toute la navigation. Sur desktop, les onglets restent dans la barre
  * et le menu se limite au compte.
  *
+ * Un seul symbole sur le déclencheur, la pastille. Elle était doublée d'une
+ * icône burger sur mobile : deux glyphes pour un bouton, et un burger qui
+ * annonce une navigation déjà annoncée par la pastille. Le survol teinte le
+ * fond, comme les entrées du menu, puisque la pastille fixe ses couleurs en
+ * inline et ne peut pas réagir à une classe de texte.
+ *
  * Radix DropdownMenu apporte gratuitement le piège de focus, la fermeture au
  * clic extérieur et à Échap, et les rôles ARIA.
  */
 
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { LogOut, Menu } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '@/components/eldir/avatar';
@@ -36,9 +42,8 @@ export function ProfileMenu({
         <button
           type="button"
           aria-label="Menu du compte et navigation"
-          className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-eldir text-eldir-gray transition-colors hover:text-eldir-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eldir-orange"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-eldir transition-colors hover:bg-eldir-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eldir-orange"
         >
-          <Menu aria-hidden className="h-4 w-4 md:hidden" strokeWidth={2} />
           <Avatar size={26}>{initial}</Avatar>
         </button>
       </DropdownMenu.Trigger>
