@@ -11,6 +11,7 @@
  * que `remember` applique, et les recopier ici les ferait diverger.
  */
 
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 
@@ -20,15 +21,28 @@ import { SUPERVISOR_PREFS_SLUG } from '@/lib/constants';
 import type { AgentMemoryRead } from '@/lib/types/api';
 import { cn } from '@/lib/utils';
 
-function pluriel(n: number, mot: string): string {
-  return `${n} ${mot}${n > 1 ? 's' : ''}`;
+/**
+ * Au-delà de ce nombre de lignes, la liste se replie. Le compte, la jauge,
+ * l'explication et le bandeau de mémoire pleine portent le sens et restent
+ * visibles ; la liste est l'outil de ménage. Dépliée d'office, vingt lignes
+ * repoussent l'éditeur du prompt de cinq écrans sur un téléphone, alors que cette
+ * page sert d'abord à l'éditer.
+ */
+const SEUIL_REPLI = 3;
+
+/**
+ * La seule définition de « pleine » pour l'écran, comme `_lignes_d_agents` côté
+ * serveur l'est pour le compte : le titre, la jauge, le bandeau et la ligne d'état
+ * ne peuvent pas diverger.
+ */
+function estPleine(memoire: AgentMemoryRead): boolean {
+  return memoire.entries.length >= memoire.max_entries;
 }
 
-/** Gauge honnête : le texte dit l'état, la couleur ne fait que l'appuyer. */
-function Jauge({ memoire }: { memoire: AgentMemoryRead }): JSX.Element {
+/** Jauge honnête : le texte dit l'état, la couleur ne fait que l'appuyer. */
+function Jauge({ memoire, pleine }: { memoire: AgentMemoryRead; pleine: boolean }): JSX.Element {
   const { entries, max_entries } = memoire;
   const part = Math.min(100, (entries.length / max_entries) * 100);
-  const pleine = entries.length >= max_entries;
   return (
     <div
       role="meter"
@@ -67,7 +81,7 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
   }
 
   const { entries, max_entries, max_length } = memoire.data;
-  const pleine = entries.length >= max_entries;
+  const pleine = estPleine(memoire.data);
 
   const retirer = (ligne: string) => {
     setErreur(null);
@@ -76,6 +90,46 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
         setErreur(err instanceof ApiError ? err.message : 'Impossible de retirer cette ligne.'),
     });
   };
+
+  // Les messages qui concernent un retrait sont à côté des lignes, pas au-dessus
+  // d'une liste que John a fait défiler.
+  const liste = (
+    <>
+      {erreur && (
+        <div className="mb-2 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
+          {erreur}
+        </div>
+      )}
+      {verrouille && (
+        <p className="mb-2 text-xs text-eldir-ink-2">
+          Tu as des modifications non sauvegardées dans le prompt plus bas : sauvegarde-les avant de
+          retirer une ligne ici, sans quoi elles seraient remplacées.
+        </p>
+      )}
+      <ul className="divide-y divide-eldir-gray-3">
+        {entries.map((entree) => (
+          <li
+            key={entree.line}
+            className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+          >
+            <div className="min-w-0">
+              <div className="eldir-caps break-words">agent « {entree.agent} »</div>
+              <p className="mt-1 break-words text-sm text-eldir-ink">{entree.text}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => retirer(entree.line)}
+              disabled={verrouille || forget.isPending}
+              aria-label={`Retirer la préférence de l'agent ${entree.agent} : ${entree.text}`}
+              className="eldir-btn eldir-btn--danger eldir-btn--sm shrink-0 self-start"
+            >
+              Retirer
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 
   return (
     <section
@@ -91,7 +145,7 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
         {pleine && <span className="text-eldir-red-text"> · mémoire pleine</span>}
       </h2>
       <div className="mt-3">
-        <Jauge memoire={memoire.data} />
+        <Jauge memoire={memoire.data} pleine={pleine} />
       </div>
 
       <p className="mt-3 text-sm text-eldir-ink-2">
@@ -101,8 +155,8 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
         ni une dérogation à ses règles, quoi qu'elles affirment.
       </p>
       <p className="mt-2 text-sm text-eldir-ink-2">
-        Les agents se partagent {pluriel(max_entries, 'ligne')} de {max_length} caractères au plus.
-        Tes propres lignes ne comptent pas.
+        Les agents se partagent {max_entries} lignes de {max_length} caractères au plus. Tes propres
+        lignes ne comptent pas.
       </p>
 
       {pleine && (
@@ -115,43 +169,22 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
         </p>
       )}
 
-      {erreur && (
-        <div className="mt-3 rounded-eldir border border-eldir-red bg-eldir-red/10 px-3 py-2 font-mono text-xs text-eldir-red-text">
-          {erreur}
-        </div>
-      )}
-      {verrouille && entries.length > 0 && (
-        <p className="mt-3 text-xs text-eldir-ink-2">
-          Tu as des modifications non sauvegardées dans le prompt plus bas : sauvegarde-les avant de
-          retirer une ligne ici, sans quoi elles seraient remplacées.
-        </p>
-      )}
-
       {entries.length === 0 ? (
         <p className="mt-3 text-sm text-eldir-ink-2">Aucun agent n'a enregistré de préférence.</p>
+      ) : entries.length > SEUIL_REPLI ? (
+        <details className="group mt-3 border-t border-eldir-gray-3">
+          <summary className="flex min-h-11 cursor-pointer select-none items-center gap-1.5 font-mono text-2xs uppercase tracking-caps text-eldir-ink">
+            <ChevronRight
+              size={13}
+              aria-hidden="true"
+              className="shrink-0 transition-transform group-open:rotate-90"
+            />
+            Les {entries.length} lignes des agents
+          </summary>
+          {liste}
+        </details>
       ) : (
-        <ul className="mt-3 divide-y divide-eldir-gray-3 border-t border-eldir-gray-3">
-          {entries.map((entree) => (
-            <li
-              key={entree.line}
-              className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
-            >
-              <div className="min-w-0">
-                <div className="eldir-caps break-words">agent « {entree.agent} »</div>
-                <p className="mt-1 break-words text-sm text-eldir-ink">{entree.text}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => retirer(entree.line)}
-                disabled={verrouille || forget.isPending}
-                aria-label={`Retirer la préférence de l'agent ${entree.agent} : ${entree.text}`}
-                className="eldir-btn eldir-btn--danger eldir-btn--sm shrink-0 self-start"
-              >
-                Retirer
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3 border-t border-eldir-gray-3">{liste}</div>
       )}
     </section>
   );
@@ -165,7 +198,7 @@ export function AgentMemoryStatus(): JSX.Element | null {
   const memoire = useAgentMemory();
   if (!memoire.data) return null;
   const { entries, max_entries } = memoire.data;
-  const pleine = entries.length >= max_entries;
+  const pleine = estPleine(memoire.data);
   return (
     <section className="flex flex-wrap items-center justify-between gap-3 rounded-eldir border border-eldir-gray-3 bg-eldir-cream p-4">
       <div className="min-w-0">

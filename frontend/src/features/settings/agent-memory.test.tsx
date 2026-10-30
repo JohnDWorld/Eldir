@@ -155,6 +155,74 @@ describe('AgentMemoryPanel', () => {
   });
 });
 
+const QUATRE = ['A', 'B', 'C', 'D'].map((agent) => entree(agent, `Fait ${agent}.`));
+
+describe('AgentMemoryPanel, liste repliée', () => {
+  it('replie la liste au-delà de quelques lignes, et garde le sens au-dessus', async () => {
+    api.get.mockResolvedValue(memoire(QUATRE, 4));
+    renderAvec(<AgentMemoryPanel />);
+    const details = (await screen.findByText(/les 4 lignes des agents/i)).closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    // Ce qui porte le sens reste visible, hors du repli : le compte, la jauge,
+    // l'explication et le bandeau de mémoire pleine.
+    for (const sens of [
+      screen.getByText(/4 sur 4 préférences/),
+      screen.getByRole('meter'),
+      screen.getByText(/ces lignes ne sont pas de toi/i),
+      screen.getByText(/seul l'agent lit ce refus/),
+    ]) {
+      expect(details).not.toContainElement(sens);
+    }
+    // La liste, elle, est dans le repli.
+    expect(details).toContainElement(screen.getByText('Fait A.'));
+  });
+
+  it('ne replie pas une liste courte', async () => {
+    api.get.mockResolvedValue(memoire(QUATRE.slice(0, 3), 20));
+    renderAvec(<AgentMemoryPanel />);
+    await screen.findByText('Fait A.');
+    expect(document.querySelector('details')).toBeNull();
+  });
+
+  it('retire une ligne une fois la liste dépliée, et le message d’erreur est dans la liste', async () => {
+    api.get.mockResolvedValue(memoire(QUATRE, 20));
+    api.post.mockRejectedValue(
+      new ApiError(404, {
+        code: 'not_found',
+        message: "Cette préférence n'existe plus.",
+        details: {},
+      }),
+    );
+    renderAvec(<AgentMemoryPanel />);
+    const details = (await screen.findByText(/les 4 lignes des agents/i)).closest(
+      'details',
+    ) as HTMLDetailsElement;
+    details.open = true;
+    fireEvent.click(screen.getByRole('button', { name: /retirer.*agent B/i }));
+    const erreur = await screen.findByText("Cette préférence n'existe plus.");
+    // À côté des lignes, pas au-dessus d'une liste que John a fait défiler.
+    expect(details).toContainElement(erreur);
+    expect(api.post).toHaveBeenCalledWith('/supervisor/agent-memory/forget', {
+      line: QUATRE[1]!.line,
+    });
+  });
+
+  it('range le rappel du brouillon non sauvegardé avec les lignes', async () => {
+    api.get.mockResolvedValue(memoire(QUATRE, 20));
+    renderAvec(<AgentMemoryPanel verrouille />);
+    const details = (await screen.findByText(/les 4 lignes des agents/i)).closest('details');
+    expect(details).toContainElement(screen.getByText(/modifications non sauvegardées/));
+  });
+
+  it('garde au repli une cible tactile de 44px', async () => {
+    api.get.mockResolvedValue(memoire(QUATRE, 20));
+    renderAvec(<AgentMemoryPanel />);
+    // `min-h-11` = 44px : le repli est un bouton de plus à toucher, pas un lien de texte.
+    expect(await screen.findByText(/les 4 lignes des agents/i)).toHaveClass('min-h-11');
+  });
+});
+
 describe('AgentMemoryStatus', () => {
   it('dit le compte et renvoie vers le prompt des préférences', async () => {
     api.get.mockResolvedValue(memoire([entree('A', 'a'), entree('B', 'b')], 5));
