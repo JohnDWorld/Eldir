@@ -211,6 +211,16 @@ DISALLOWED_TOOLS = [
 # Couper n'est pas filtrer : le début du message part tel quel.
 ERREUR_ABONNE_LONGUEUR_MAX = 300
 
+# Pourquoi un ping dit `etat: "erreur"`, en valeurs stables que l'abonné compare : le texte
+# d'`erreur` est écrit pour être lu et peut être réécrit un jour. Les trois appellent
+# des réactions différentes :
+#  - `arret` : la session a été arrêtée, supprimée ou Eldir s'est éteint (re-dispatcher) ;
+#  - `panne` : le tour est tombé (lire le message d'`erreur`) ;
+#  - `non_livree` : la consigne n'est jamais partie, aucun tour n'a eu lieu.
+CAUSE_ARRET = "arret"
+CAUSE_PANNE = "panne"
+CAUSE_NON_LIVREE = "non_livree"
+
 # Ce que l'abonné lit quand le tour d'une consigne dispatchée a été interrompu.
 MESSAGE_INTERRUPTION = "La session a été arrêtée avant la fin du tour."
 
@@ -897,15 +907,17 @@ class SupervisorService:
             # Encore attendue (jamais livrée) ou déjà armée (livrée, puis l'envoi a
             # levé) : aucun ping n'est parti. Ni l'une ni l'autre : un STOP ou un
             # ERROR l'a déjà dit à l'abonné, un second le doublerait.
-            if self._retirer(session_id, auteur, consigne) or _enlever(
-                self._en_cours, session_id, auteur
-            ):
+            cause = None
+            if self._retirer(session_id, auteur, consigne):
+                cause = CAUSE_NON_LIVREE  # aucun tour n'a eu lieu
+            elif _enlever(self._en_cours, session_id, auteur):
+                cause = CAUSE_PANNE  # livrée, puis l'envoi a levé
+            if cause is not None:
                 # Aucun STOP ni ERROR ne viendra. Sans ce ping, l'abonné attendrait
                 # une fin de tour qui n'arrive pas, et ne pourrait pas distinguer ce
                 # silence d'un travail encore en cours.
-                self._spawn(
-                    self._signaler_echec(session_id, auteur, str(exc) or type(exc).__name__)
-                )
+                message = str(exc) or type(exc).__name__
+                self._spawn(self._signaler_echec(session_id, auteur, cause, message))
             self._spawn(
                 self._tell_supervisor(
                     user_id,
@@ -954,7 +966,11 @@ class SupervisorService:
                 child, project_name = fiche
                 for interrompu in interrompus:
                     self._prevenir_l_abonne(
-                        child, project_name, demandeur=interrompu, erreur=MESSAGE_INTERRUPTION
+                        child,
+                        project_name,
+                        demandeur=interrompu,
+                        cause=CAUSE_ARRET,
+                        erreur=MESSAGE_INTERRUPTION,
                     )
             return
         demandeur = _depiler(self._en_cours, session_id)
@@ -985,16 +1001,18 @@ class SupervisorService:
         if fiche is None:
             return
         child, project_name = fiche
-        erreur = None
+        erreur = cause = None
         if event_type == EVENT_TYPE_ERROR:
-            erreur = str(data.get("message") or "erreur inconnue")
+            erreur, cause = str(data.get("message") or "erreur inconnue"), CAUSE_PANNE
 
         # L'abonné HTTP part dans sa propre tâche, avant le superviseur. `_tell_supervisor`
         # rend la main quand le superviseur a fini de réagir, soit des minutes, ou
         # plus s'il est déjà occupé : attendre derrière lui ferait avancer l'agent
         # extérieur d'un pas par réveil, ce que ce ping est là pour éviter. Et
         # l'inverse aussi : un abonné lent ne retient pas le superviseur.
-        self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur, cr=cr)
+        self._prevenir_l_abonne(
+            child, project_name, demandeur=demandeur, cause=cause, erreur=erreur, cr=cr
+        )
 
         if erreur is not None:
             body = f"Elle a échoué : {erreur}"
@@ -1040,16 +1058,19 @@ class SupervisorService:
         project_name: str,
         *,
         demandeur: str,
+        cause: str | None,
         erreur: str | None,
         cr: str | None = None,
     ) -> None:
-        """Lance le ping HTTP dans sa propre tâche. `erreur` absent = le tour s'est bien fini.
+        """Lance le ping HTTP dans sa propre tâche. `cause` absente = le tour s'est bien fini.
 
         Une seule règle pour toute absence : `null`. Pas de compte rendu pour ce tour
-        (`cr`), pas d'erreur (`erreur`). `cr` est celui du tour qui vient de finir, jamais
-        celui que la ligne de session porte encore : il date peut-être d'un tour
-        précédent, et donné pour celui-ci il ferait croire à un travail fini et prêt.
-        En erreur il est absent, même si le tour en avait écrit un avant de tomber.
+        (`cr`), pas d'erreur (`erreur`), pas de cause (`cause`). `cr` est celui du tour qui
+        vient de finir, jamais celui que la ligne de session porte encore : il date
+        peut-être d'un tour précédent, et donné pour celui-ci il ferait croire à un travail
+        fini et prêt. En erreur il est absent, même si le tour en avait écrit un avant de
+        tomber. `etat` n'a que deux valeurs ; `cause` dit lequel des trois échecs, en valeurs
+        stables (`CAUSE_*`).
         """
         self._spawn(
             prevenir(
@@ -1057,20 +1078,25 @@ class SupervisorService:
                     "session_id": child.id,
                     "projet": project_name,
                     "branche": child.branch,
-                    "etat": "fin_de_tour" if erreur is None else "erreur",
-                    "cr": None if erreur is not None else cr,
+                    "etat": "fin_de_tour" if cause is None else "erreur",
+                    "cr": None if cause is not None else cr,
                     "erreur": _borner(erreur),
+                    "cause": cause,
                     "demandeur": demandeur,
                 }
             )
         )
 
-    async def _signaler_echec(self, session_id: str, demandeur: str, erreur: str) -> None:
-        """Prévient l'abonné qu'une consigne n'a pas pu partir : aucun tour n'a eu lieu."""
+    async def _signaler_echec(
+        self, session_id: str, demandeur: str, cause: str, erreur: str
+    ) -> None:
+        """Prévient l'abonné qu'une consigne n'a pas abouti, hors de tout STOP ou ERROR."""
         fiche = await self._fiche(session_id)
         if fiche is not None:
             child, project_name = fiche
-            self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur)
+            self._prevenir_l_abonne(
+                child, project_name, demandeur=demandeur, cause=cause, erreur=erreur
+            )
 
     async def _tell_supervisor(self, user_id: str, content: str) -> None:
         """Envoie un message au superviseur au nom d'Eldir, pas de John."""

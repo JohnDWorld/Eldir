@@ -892,6 +892,7 @@ async def test_l_abonne_http_apprend_la_fin_du_tour_et_qui_avait_demande_le_trav
         "etat": "fin_de_tour",
         "cr": "FAIT: ajout de la compétence\nPRET: oui",
         "erreur": None,
+        "cause": None,
         "demandeur": demandeur,
     }
 
@@ -918,10 +919,8 @@ async def test_une_erreur_publiee_apres_la_sortie_de_la_session_du_pool_previent
     await abonne.attendre(1)
     await _fin_des_taches_de_fond(supervisor)
 
-    assert (_charge_recue(abonne)["etat"], _charge_recue(abonne)["erreur"]) == (
-        "erreur",
-        "CLI coupé",
-    )
+    charge = _charge_recue(abonne)
+    assert (charge["etat"], charge["cause"], charge["erreur"]) == ("erreur", "panne", "CLI coupé")
 
 
 async def test_un_tour_qui_tombe_apres_avoir_ecrit_un_compte_rendu_n_en_envoie_pas(
@@ -983,6 +982,7 @@ async def test_un_tour_en_erreur_part_aussi_vers_l_abonne_avec_son_message(
         "etat": "erreur",
         "cr": None,
         "erreur": erreur,
+        "cause": "panne",
         "demandeur": "eldir",
     }
     assert f"Elle a échoué : {erreur}" in manager.sent[0][1], "le superviseur reçoit le même"
@@ -1110,6 +1110,7 @@ async def test_une_consigne_qui_n_a_pas_pu_partir_previent_l_abonne_une_seule_fo
         "etat": "erreur",
         "cr": None,
         "erreur": erreur,
+        "cause": "non_livree",
         "demandeur": demandeur,
     }
     manager = supervisor._manager  # type: ignore[attr-defined]
@@ -1149,7 +1150,8 @@ async def test_un_demarrage_interrompu_previent_l_abonne_une_seule_fois(
     await _fin_des_taches_de_fond(supervisor)
 
     assert len(abonne.requetes) == 1
-    assert _charge_recue(abonne)["erreur"] == "démarrage interrompu"
+    charge = _charge_recue(abonne)
+    assert (charge["cause"], charge["erreur"]) == ("non_livree", "démarrage interrompu")
 
 
 async def test_un_envoi_qui_leve_apres_la_fin_du_tour_ne_previent_pas_une_seconde_fois(
@@ -1207,7 +1209,8 @@ async def test_un_envoi_qui_leve_apres_la_livraison_previent_l_abonne(
     await _fin_des_taches_de_fond(supervisor)
 
     assert len(abonne.requetes) == 1
-    assert _charge_recue(abonne)["erreur"] == "client mort"
+    charge = _charge_recue(abonne)
+    assert (charge["cause"], charge["erreur"]) == ("panne", "client mort"), "livrée, puis tombée"
     # Rien ne reste armé : le tour suivant, mené par John, ne réveille personne.
     await _tour_de_john(supervisor, child)
     await _fin_des_taches_de_fond(supervisor)
@@ -1313,9 +1316,9 @@ async def test_une_interruption_annonce_chaque_tour_en_cours(
     await _fin_des_taches_de_fond(supervisor)
 
     pings = [_charge_recue(abonne, r) for r in (0, 1)]
-    assert {(p["demandeur"], p["erreur"]) for p in pings} == {
-        ("agent:Premier", MESSAGE_INTERRUPTION),
-        ("agent:Second", MESSAGE_INTERRUPTION),
+    assert {(p["demandeur"], p["cause"], p["erreur"]) for p in pings} == {
+        ("agent:Premier", "arret", MESSAGE_INTERRUPTION),
+        ("agent:Second", "arret", MESSAGE_INTERRUPTION),
     }
     assert supervisor._en_cours == {}  # type: ignore[attr-defined]
 
@@ -1349,6 +1352,7 @@ async def test_un_stop_d_interruption_n_est_pas_une_fin_de_tour(
         "etat": "erreur",
         "cr": None,
         "erreur": MESSAGE_INTERRUPTION,
+        "cause": "arret",
         "demandeur": "agent:Munin Bot",
     }
     assert manager.sent == [], "John l'a arrêtée lui-même : le superviseur n'a rien à lui résumer"
@@ -1380,7 +1384,8 @@ async def test_une_erreur_suivie_de_l_arret_de_la_session_ne_previent_qu_une_foi
     await _fin_des_taches_de_fond(supervisor)
 
     assert len(abonne.requetes) == 1
-    assert _charge_recue(abonne)["erreur"] == "CLI coupé"
+    charge = _charge_recue(abonne)
+    assert (charge["cause"], charge["erreur"]) == ("panne", "CLI coupé")
 
 
 @pytest.mark.parametrize(
@@ -1797,6 +1802,7 @@ async def test_le_tour_de_john_qui_finit_avant_la_consigne_ne_la_fait_pas_annonc
         "etat": "fin_de_tour",
         "cr": "FAIT: le vrai travail\nPRET: non",
         "erreur": None,
+        "cause": None,
         "demandeur": "agent:Munin Bot",
     }, "ni le compte rendu de la ligne, ni celui du tour de John"
 
@@ -1933,7 +1939,12 @@ async def test_un_tour_sans_compte_rendu_envoie_null_et_non_celui_du_tour_d_avan
 
     premier, second = (_charge_recue(abonne, r) for r in (0, 1))
     assert premier["cr"] == "FAIT: le premier tour\nPRET: oui"
-    assert (second["etat"], second["cr"], second["erreur"]) == ("fin_de_tour", None, None)
+    assert (second["etat"], second["cr"], second["erreur"], second["cause"]) == (
+        "fin_de_tour",
+        None,
+        None,
+        None,
+    )
     (id_du_superviseur,) = [sid for sid in manager.clients if sid != child.id]
     _, ping_du_second = manager.clients[id_du_superviseur].demandes
     assert "Elle n'a pas produit de compte rendu" in ping_du_second
@@ -1974,6 +1985,7 @@ async def test_un_flux_qui_se_ferme_sans_resultat_previent_l_abonne_et_ne_laisse
         "etat": "erreur",
         "cr": None,
         "erreur": MESSAGE_FLUX_SANS_RESULTAT,
+        "cause": "panne",
         "demandeur": "agent:Munin Bot",
     }
     (id_du_superviseur,) = [sid for sid in manager.clients if sid != child.id]
@@ -2032,6 +2044,7 @@ async def test_arreter_la_session_pendant_la_consigne_ne_l_annonce_pas_finie(
         "etat": "erreur",
         "cr": None,
         "erreur": MESSAGE_INTERRUPTION,
+        "cause": "arret",
         "demandeur": "agent:Munin Bot",
     }
     assert list(manager.clients) == [child.id], "le superviseur n'a pas été réveillé"
