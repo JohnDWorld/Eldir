@@ -146,6 +146,31 @@
     @apply min-h-11 w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink transition-colors duration-150 focus:border-eldir-orange;
   }
 
+  /* Voile d'un dialogue. Neuf fichiers recopiaient la même déclaration, au
+     caractère près.
+
+     Et elle était fausse sur un téléphone. Les marges d'encoche du lot mobile
+     sont posées sur la coquille (`authed-layout`), dont le commentaire affirmait
+     qu'« aucun élément de l'app n'est collé en bas (ni `fixed`, ni `sticky`) ».
+     C'était inexact : ces neuf voiles sont `fixed inset-0`, donc ils échappent
+     au positionnement de la coquille et ne reçoivent aucune de ses marges. Avec
+     `p-4` seul, le bord du dialogue passait sous l'encoche en paysage et sous la
+     barre de geste en portrait. Ça ne se voyait pas, parce que les dialogues sont
+     centrés et plus étroits que l'écran : ils échappaient au défaut par chance,
+     pas par construction.
+
+     `max()` et pas `env()` seul : l'encoche vaut 0 sur un écran qui n'en a pas,
+     et un `padding: env(safe-area-inset-top)` collerait alors le dialogue au
+     bord. Le plancher d'1rem est l'ancien `p-4`, la marge d'encoche ne fait que
+     le dépasser quand elle existe. */
+  .eldir-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+
   .eldir-skeleton {
     @apply animate-pulse rounded-eldir bg-eldir-cream-2;
   }
