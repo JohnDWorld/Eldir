@@ -38,6 +38,7 @@ from app.core.constants import (
     SESSION_STATE_IDLE,
     SESSION_STATE_THINKING,
     SESSION_STATE_TOOL_USE,
+    STOP_REASON_TURN_COMPLETE,
 )
 from app.core.exceptions import (
     SessionLimitError,
@@ -640,7 +641,7 @@ class SessionManager:
                     await self._publish(
                         active.session_id,
                         EVENT_TYPE_STOP,
-                        {"reason": "turn_complete"},
+                        {"reason": STOP_REASON_TURN_COMPLETE},
                     )
                     break
 

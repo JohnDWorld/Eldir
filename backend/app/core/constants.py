@@ -53,6 +53,12 @@ EVENT_TYPE_STOP: Final[str] = "stop"
 EVENT_TYPE_ERROR: Final[str] = "error"
 EVENT_TYPE_USER_MESSAGE: Final[str] = "user_message"
 
+# Raison portée par un STOP. Deux producteurs : la fin d'un tour (`turn_complete`,
+# Claude a répondu jusqu'au bout) et `SessionManager.stop()`, qui publie un STOP
+# sans charge quand la session est arrêtée, supprimée ou qu'Eldir s'éteint. Seul
+# le premier dit « le tour est fini » ; le second l'interrompt.
+STOP_REASON_TURN_COMPLETE: Final[str] = "turn_complete"
+
 # Qui a écrit un `user_message` : John, ou Eldir lui-même (consigne dispatchée
 # par le superviseur, ping de fin de tour). Les events écrits avant l'ajout de
 # ce champ n'ont pas d'origine : ils sont traités comme venant de John.

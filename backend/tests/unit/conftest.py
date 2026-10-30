@@ -35,3 +35,14 @@ def reglages(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., None]]:
 def abonne() -> Iterator[ServeurAbonne]:
     with ServeurAbonne() as serveur:
         yield serveur
+
+
+@pytest.fixture
+def sdk_factice(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un `ResultMessage` sans les champs du vrai : `_consume_response` l'importe à chaque tour.
+
+    Le reste du SDK reste réel, le superviseur en a besoin pour monter ses outils.
+    """
+    import claude_agent_sdk
+
+    monkeypatch.setattr(claude_agent_sdk, "ResultMessage", type("ResultMessage", (), {}))

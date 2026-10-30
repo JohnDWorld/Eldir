@@ -29,10 +29,12 @@ from app.core.config import get_settings
 from app.core.constants import (
     EVENT_TYPE_ERROR,
     EVENT_TYPE_STOP,
+    EVENT_TYPE_USER_MESSAGE,
     MESSAGE_ORIGIN_AGENT_PREFIX,
     MESSAGE_ORIGIN_ELDIR,
     SESSION_STATE_BLOCKED,
     SESSION_STATE_WAITING_INPUT,
+    STOP_REASON_TURN_COMPLETE,
 )
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import get_logger
@@ -200,6 +202,9 @@ DISALLOWED_TOOLS = [
     "WebSearch",
 ]
 
+# Ce que l'abonné lit quand le tour d'une consigne dispatchée a été interrompu.
+MESSAGE_INTERRUPTION = "La session a été arrêtée avant la fin du tour."
+
 # Le worktree du superviseur n'est qu'un cwd vide : il ne code pas.
 _CWD_DIRNAME = "_supervisor"
 
@@ -345,11 +350,16 @@ class SupervisorService:
         self._manager = manager
         self._sessions = sessions
         self._factory = session_factory
-        # Sessions dispatchées dont on attend la fin de tour pour pinger, avec
-        # l'origine de la consigne (cf. `origine_de_dispatch`) : qui a demandé ce
-        # travail, que le ping rapporte. Une entrée par session : deux consignes
-        # sur une session qui travaille encore ne font qu'un ping, au nom de la
-        # dernière.
+        # Consignes dispatchées que la session n'a pas encore reçues : (origine,
+        # texte), dans l'ordre d'envoi. `send_message` attend son tour derrière
+        # celui qui tourne (celui de John, par exemple) : la consigne n'est livrée
+        # qu'à la fin de l'autre.
+        self._attendues: dict[str, list[tuple[str, str]]] = {}
+        # Sessions dont le tour en cours est celui d'une consigne dispatchée, avec
+        # l'origine de celle-ci (cf. `origine_de_dispatch`) : qui a demandé ce
+        # travail, que le ping rapporte. On arme à la livraison de la consigne
+        # (l'event `user_message`), pas à l'appel de `dispatch` : armer plus tôt
+        # ferait annoncer comme fin de la consigne la fin du tour qui tourne déjà.
         self._pending: dict[str, str] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         manager.register_persist_callback(self._on_event)
@@ -557,7 +567,7 @@ class SupervisorService:
         except NotFoundError as exc:
             return f"Erreur : {exc.message}"
 
-        self._pending[target] = origine_de_dispatch(libelle_agent)
+        self._attendre(target, origine_de_dispatch(libelle_agent), consigne)
         self._spawn(self._run_child(user_id, target, consigne, libelle_agent))
         origine = "nouvelle session" if created else "session reprise"
         return (
@@ -828,6 +838,7 @@ class SupervisorService:
         self, user_id: str, session_id: str, consigne: str, libelle_agent: str | None
     ) -> None:
         """Fait tourner le tour de la session enfant hors de la requête."""
+        auteur = origine_de_dispatch(libelle_agent)
         try:
             # La DB n'est utilisée que pour le contrôle d'accès et le resume :
             # on rend la connexion avant le tour, qui peut durer des minutes.
@@ -836,20 +847,21 @@ class SupervisorService:
                 if not self._manager.is_active(session_id):
                     await self._sessions.resume(db, user_id=user_id, session_id=session_id)
                 await db.commit()
-            await self._manager.send_message(
-                session_id, consigne, origin=origine_de_dispatch(libelle_agent)
-            )
+            await self._manager.send_message(session_id, consigne, origin=auteur)
         except Exception as exc:
             logger.exception("supervisor.dispatch.failed", session_id=session_id)
-            # Absent de `_pending` = un ERROR publié avant l'exception (démarrage
-            # interrompu) a déjà prévenu l'abonné : un second ping le doublerait.
-            demandeur = self._pending.pop(session_id, None)
-            if demandeur is not None:
+            # Encore attendue (jamais livrée) ou déjà armée (livrée, puis l'envoi a
+            # levé) : aucun ping n'est parti. Ni l'une ni l'autre : un STOP ou un
+            # ERROR l'a déjà dit à l'abonné, un second le doublerait.
+            if (
+                self._retirer(session_id, auteur, consigne)
+                or self._pending.pop(session_id, None) is not None
+            ):
                 # Aucun STOP ni ERROR ne viendra. Sans ce ping, l'abonné attendrait
                 # une fin de tour qui n'arrive pas, et ne pourrait pas distinguer ce
                 # silence d'un travail encore en cours.
                 self._spawn(
-                    self._signaler_echec(session_id, demandeur, str(exc) or type(exc).__name__)
+                    self._signaler_echec(session_id, auteur, str(exc) or type(exc).__name__)
                 )
             self._spawn(
                 self._tell_supervisor(
@@ -858,14 +870,56 @@ class SupervisorService:
                     f"consigne : {exc}. Explique le problème à John.",
                 )
             )
+        else:
+            if self._retirer(session_id, auteur, consigne):
+                # Le tour a eu lieu sans que `_on_event` voie la consigne arriver :
+                # personne ne sera prévenu. Mieux vaut le dire que le laisser se taire.
+                logger.warning("supervisor.dispatch.jamais_armee", session_id=session_id)
+
+    def _attendre(self, session_id: str, auteur: str, consigne: str) -> None:
+        self._attendues.setdefault(session_id, []).append((auteur, consigne))
+
+    def _retirer(self, session_id: str, auteur: str, consigne: str) -> bool:
+        """Retire une consigne attendue. `False` si elle n'y était pas (déjà livrée)."""
+        file = self._attendues.get(session_id, [])
+        if (auteur, consigne) not in file:
+            return False
+        file.remove((auteur, consigne))
+        if not file:
+            del self._attendues[session_id]
+        return True
 
     # ── ping de fin de tour ─────────────────────────────────────
     async def _on_event(self, session_id: str, event_type: str, data: dict[str, Any]) -> None:
         """Callback branché sur le SessionManager (tous les events)."""
+        if event_type == EVENT_TYPE_USER_MESSAGE:
+            # La consigne dispatchée vient d'être livrée : son tour commence.
+            auteur, texte = data.get("origin"), data.get("text")
+            if (
+                isinstance(auteur, str)
+                and isinstance(texte, str)
+                and self._retirer(session_id, auteur, texte)
+            ):
+                self._pending[session_id] = auteur
+            return
         if event_type not in (EVENT_TYPE_STOP, EVENT_TYPE_ERROR):
             return
         demandeur = self._pending.pop(session_id, None)
         if demandeur is None:
+            return
+        if event_type == EVENT_TYPE_STOP and data.get("reason") != STOP_REASON_TURN_COMPLETE:
+            # `SessionManager.stop()` publie aussi un STOP : la session a été arrêtée,
+            # supprimée ou Eldir s'éteint, le tour n'est pas allé au bout. Le compte
+            # rendu de la ligne est celui d'un tour précédent : le donner pour une fin
+            # de tour ferait lire « prêt » à qui attend le travail. La fiche se lit
+            # ici et non dans une tâche : à la suppression, la ligne n'existe plus
+            # quand la tâche tourne.
+            fiche = await self._fiche(session_id)
+            if fiche is not None:
+                child, project_name = fiche
+                self._prevenir_l_abonne(
+                    child, project_name, demandeur=demandeur, erreur=MESSAGE_INTERRUPTION
+                )
             return
         self._spawn(self._notify_turn_done(session_id, event_type, data, demandeur))
 
