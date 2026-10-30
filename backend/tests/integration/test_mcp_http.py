@@ -754,6 +754,22 @@ async def _refus(hook: Any, commande: str) -> bool:
 _PUBLIER = ["git commit -m 'x'", "git push origin feat/x", "gh pr create --fill"]
 
 
+async def _publication_en_base(factory: Fabrique, session_id: str) -> bool:
+    """Relit le drapeau dans une session de base neuve, sans passer par le hook.
+
+    Le hook vivant porte le drapeau en mémoire dès avant l'écriture, donc
+    l'interroger ne dit rien de ce que la base garde. Or c'est la base que
+    `session_service.resume` relit au réveil : sans cette relecture, un
+    `allow_publish(false)` qui ne valide pas sa transaction referme le hook
+    vivant et laisse `publish_allowed = True` en base, et la porte se rouvre
+    d'elle-même au prochain démarrage de la session.
+    """
+    async with factory() as db:
+        ligne = await db.get_one(SessionRow, session_id)
+        await db.refresh(ligne)
+        return ligne.publish_allowed
+
+
 async def test_la_surface_http_ne_degage_pas_la_publication(
     url_mcp: str,
     session_factory: Fabrique,
@@ -809,6 +825,9 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
     for commande in _PUBLIER:
         assert not await _refus(hook, commande), commande
     assert await _refus(hook, "git push --force origin feat/x")
+    assert await _publication_en_base(session_factory, session_id) is True, (
+        "la base doit porter l'autorisation, pas seulement le hook vivant"
+    )
 
     # Et il la referme.
     texte = await _appelle(
@@ -817,3 +836,6 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
     assert texte.startswith(f"Publication de nouveau bloquée pour la session {session_id}.")
     for commande in _PUBLIER:
         assert await _refus(hook, commande), commande
+    assert await _publication_en_base(session_factory, session_id) is False, (
+        "la fermeture doit être en base : sinon le resume rouvre la porte"
+    )
