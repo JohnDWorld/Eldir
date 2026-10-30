@@ -222,7 +222,7 @@ export function SettingsOllamaPage(): JSX.Element {
               onChange={(e) => setInput(e.target.value)}
               rows={8}
               placeholder="Colle ici un fichier .env, un log, un fragment de code…"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field text-xs"
             />
           </label>
 

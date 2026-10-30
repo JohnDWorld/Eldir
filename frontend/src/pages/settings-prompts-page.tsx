@@ -200,7 +200,7 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           spellCheck={false}
-          className="min-h-[400px] w-full resize-y rounded-eldir border border-eldir-gray-3 bg-eldir-paper p-3 font-mono text-xs text-eldir-ink focus:border-eldir-orange focus:ring-1 focus:ring-eldir-orange"
+          className="eldir-field min-h-[400px] resize-y p-3 text-xs"
         />
       </label>
 

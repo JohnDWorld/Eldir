@@ -167,7 +167,7 @@ function SkillDialog({
               onChange={(e) => setName(e.target.value)}
               maxLength={120}
               placeholder="ex: run-tests"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream"
               required
             />
             <p className="mt-1 font-mono text-2xs text-eldir-gray">
@@ -182,7 +182,7 @@ function SkillDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={255}
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream"
             />
           </label>
 
@@ -193,7 +193,7 @@ function SkillDialog({
               onChange={(e) => setContent(e.target.value)}
               rows={14}
               required
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-cream px-3 py-2 font-mono text-xs text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field bg-eldir-cream text-xs"
             />
           </label>
 

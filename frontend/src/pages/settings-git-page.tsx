@@ -312,7 +312,7 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://forgejo.example.com"
-              className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+              className="eldir-field"
             />
           </label>
         )}
@@ -323,7 +323,7 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder={provider === 'github' ? 'ghp_… ou github_pat_…' : 'token Forgejo'}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field"
           />
         </label>
         <label className="block">
@@ -333,7 +333,7 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={120}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field"
           />
         </label>
         <label className="block">
@@ -341,7 +341,7 @@ function CredentialForm({ provider }: { provider: Provider }): JSX.Element {
           <select
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
-            className="w-full rounded-eldir border border-eldir-gray-3 bg-eldir-paper px-3 py-2 font-mono text-sm text-eldir-ink focus:border-eldir-orange"
+            className="eldir-field"
           >
             <option value="">Tous les projets</option>
             {(projects.data ?? []).map((p) => (
