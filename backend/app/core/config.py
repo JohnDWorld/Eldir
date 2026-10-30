@@ -157,6 +157,23 @@ class Settings(BaseSettings):
         return [h.strip() for h in self.mcp_allowed_hosts.split(",") if h.strip()]
 
     @property
+    def mcp_origins(self) -> list[str]:
+        """Les origines autorisées sur /api/mcp/, dérivées des hôtes déclarés.
+
+        Le même drapeau allume les deux contrôles du middleware de transport, et
+        sa validation d'`Origin` rend vrai sur un en-tête absent mais faux sur
+        toute valeur hors liste. Laisser la liste vide refusait donc en 403 tout
+        client qui envoie un `Origin`, c'est-à-dire tout agent hébergé ou piloté
+        par un navigateur, et précisément sur le chemin de durcissement que la
+        documentation recommande.
+
+        Les deux schémas : derrière un proxy TLS le navigateur envoie `https://`,
+        un agent en clair sur le réseau privé `http://`. Le `Host` reste la garde
+        du nom, et le jeton celle de l'accès.
+        """
+        return [f"{schema}://{hote}" for hote in self.mcp_hosts for schema in ("https", "http")]
+
+    @property
     def ollama_enabled(self) -> bool:
         return bool(self.ollama_base_url.strip())
 

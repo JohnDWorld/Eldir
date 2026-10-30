@@ -189,6 +189,11 @@ désactive cette vérification**, et c'est le réglage par défaut : le jeton re
 garde, et aucun cookie n'est en jeu sur cette surface, donc il n'y a rien à
 rejouer depuis un navigateur.
 
+Ce réglage sert aussi à l'`Origin` : les origines autorisées sont ces mêmes noms,
+en `https://` et en `http://`. Un agent hébergé ou piloté par un navigateur
+envoie cet en-tête, et une origine hors liste repart en **403** (voir
+[403 `Invalid Origin header`](#403-invalid-origin-header)).
+
 Si tu passes par le reverse proxy fourni (`docker/Caddyfile`), il transmet le
 `Host` d'origine tel quel : c'est donc le nom public qu'il faut déclarer, pas
 `backend:8000`.
@@ -425,6 +430,20 @@ la vérification : le jeton reste la garde.
 La garde du jeton passe **avant** ce contrôle, donc un 421 veut dire que ton jeton
 est accepté : si tu reçois un 401, règle-le d'abord, le problème de `Host` est
 derrière.
+
+### 403 `Invalid Origin header`
+
+Le même réglage allume deux contrôles : le `Host` et l'`Origin`. Les origines
+autorisées sont dérivées des hôtes déclarés, dans les deux schémas
+(`https://` et `http://`), parce que derrière un proxy TLS c'est le navigateur
+qui choisit le schéma.
+
+Un `Origin` qui ne correspond à aucun hôte déclaré repart donc en **403**, même
+avec un `Host` valide et un jeton valide. Si ton agent est hébergé sur un autre
+nom que celui par lequel il joint Eldir, ajoute ce nom à `MCP_ALLOWED_HOSTS`.
+
+Un appel sans en-tête `Origin` (un client MCP en ligne de commande, par exemple)
+passe toujours : l'absence est traitée comme une requête de même origine.
 
 ### 307 sur `/api/mcp` sans barre finale
 

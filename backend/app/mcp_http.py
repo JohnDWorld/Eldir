@@ -179,7 +179,8 @@ def construire_app_mcp() -> tuple[FastMCP, ASGIApp]:
     Un appel par application : `session_manager.run()` ne peut tourner qu'une
     fois par instance, donc deux applications ne partagent jamais un serveur.
     """
-    hotes = get_settings().mcp_hosts
+    reglages = get_settings()
+    hotes = reglages.mcp_hosts
     mcp = FastMCP(
         "eldir",
         tools=[_outil(nom, fonction) for nom, fonction in OUTILS.items()],
@@ -190,9 +191,14 @@ def construire_app_mcp() -> tuple[FastMCP, ASGIApp]:
         # /api/mcp/mcp, et /api/mcp/ rendrait 404.
         streamable_http_path="/",
         # `allowed_hosts` veut une liste, jamais None (ValidationError) : vide
-        # avec la protection coupée, c'est le réglage par défaut.
+        # avec la protection coupée, c'est le réglage par défaut. Et
+        # `allowed_origins` avec, parce que le même drapeau allume les deux
+        # contrôles : sans origines déclarées, tout client qui envoie un
+        # `Origin` repartait en 403.
         transport_security=TransportSecuritySettings(
-            enable_dns_rebinding_protection=bool(hotes), allowed_hosts=hotes
+            enable_dns_rebinding_protection=bool(hotes),
+            allowed_hosts=hotes,
+            allowed_origins=reglages.mcp_origins,
         ),
     )
     return mcp, GardeJeton(mcp.streamable_http_app())

@@ -348,6 +348,43 @@ async def test_avec_des_hotes_declares_un_host_inconnu_est_refuse_en_421(
     assert declare.status_code == 200
 
 
+async def test_avec_des_hotes_declares_un_origin_du_meme_hote_passe(
+    monkeypatch: pytest.MonkeyPatch, jeton_agent: str
+) -> None:
+    """Un agent piloté par un navigateur envoie un `Origin`, et il doit passer.
+
+    Le drapeau anti-DNS-rebinding allume aussi la validation d'`Origin`, qui
+    refuse en 403 toute valeur hors liste. Sans origines déclarées, durcir le
+    `Host` fermait la porte à tout client qui envoie cet en-tête.
+    """
+    monkeypatch.setattr(get_settings(), "mcp_allowed_hosts", "eldir.exemple.lan")
+    entetes = {"Host": "eldir.exemple.lan"}
+    async with _serveur() as url:
+        sans = await _post(url, jeton_agent, entetes=entetes)
+        declaree = await _post(
+            url, jeton_agent, entetes={**entetes, "Origin": "https://eldir.exemple.lan"}
+        )
+        etrangere = await _post(
+            url, jeton_agent, entetes={**entetes, "Origin": "https://ailleurs.exemple.lan"}
+        )
+    assert sans.status_code == 200
+    assert declaree.status_code == 200, declaree.text
+    assert etrangere.status_code == 403
+
+
+def test_les_origines_derivent_des_hotes_dans_les_deux_schemas() -> None:
+    reglages = get_settings().model_copy(
+        update={"mcp_allowed_hosts": "a.exemple.lan,b.exemple.lan:*"}
+    )
+    assert reglages.mcp_origins == [
+        "https://a.exemple.lan",
+        "http://a.exemple.lan",
+        "https://b.exemple.lan:*",
+        "http://b.exemple.lan:*",
+    ]
+    assert reglages.model_copy(update={"mcp_allowed_hosts": ""}).mcp_origins == []
+
+
 def test_les_hotes_se_declarent_separes_par_des_virgules() -> None:
     reglages = get_settings().model_copy(
         update={"mcp_allowed_hosts": " a.exemple.lan , b.exemple.lan:* ,, "}
