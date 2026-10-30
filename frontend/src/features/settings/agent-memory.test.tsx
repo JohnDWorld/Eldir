@@ -223,6 +223,42 @@ describe('AgentMemoryPanel, liste repliée', () => {
   });
 });
 
+/** Ce que la jauge MONTRE (largeur et couleur du remplissage), pas seulement ce qu'elle annonce. */
+function remplissage(): HTMLElement {
+  return screen.getByRole('meter').firstElementChild as HTMLElement;
+}
+
+function lignes(n: number): AgentMemoryEntry[] {
+  return Array.from({ length: n }, (_, i) => entree('A', `Fait ${i}.`));
+}
+
+describe('AgentMemoryPanel, jauge', () => {
+  it.each([
+    // [lignes, borne, largeur, couleur] : la couleur change à 80 % puis à la borne.
+    [0, 20, '0%', 'bg-eldir-orange'],
+    [1, 5, '20%', 'bg-eldir-orange'],
+    [15, 20, '75%', 'bg-eldir-orange'],
+    [16, 20, '80%', 'bg-eldir-amber'],
+    [19, 20, '95%', 'bg-eldir-amber'],
+    [20, 20, '100%', 'bg-eldir-red'],
+    // John peut écrire plus de lignes à la main que la borne n'en laisse aux agents :
+    // le remplissage ne déborde pas de la jauge.
+    [25, 20, '100%', 'bg-eldir-red'],
+  ])('avec %i lignes sur %i, remplit %s en %s', async (n, borne, largeur, couleur) => {
+    api.get.mockResolvedValue(memoire(lignes(n), borne));
+    renderAvec(<AgentMemoryPanel />);
+    await screen.findByRole('meter');
+    expect(remplissage().style.width).toBe(largeur);
+    expect(remplissage()).toHaveClass(couleur);
+    // Une seule couleur à la fois : un remplissage qui les cumulerait mentirait.
+    for (const autre of ['bg-eldir-orange', 'bg-eldir-amber', 'bg-eldir-red'].filter(
+      (c) => c !== couleur,
+    )) {
+      expect(remplissage()).not.toHaveClass(autre);
+    }
+  });
+});
+
 describe('AgentMemoryStatus', () => {
   it('dit le compte et renvoie vers le prompt des préférences', async () => {
     api.get.mockResolvedValue(memoire([entree('A', 'a'), entree('B', 'b')], 5));
