@@ -23,6 +23,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError
 from app.core.logging import get_logger
+from app.core.security import extract_bearer
 from app.db.session import async_session_factory
 from app.services import agent_token_service
 from app.services.singletons import get_supervisor_service
@@ -86,9 +87,7 @@ class GardeJeton:
 
     @staticmethod
     async def _identifier(entetes: Headers) -> tuple[str, str]:
-        schema, _, jeton = entetes.get("authorization", "").partition(" ")
-        if schema.lower() != "bearer" or not jeton:
-            raise AuthenticationError("Header Authorization manquant ou mal formé.")
+        jeton = extract_bearer(entetes.get("authorization"))
         async with async_session_factory() as db:
             identite = await agent_token_service.authentifier(db, jeton=jeton)
             # Sans commit, la date de dernier usage écrite par `authentifier`

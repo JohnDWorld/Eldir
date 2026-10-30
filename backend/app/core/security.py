@@ -24,6 +24,20 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 # ── JWT ─────────────────────────────────────────────────────────
+def extract_bearer(authorization: str | None) -> str:
+    """Rend le jeton d'un en-tête `Authorization: Bearer <jeton>`, ou lève.
+
+    Le seul endroit qui décide de la forme de l'en-tête : l'API REST et la garde
+    MCP passent ici, pour qu'aucune forme ne soit acceptée par l'une et refusée
+    par l'autre. Le schéma se compare sans tenir compte de la casse (RFC 7235).
+    Ne dit rien du jeton lui-même, que le décodeur de chaque porte examine.
+    """
+    schema, _, jeton = (authorization or "").partition(" ")
+    if schema.lower() != "bearer" or not jeton:
+        raise AuthenticationError("Header Authorization manquant ou mal formé.")
+    return jeton
+
+
 def create_access_token(
     subject: str,
     *,

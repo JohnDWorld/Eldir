@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AuthenticationError
-from app.core.security import decode_session_token
+from app.core.security import decode_session_token, extract_bearer
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -47,10 +47,7 @@ async def get_current_user_id(
 
     Refuse un jeton d'agent, qui n'ouvre que la surface MCP.
     """
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise AuthenticationError("Header Authorization manquant ou invalide.")
-    token = authorization.split(" ", 1)[1]
-    payload = decode_session_token(token)
+    payload = decode_session_token(extract_bearer(authorization))
     sub = payload.get("sub")
     if not isinstance(sub, str):
         raise AuthenticationError("Jeton sans sujet valide.")
