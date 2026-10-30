@@ -63,9 +63,14 @@ async def prevenir(charge: dict[str, Any]) -> None:
         if cle:
             entetes["X-Eldir-Signature"] = signer(corps, cle)
         delai = settings.turn_webhook_timeout_seconds
-        # Le délai de httpx court par phase : un abonné qui répond au compte-gouttes
-        # le contournerait. Ce second délai borne le ping entier.
-        async with asyncio.timeout(delai), httpx.AsyncClient(timeout=delai) as client:
+        # Un seul délai, sur le ping entier. Celui de httpx court par phase : un abonné qui
+        # répond au compte-gouttes le remet à zéro sans cesse, et il doublonnerait celui-ci.
+        # `timeout=None` le désactive (sans l'argument, httpx impose 5 s par phase, et un
+        # abonné lent mais dans le délai configuré serait coupé avant).
+        async with (
+            asyncio.timeout(delai),
+            httpx.AsyncClient(timeout=None) as client,  # noqa: S113 (asyncio.timeout borne le ping)
+        ):
             reponse = await client.post(url, content=corps, headers=entetes)
         if not reponse.is_success:
             logger.warning("turn_webhook.refuse", status=reponse.status_code)

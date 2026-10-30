@@ -21,7 +21,9 @@ import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
+import httpx
 import pytest
 import structlog
 from app.core.config import Settings
@@ -188,6 +190,29 @@ async def test_un_abonne_injoignable_ne_fait_pas_echouer_le_tour(
 
     assert journal.appels == [("turn_webhook.injoignable", {"erreur": "ConnectError"})]
     assert JETON not in repr(journal.appels), "ni l'URL ni le message de l'exception"
+
+
+async def test_le_delai_configure_est_le_seul_delai_du_client(
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    journal: Journal,
+    abonne: ServeurAbonne,
+) -> None:
+    """Le client httpx n'a pas de délai propre : le délai global (`asyncio.timeout`) est le
+    seul, et le réglage de John le seul qui compte. Sans `timeout=None`, httpx imposerait
+    5 s par phase et couperait un abonné lent mais dans le délai configuré."""
+    reglages(turn_webhook_url=abonne.url("/ok"), turn_webhook_timeout_seconds="30")
+    reel, construits = httpx.AsyncClient, []
+
+    def espion(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        construits.append(kwargs)
+        return reel(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", espion)
+    await prevenir(CHARGE)
+
+    assert len(abonne.requetes) == 1, "le vrai client a bien posté"
+    assert construits == [{"timeout": None}]
 
 
 async def test_un_abonne_qui_ne_repond_pas_est_lache_au_bout_du_delai(
