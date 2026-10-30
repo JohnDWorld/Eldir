@@ -90,8 +90,16 @@ describe('SettingsPromptsPage, mémoire des agents', () => {
     renderPage('/settings/prompts?prompt=supervisor_prefs');
     const bouton = await screen.findByRole('button', { name: /retirer.*agent A/i });
     expect(bouton).toBeEnabled();
+    // Avant toute modification : un vrai lien vers les jetons.
+    expect(screen.getByRole('link', { name: /voir les jetons/i })).toHaveAttribute(
+      'href',
+      '/settings/agents',
+    );
     fireEvent.change(screen.getByDisplayValue(LIGNE), { target: { value: `${LIGNE}\n- Autre.` } });
     expect(screen.getByRole('button', { name: /retirer.*agent A/i })).toBeDisabled();
+    // Le brouillon se perdrait aussi en quittant la page : même verrou pour le lien.
+    expect(screen.getByRole('button', { name: /voir les jetons/i })).toBeDisabled();
+    expect(screen.queryByRole('link', { name: /voir les jetons/i })).not.toBeInTheDocument();
   });
 
   it('relit la mémoire des agents quand John restaure le défaut du prompt', async () => {

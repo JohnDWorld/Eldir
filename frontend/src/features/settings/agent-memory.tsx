@@ -100,12 +100,6 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
           {erreur}
         </div>
       )}
-      {verrouille && (
-        <p className="mb-2 text-xs text-eldir-ink-2">
-          Tu as des modifications non sauvegardées dans le prompt plus bas : sauvegarde-les avant de
-          retirer une ligne ici, sans quoi elles seraient remplacées.
-        </p>
-      )}
       <ul className="divide-y divide-eldir-gray-3">
         {entries.map((entree) => (
           <li
@@ -174,10 +168,24 @@ export function AgentMemoryPanel({ verrouille = false }: { verrouille?: boolean 
         // son jeton : il ne doit pas avoir à retrouver la page à la main.
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
           <p className="text-sm text-eldir-ink-2">Un agent en occupe trop ? Coupe son jeton.</p>
-          <Link to="/settings/agents" className="eldir-btn eldir-btn--secondary eldir-btn--sm">
-            Voir les jetons
-          </Link>
+          {verrouille ? (
+            // Quitter la page perdrait le brouillon du prompt, comme retirer une ligne le
+            // remplacerait : les deux gestes ont le même verrou.
+            <button type="button" disabled className="eldir-btn eldir-btn--secondary eldir-btn--sm">
+              Voir les jetons
+            </button>
+          ) : (
+            <Link to="/settings/agents" className="eldir-btn eldir-btn--secondary eldir-btn--sm">
+              Voir les jetons
+            </Link>
+          )}
         </div>
+      )}
+      {verrouille && entries.length > 0 && (
+        <p className="mt-2 text-xs text-eldir-ink-2">
+          Tu as des modifications non sauvegardées dans le prompt plus bas : sauvegarde-les avant de
+          retirer une ligne ou de quitter cette page, sans quoi elles seraient perdues.
+        </p>
       )}
 
       {entries.length === 0 ? (

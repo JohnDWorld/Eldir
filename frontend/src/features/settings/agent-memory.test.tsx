@@ -165,6 +165,17 @@ describe('AgentMemoryPanel, vers les jetons', () => {
     expect(lien).toHaveClass('eldir-btn');
   });
 
+  it('verrouille « Voir les jetons » comme « Retirer » tant que le brouillon du prompt n’est pas sauvegardé', async () => {
+    api.get.mockResolvedValue(memoire([entree('A', 'Fait A.')]));
+    renderAvec(<AgentMemoryPanel verrouille />);
+    // Quitter la page perdrait le brouillon : plus de lien, un bouton inerte à sa place.
+    const bouton = await screen.findByRole('button', { name: /voir les jetons/i });
+    expect(bouton).toBeDisabled();
+    expect(screen.queryByRole('link', { name: /voir les jetons/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/quitter cette page/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retirer.*agent A/i })).toBeDisabled();
+  });
+
   it('ne propose pas de couper un jeton quand aucun agent n’a rien écrit', async () => {
     renderAvec(<AgentMemoryPanel />);
     await screen.findByText(/aucun agent n'a enregistré de préférence/i);
@@ -225,11 +236,14 @@ describe('AgentMemoryPanel, liste repliée', () => {
     });
   });
 
-  it('range le rappel du brouillon non sauvegardé avec les lignes', async () => {
+  it('dit pourquoi tout est verrouillé, même liste repliée', async () => {
     api.get.mockResolvedValue(memoire(QUATRE, 20));
     renderAvec(<AgentMemoryPanel verrouille />);
     const details = (await screen.findByText(/les 4 lignes des agents/i)).closest('details');
-    expect(details).toContainElement(screen.getByText(/modifications non sauvegardées/));
+    const rappel = screen.getByText(/modifications non sauvegardées/);
+    // Visible hors du repli : fermée, la liste ne dirait pas pourquoi « Retirer » est inerte.
+    expect(details).not.toContainElement(rappel);
+    expect(rappel.textContent).toMatch(/quitter cette page/);
   });
 
   it('garde au repli une cible tactile de 44px', async () => {
