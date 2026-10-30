@@ -18,6 +18,7 @@ publication depuis le dashboard.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -964,7 +965,13 @@ class SupervisorService:
         )
 
     async def _fiche(self, session_id: str) -> tuple[SessionRow, str] | None:
-        """La ligne de la session et le nom de son projet, ou `None` si elle a disparu."""
+        """La ligne de la session et le nom de son projet, ou `None` si elle a disparu.
+
+        La ligne est rendue détachée, ses attributs lus. Ça tient parce que la fabrique de
+        sessions n'expire rien au commit (`expire_on_commit=False`) et qu'on ne commit pas
+        ici : le jour où l'un des deux change, chaque accès à `child.summary` lève, dans
+        une tâche de fond.
+        """
         async with self._factory() as db:
             child = await db.get(SessionRow, session_id)
             if child is None:
@@ -1001,13 +1008,10 @@ class SupervisorService:
 
     async def _signaler_echec(self, session_id: str, demandeur: str, erreur: str) -> None:
         """Prévient l'abonné qu'une consigne n'a pas pu partir : aucun tour n'a eu lieu."""
-        try:
-            fiche = await self._fiche(session_id)
-            if fiche is not None:
-                child, project_name = fiche
-                self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur)
-        except Exception:
-            logger.exception("supervisor.dispatch.ping_failed", session_id=session_id)
+        fiche = await self._fiche(session_id)
+        if fiche is not None:
+            child, project_name = fiche
+            self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur)
 
     async def _tell_supervisor(self, user_id: str, content: str) -> None:
         """Envoie un message au superviseur au nom d'Eldir, pas de John."""
@@ -1019,8 +1023,19 @@ class SupervisorService:
         except Exception:
             logger.exception("supervisor.notify.failed")
 
-    def _spawn(self, coro: Any) -> None:
-        """Tâche de fond dont on garde une référence (sinon GC prématuré)."""
-        task = asyncio.create_task(coro)
+    def _spawn(self, coro: Coroutine[Any, Any, None]) -> None:
+        """Tâche de fond dont on garde une référence (sinon GC prématuré).
+
+        Elle ne meurt pas en silence : l'exception d'une tâche que personne n'attend
+        n'apparaît nulle part, or le ping de fin de tour n'a pas de seconde chance
+        (son entrée est déjà dépilée). Un seul filet ici plutôt qu'un par coroutine.
+        """
+        task = asyncio.create_task(self._sans_lever(coro), name=coro.__qualname__)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    async def _sans_lever(self, coro: Coroutine[Any, Any, None]) -> None:
+        try:
+            await coro
+        except Exception:
+            logger.exception("supervisor.tache.failed", tache=coro.__qualname__)

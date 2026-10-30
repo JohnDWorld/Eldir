@@ -124,7 +124,7 @@ class ServeurAbonne:
 
 
 class Journal:
-    """Remplace le logger du ping : ce qu'il a dit, et sous quel nom.
+    """Remplace un logger : ce qu'il a dit, et sous quel nom.
 
     Le journal réel écrit sur la sortie standard, que rien ne relit ; l'espion
     permet de prouver qu'un échec a bien été vu, donc que le ping est bien parti.
@@ -135,6 +135,8 @@ class Journal:
 
     def warning(self, evenement: str, **champs: Any) -> None:
         self.appels.append((evenement, champs))
+
+    info = exception = warning
 
     def evenements(self) -> list[str]:
         return [e for e, _ in self.appels]

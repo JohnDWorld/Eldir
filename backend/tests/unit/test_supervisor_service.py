@@ -100,8 +100,9 @@ class _TachesSuivies(set[asyncio.Task[None]]):
 
 @pytest.fixture
 def supervisor(
-    session_factory: async_sessionmaker[AsyncSession],
+    session_factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
 ) -> SupervisorService:
+    monkeypatch.setattr(supervisor_service, "logger", Journal())
     manager = _FakeManager()
     service = SupervisorService(
         manager=manager,
@@ -805,10 +806,12 @@ async def _attendre(condition: Callable[[], Any], delai: float = 5.0) -> None:
             await asyncio.sleep(0.01)
 
 
-async def _fin_des_taches_de_fond(supervisor: SupervisorService) -> None:
+async def _fin_des_taches_de_fond(supervisor: SupervisorService, *, echecs: int = 0) -> None:
     """Attend les tâches de fond du superviseur, celles qu'elles lancent comprises.
 
-    L'une d'elles qui a levé, même déjà finie, fait échouer ici.
+    `_spawn` journalise l'exception d'une tâche au lieu de la laisser mourir : on compte
+    donc les `supervisor.tache.failed` du journal, et il y en a `echecs`, pas un de plus
+    ni de moins.
     """
     historique = supervisor._tasks.historique  # type: ignore[attr-defined]
     async with asyncio.timeout(10):
@@ -817,7 +820,9 @@ async def _fin_des_taches_de_fond(supervisor: SupervisorService) -> None:
             await asyncio.gather(*historique)
             await asyncio.sleep(0)
             if len(historique) == connues:
-                return
+                break
+    journal = supervisor_service.logger
+    assert journal.evenements().count("supervisor.tache.failed") == echecs  # type: ignore[attr-defined]
 
 
 def _charge_recue(abonne: ServeurAbonne, rang: int = 0) -> dict[str, Any]:
@@ -1250,15 +1255,15 @@ async def test_une_consigne_livree_sans_que_le_superviseur_la_voie_est_signalee(
     async def envoi_muet(*_: Any, **__: Any) -> None:
         return None
 
-    journal = Journal()
     monkeypatch.setattr(manager, "send_message", envoi_muet)
-    monkeypatch.setattr(supervisor_service, "logger", journal)
     await supervisor.outil_dispatch(
         admin.id, project_id=project.id, consigne=CONSIGNE, session_id=child.id
     )
     await _fin_des_taches_de_fond(supervisor)
 
-    assert journal.evenements() == ["supervisor.dispatch.jamais_armee"]
+    assert supervisor_service.logger.evenements() == [  # type: ignore[attr-defined]
+        "supervisor.dispatch.jamais_armee"
+    ]
     assert supervisor._attendues == {}  # type: ignore[attr-defined]
 
 
@@ -1284,11 +1289,37 @@ async def test_un_ping_d_echec_qui_echoue_ne_prive_pas_le_superviseur_de_son_avi
     await supervisor.outil_dispatch(
         admin.id, project_id=project.id, consigne=CONSIGNE, session_id=child.id
     )
-    await _fin_des_taches_de_fond(supervisor)  # aucune tâche n'a levé
+    await _fin_des_taches_de_fond(supervisor, echecs=1)  # la fiche, journalisée
 
     assert abonne.requetes == [], "pas de fiche, pas de ping"
     manager = supervisor._manager  # type: ignore[attr-defined]
     assert len(manager.sent) == 1 and "n'a pas pu traiter la consigne" in manager.sent[0][1]
+
+
+async def test_une_base_qui_hoquette_pendant_le_ping_de_fin_de_tour_est_journalisee(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
+    """L'entrée de la session est déjà dépilée : le ping n'a pas de seconde chance, et
+    l'exception d'une tâche que personne n'attend ne s'affichait nulle part."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+
+    async def base_en_panne(*_: Any, **__: Any) -> None:
+        raise RuntimeError("base en panne")
+
+    monkeypatch.setattr(supervisor, "_fiche", base_en_panne)
+    await _tour_dispatche(supervisor, child, "eldir")
+    await _fin_des_taches_de_fond(supervisor, echecs=1)
+
+    assert abonne.requetes == [] and supervisor._manager.sent == []  # type: ignore[attr-defined]
+    appels = supervisor_service.logger.appels  # type: ignore[attr-defined]
+    assert appels == [("supervisor.tache.failed", {"tache": "SupervisorService._notify_turn_done"})]
 
 
 @pytest.mark.parametrize(
@@ -1351,7 +1382,7 @@ async def test_un_abonne_lent_ne_retient_pas_le_superviseur(
         await _attendre(lambda: manager.sent)
         await abonne.attendre(1)
         en_cours = [
-            t.get_coro().__qualname__  # type: ignore[union-attr]
+            t.get_name()
             for t in supervisor._tasks  # type: ignore[attr-defined]
             if not t.done()
         ]
@@ -1403,8 +1434,11 @@ async def test_un_superviseur_occupe_ne_retient_pas_l_abonne(
 
 @pytest.fixture
 def supervisor_reel(
-    session_factory: async_sessionmaker[AsyncSession], sdk_factice: None
+    session_factory: async_sessionmaker[AsyncSession],
+    sdk_factice: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[SupervisorService, ManagerReel]:
+    monkeypatch.setattr(supervisor_service, "logger", Journal())
     manager = ManagerReel()
     service = SupervisorService(
         manager=manager,
@@ -1643,7 +1677,7 @@ async def test_le_ping_d_interruption_est_prepare_avant_que_stop_rende_la_main(
 
     await manager.stop(child.id)
 
-    envoyes = [t.get_coro().__qualname__ for t in service._tasks.historique]  # type: ignore[attr-defined,union-attr]
+    envoyes = [t.get_name() for t in service._tasks.historique]  # type: ignore[attr-defined]
     assert "prevenir" in envoyes
     porte.set()
     await _fin_des_taches_de_fond(service)
