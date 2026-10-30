@@ -3,7 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- `interactive-widget=resizes-content` : sans lui, le clavier tactile ne
+         rétrécit PAS la vue de mise en page (le défaut est `resizes-visual`).
+         L'app est en `height: 100%` d'une vue qui n'a pas bougé, donc le
+         composeur de la page de session, qui vit en bas, passait SOUS le
+         clavier. Or écrire à Claude est le geste le plus fréquent de l'app sur
+         un téléphone. Avec cette clé, la vue rétrécit, les 100% rétrécissent
+         avec elle, et le composeur reste au-dessus du clavier avec son bouton.
+         C'est une amélioration progressive : un navigateur qui ne connaît pas
+         la clé l'ignore et se comporte comme avant. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#D97757" />
     <!-- Thème appliqué avant le premier affichage : sans ça, la PWA s'ouvre
          en clair puis bascule en sombre (flash blanc). Même clé et même

@@ -36,9 +36,14 @@ function AuthedInner(): JSX.Element {
       {/* La marge du bas va sur la zone de défilement, pas sur la coquille :
           posée sur la coquille elle rognerait la hauteur utile en permanence,
           alors qu'ici elle ne fait que laisser le dernier élément d'une liste
-          remonter au-dessus de la barre de geste. Aucun élément de l'app n'est
-          collé en bas (ni `fixed`, ni `sticky`), sinon c'est lui qui la
-          porterait. */}
+          remonter au-dessus de la barre de geste.
+
+          Ce qui est `fixed` échappe à ce positionnement et doit donc porter ses
+          marges lui-même. C'est le cas des neuf voiles de dialogue, et la
+          version précédente de ce commentaire affirmait à tort qu'aucun élément
+          n'était `fixed` : ils le sont, ils passaient sous l'encoche en paysage
+          et sous la barre de geste en portrait, et ils le portent maintenant
+          dans `.eldir-overlay`. */}
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-[env(safe-area-inset-bottom)]">
         <Outlet />
       </div>
