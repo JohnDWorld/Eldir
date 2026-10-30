@@ -117,9 +117,11 @@ Ouvre une [issue](https://github.com/JohnDWorld/Eldir/issues) avec :
 [`SECURITY.md`](./SECURITY.md), qui dit où écrire en privé et ce qui est hors
 périmètre.
 
-## Code of Conduct
+## Code de conduite
 
-Restons respectueux, factuels, et concentrés sur le code. Les attaques personnelles, harcèlement ou comportements discriminatoires entraîneront une exclusion immédiate du projet.
+Participer à Eldir, c'est accepter le [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
+(Contributor Covenant 2.1). Il dit ce qu'on attend, ce qu'on refuse, où signaler
+en privé, et ce qui arrive ensuite.
 
 ## Licence des contributions
 
