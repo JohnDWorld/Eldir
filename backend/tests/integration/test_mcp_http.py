@@ -335,6 +335,21 @@ def test_chaque_fonction_d_outil_accepte_les_parametres_que_la_table_annonce() -
             assert annotation is attendu or attendu in get_args(annotation), (nom, param)
 
 
+async def test_un_content_type_absent_ou_faux_est_refuse_en_400(jeton_agent: str) -> None:
+    """Le contrôle du `Content-Type` est actif même sans hôtes déclarés.
+
+    Un jeton valide ne suffit donc pas : c'est le premier mur d'un client qui
+    poste sans en-tête, et il est documenté comme tel.
+    """
+    async with _serveur() as url:
+        sans = await _post(url, jeton_agent, entetes={"Content-Type": ""})
+        faux = await _post(url, jeton_agent, entetes={"Content-Type": "text/plain"})
+        bon = await _post(url, jeton_agent)
+    assert (sans.status_code, faux.status_code) == (400, 400)
+    assert "Content-Type" in faux.text
+    assert bon.status_code == 200
+
+
 # ── Protection du Host ──────────────────────────────────────────────────
 async def test_avec_des_hotes_declares_un_host_inconnu_est_refuse_en_421(
     monkeypatch: pytest.MonkeyPatch, jeton_agent: str

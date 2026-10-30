@@ -118,8 +118,9 @@ Une préférence enregistrée est prise en compte au démarrage suivant du super
 
 Un agent extérieur peut appeler le même outil, et ses lignes portent alors la marque
 de son jeton (`- [agent « nom »] …`). Le superviseur les lit comme des suggestions, et
-elles sont plafonnées. Tu les vois et tu en fais le ménage dans **Settings > Agents
-extérieurs**. Voir [`docs/agent-externe.md`](./agent-externe.md).
+elles sont plafonnées. Tu les vois et tu en fais le ménage ici même, sous l'éditeur
+du prompt, dans **Settings > Prompts** ; **Settings > Agents extérieurs** en donne
+le compte et un lien. Voir [`docs/agent-externe.md`](./agent-externe.md).
 
 ## Ses cinq outils
 

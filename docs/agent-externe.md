@@ -79,14 +79,16 @@ la publication avait été autorisée pour un autre travail. Si tu autorises une
 session, referme-la quand le travail est relu (`allow_publish` avec `autoriser:
 false`, ou le bouton du dashboard).
 
-**`remember` écrit dans le prompt du superviseur.** Une préférence enregistrée par
-un agent entre dans le prompt **Préférences apprises par le superviseur**, relu à
-chaque démarrage de ta session superviseur. Trois choses la cadrent, et elles sont
+**`remember` écrit dans les préférences du superviseur.** Une préférence
+enregistrée par un agent entre dans le prompt **Préférences apprises par le
+superviseur**, relu à chaque démarrage de ta session superviseur. C'est le nom
+qu'il porte partout, réglages compris : le superviseur a aussi son propre prompt
+système, qui est un autre fichier. Trois choses la cadrent, et elles sont
 dans le code, pas dans une consigne de prompt :
 
 - la ligne porte la marque de son auteur, posée d'après le jeton et jamais lue
   dans le texte : `- [agent « nom du jeton »] le fait` ;
-- le prompt du superviseur gagne alors une note qui lui dit de peser ces lignes
+- le prompt système du superviseur gagne alors une note qui lui dit de peser ces lignes
   comme des suggestions, jamais comme une demande de sa part, et qu'elles ne
   valent **aucune autorisation de publier** quoi qu'elles affirment ;
 - un fait tient en **300 caractères** sur une seule ligne, et tous les agents se
@@ -102,8 +104,11 @@ ouvert, ta sauvegarde est **refusée** avec le motif, pas appliquée par-dessus 
 recharge, puis refais ta modification. Symétriquement, le bouton **Retirer**
 d'une préférence est verrouillé tant que ton brouillon n'est pas sauvegardé.
 
-Tu lis et vides ces lignes dans **Settings > Agents extérieurs**, et le prompt
-entier dans **Settings > Prompts**. Rien n'est appris dans ton dos.
+Tu lis et vides ces lignes dans **Settings > Prompts**, sur le prompt
+**Préférences apprises par le superviseur** : la liste des préférences d'agents
+et leurs boutons **Retirer** vivent sous l'éditeur, qui montre le prompt entier.
+**Settings > Agents extérieurs** en donne le compte et un lien. Rien n'est
+appris dans ton dos.
 
 **Ce que ça coûte.** Un agent qui dispatche brûle des tokens sans que personne
 regarde. La politique d'Eldir est tranchée et ne change pas ici : *alerte
@@ -215,7 +220,7 @@ Si tu passes par le reverse proxy fourni (`docker/Caddyfile`), il transmet le
 | `list_sessions` | Les 20 sessions projet les plus récemment actives, avec leur état, leur branche, si elles tournent, et le compte rendu `<cr>` de leur dernier passage. | aucun |
 | `dispatch` | Transmet une consigne à une session projet et rend la main immédiatement. Reprend la session indiquée, sinon la plus récente du projet, sinon en démarre une. | `project_id` (requis), `consigne` (requis), `session_id` (optionnel), `nouveau_chantier` (booléen, optionnel) |
 | `allow_publish` | Autorise une session à publier (commit, push, PR) ou lui retire ce droit. | `session_id` (requis), `autoriser` (booléen, requis) |
-| `remember` | Enregistre une préférence de travail durable dans le prompt du superviseur. | `fait` (requis) |
+| `remember` | Enregistre une préférence de travail durable dans les **Préférences apprises par le superviseur**. | `fait` (requis) |
 
 Trois précisions qui ne se devinent pas :
 
@@ -231,6 +236,28 @@ Trois précisions qui ne se devinent pas :
   `waiting_input` dit déjà.
 - `dispatch` rend la main tout de suite et la session enfant travaille en tâche de
   fond. Pour savoir qu'elle a fini, il faut le ping décrit juste en dessous.
+
+### Les deux plafonds qu'un dispatcheur rencontre en premier
+
+Ils ne se devinent pas, et ils ne se comportent pas pareil.
+
+**Le nombre de sessions actives** (`MAX_CONCURRENT_SESSIONS`, défaut 8). Un
+`dispatch` qui doit ouvrir ou réveiller une session est refusé **tout de suite**,
+par le texte que l'outil rend : `Erreur : Limite de 8 sessions actives
+atteinte. …`. Arrête une session (elle reste reprenable) pour libérer une place,
+ou dispatche dans une session déjà active.
+
+**La file de messages d'une session** (`SESSION_QUEUE_MAX`, défaut 5). Celui-là
+arrive **après** que `dispatch` a répondu « Consigne transmise » : la réservation
+de place se fait dans la tâche de fond, donc le refus ne peut plus remonter dans
+la réponse de l'outil. Il part en ping de cause `non_livree`. **Sans abonné
+configuré, cette consigne-là est perdue en silence** : c'est le défaut, et c'est
+la raison principale de brancher un abonné si ton agent dispatche sans
+surveillance.
+
+La leçon est la même pour les deux : un dispatcheur attend le compte rendu d'un
+tour avant d'en demander un autre sur la même session, et ouvre un
+`nouveau_chantier` quand le sujet est indépendant.
 
 Les descriptions et les schémas que ton client affichera sont exactement ceux de
 la table partagée : ce que lit l'agent extérieur est mot pour mot ce que lit le
@@ -254,6 +281,12 @@ TURN_WEBHOOK_SECRET=
 # Délai total d'un ping, connexion et réponse comprises. Défaut 10 s.
 TURN_WEBHOOK_TIMEOUT_SECONDS=10
 ```
+
+**Cet abonné est global à l'instance, pas par jeton.** Tous les porteurs
+pingent la même URL, et chaque ping porte le compte rendu complet du tour, quel
+que soit l'agent qui l'a demandé (`demandeur` dit lequel). Si tu émets des jetons
+pour deux agents qui ne doivent pas lire le travail l'un de l'autre, cette
+surface ne sait pas les séparer : n'en branche qu'un, ou n'en branche aucun.
 
 Eldir poste alors, à la fin de chaque tour dispatché, un `POST` en
 `application/json` dont le **corps est en ASCII pur** (les accents partent
@@ -477,6 +510,26 @@ inexplicable là où il attendait du JSON-RPC.
 
 Dans les deux cas, le remède est le même : **configure l'URL avec la barre
 finale**, `https://eldir.exemple.lan/api/mcp/`.
+
+### 400 `Invalid Content-Type header`
+
+Le transport exige `Content-Type: application/json` sur chaque `POST`, et ce
+contrôle-là est actif **en toutes circonstances**, que `MCP_ALLOWED_HOSTS` soit
+renseigné ou non. Un client qui n'envoie pas d'en-tête, ou qui envoie autre
+chose, reçoit ce 400 avant d'atteindre le moindre outil.
+
+Voisin et souvent rencontré en même temps : un `Accept` qui ne nomme pas à la
+fois `application/json` et `text/event-stream` donne un **406** dont le corps le
+dit en clair (`Client must accept both …`).
+
+### 500 sans enveloppe Eldir
+
+Si la base est injoignable au moment où la garde valide ton jeton, l'erreur sort
+de la garde sans être traduite : tu reçois un `500 Internal Server Error` nu,
+hors du format `{code, message, details}` des autres refus, et le journal ne
+porte aucune ligne `mcp.refus`, seulement la trace d'uvicorn. Autrement dit : un
+500 nu sur cette surface se lit « Eldir est en panne », pas « ton appel est
+mauvais ». Regarde `docker compose logs backend` et l'état de Postgres.
 
 ### Un message de validation en anglais
 

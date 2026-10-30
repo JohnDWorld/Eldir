@@ -9,7 +9,7 @@ depuis un agent, alors que les worktrees les isolent déjà.
 from __future__ import annotations
 
 import pytest
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, SessionLimitError
 from app.db.models import Session as SessionRow
 from app.db.models import User
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -116,6 +116,36 @@ async def test_une_session_d_un_autre_utilisateur_est_introuvable(
         await service._resolve_target(
             user_id=user_id, project_id=project_id, session_id=session_etrangere
         )
+
+
+@pytest.mark.asyncio
+async def test_le_plafond_de_sessions_actives_arrive_a_l_agent_en_francais(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """C'est le premier refus qu'un dispatcheur autonome rencontre.
+
+    `outil_dispatch` n'attrapait que `NotFoundError` : une `SessionLimitError`
+    sortait de l'outil et arrivait à l'agent enveloppée en anglais par la
+    bibliothèque MCP, alors que cette surface promet des refus en français qui
+    commencent par « Erreur : ».
+    """
+    async with session_factory() as db:
+        user_id, project_id, _ = await pose_projet_et_session(db)
+    service = service_superviseur(session_factory)
+
+    async def plein(*_args: object, **_kwargs: object) -> None:
+        raise SessionLimitError("Limite de 8 sessions actives atteinte.")
+
+    monkeypatch.setattr(service._sessions, "create_and_start", plein)
+
+    texte = await service.outil_dispatch(
+        user_id,
+        project_id=project_id,
+        consigne="Range le garage.",
+        nouveau_chantier=True,
+    )
+    assert texte == "Erreur : Limite de 8 sessions actives atteinte."
 
 
 @pytest.mark.asyncio

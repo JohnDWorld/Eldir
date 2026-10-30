@@ -37,7 +37,7 @@ from app.core.constants import (
     SESSION_STATE_WAITING_INPUT,
     STOP_REASON_TURN_COMPLETE,
 )
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, EldirError, NotFoundError
 from app.core.logging import get_logger
 from app.db.models import Project, SystemPromptOverride
 from app.db.models import Session as SessionRow
@@ -605,7 +605,8 @@ class SupervisorService:
 
         Returns:
             Du texte pour l'agent. Un refus (champ vide, projet ou session
-            introuvable) est rendu en texte, pas levé.
+            introuvable, plafond de sessions actives atteint, worktree
+            impossible) est rendu en texte, pas levé.
         """
         project_id = project_id.strip()
         consigne = consigne.strip()
@@ -618,7 +619,13 @@ class SupervisorService:
                 session_id=(session_id or "").strip() or None,
                 nouveau_chantier=nouveau_chantier,
             )
-        except NotFoundError as exc:
+        # Toute la famille, pas seulement `NotFoundError` : ouvrir une session
+        # neuve peut buter sur le plafond de sessions actives ou sur un worktree
+        # impossible. Non attrapées, ces erreurs sortaient de l'outil et
+        # arrivaient à l'agent enveloppées en anglais par la bibliothèque MCP,
+        # alors que le contrat de cette surface est un refus en français qui
+        # commence par « Erreur : ».
+        except EldirError as exc:
             return f"Erreur : {exc.message}"
 
         self._attendre(target, origine_de_dispatch(libelle_agent), consigne)
