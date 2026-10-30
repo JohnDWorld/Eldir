@@ -19,9 +19,10 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
@@ -34,7 +35,7 @@ from app.core.constants import (
 )
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
-from app.db.models import Project
+from app.db.models import Project, SystemPromptOverride
 from app.db.models import Session as SessionRow
 from app.services.claude_credential_service import claude_credential_service
 from app.services.session_manager import SessionManager
@@ -69,6 +70,8 @@ PREFERENCE_LONGUEUR_MAX = 300
 # Nombre de préférences d'agents conservées, tous agents confondus. Celles du
 # superviseur de John n'y comptent pas et n'y sont pas soumises : sa mémoire.
 PREFERENCES_AGENT_MAX = 20
+# Écrivains concurrents : combien de fois on reprend la lecture avant d'abandonner.
+TENTATIVES_ECRITURE = 5
 
 # Les cinq outils décrits UNE fois. Les deux transports (MCP in-process pour
 # le superviseur, MCP HTTP pour un agent externe) lisent cette table, pour
@@ -211,6 +214,40 @@ def _sur_une_ligne(texte: str) -> str:
 def _nb_preferences_d_agents(corps: str) -> int:
     """Combien de lignes de préférences portent la marque d'un agent (en tête de ligne)."""
     return sum(1 for ligne in corps.splitlines() if ligne.startswith(f"- {MARQUE_AGENT}"))
+
+
+async def _ecrire_si_inchange(db: AsyncSession, *, lu: str | None, nouveau: str) -> bool:
+    """Remplace les préférences par `nouveau` si personne ne les a changées depuis `lu`.
+
+    Lire puis écrire en deux requêtes sans verrou perd des écritures : sous
+    Postgres en READ COMMITTED, deux écrivains lisent le même texte et le second
+    écrase le premier, les deux croyant avoir réussi. D'où une écriture
+    conditionnée sur ce qu'on a lu (`UPDATE ... WHERE content = lu`) : si la ligne
+    a bougé entre-temps, aucune ligne n'est touchée et l'appelant relit. Même
+    comportement sur SQLite et Postgres, sans verrou propre à un moteur.
+
+    `lu` vaut `None` quand il n'y avait encore aucune surcharge : on la crée, et
+    la contrainte d'unicité du slug départage deux créateurs simultanés.
+
+    Returns:
+        True si `nouveau` est écrit (à valider par l'appelant), False si l'état a
+        changé ou si un autre a créé la ligne avant nous.
+    """
+    if lu is None:
+        try:
+            db.add(SystemPromptOverride(slug=SUPERVISOR_PREFS_SLUG, content=nouveau))
+            await db.flush()
+        except IntegrityError:
+            return False
+        return True
+    resultat = await db.execute(
+        update(SystemPromptOverride)
+        .where(SystemPromptOverride.slug == SUPERVISOR_PREFS_SLUG)
+        .where(SystemPromptOverride.content == lu)
+        .values(content=nouveau),
+        execution_options={"synchronize_session": False},
+    )
+    return cast("CursorResult[Any]", resultat).rowcount == 1
 
 
 def _text(message: str) -> dict[str, Any]:
@@ -579,32 +616,49 @@ class SupervisorService:
         if libelle_agent is not None:
             marque = f"{MARQUE_AGENT}{_sur_une_ligne(libelle_agent)} »] "
         line = f"- {marque}{fait}"
-        async with self._factory() as db:
-            current = await system_prompt_service.get(db, SUPERVISOR_PREFS_SLUG)
-            # Le défaut versionné n'est qu'un placeholder : la première
-            # préférence part d'une page blanche.
-            body = current.content.strip() if current.is_overridden else ""
-            # Des lignes entières, jamais une ligne à l'intérieur d'une autre : une
-            # recherche de sous-chaîne laisserait un agent préenregistrer, dans une
-            # ligne qui lui est attribuée, le texte exact que d'autres écriraient
-            # (celui de John compris), qui répondraient alors « déjà enregistrée ».
-            if line in {existante.strip() for existante in body.splitlines()}:
-                return "Préférence déjà enregistrée."
-            # On refuse la nouvelle plutôt que d'oublier la plus ancienne : un
-            # agent en boucle effacerait sinon, par répétition, ce que les autres
-            # (ou lui) avaient noté de légitime, et personne n'en saurait rien.
-            if (
-                libelle_agent is not None
-                and _nb_preferences_d_agents(body) >= PREFERENCES_AGENT_MAX
-            ):
-                return (
-                    f"Erreur : la mémoire des agents est pleine ({PREFERENCES_AGENT_MAX} "
-                    "préférences). Ta préférence n'a pas été enregistrée, et rien n'a été "
-                    "oublié. Dis-le à John : lui seul peut faire le ménage dans les "
-                    "préférences du superviseur."
+        for _ in range(TENTATIVES_ECRITURE):
+            async with self._factory() as db:
+                current = await system_prompt_service.get(db, SUPERVISOR_PREFS_SLUG)
+                # Le défaut versionné n'est qu'un placeholder : la première
+                # préférence part d'une page blanche.
+                body = current.content.strip() if current.is_overridden else ""
+                # Des lignes entières, jamais une ligne à l'intérieur d'une autre :
+                # une recherche de sous-chaîne laisserait un agent préenregistrer,
+                # dans une ligne qui lui est attribuée, le texte exact que d'autres
+                # écriraient (celui de John compris), qui répondraient alors « déjà
+                # enregistrée ».
+                if line in {existante.strip() for existante in body.splitlines()}:
+                    return "Préférence déjà enregistrée."
+                # On refuse la nouvelle plutôt que d'oublier la plus ancienne : un
+                # agent en boucle effacerait sinon, par répétition, ce que les
+                # autres (ou lui) avaient noté de légitime, et personne n'en saurait
+                # rien.
+                if (
+                    libelle_agent is not None
+                    and _nb_preferences_d_agents(body) >= PREFERENCES_AGENT_MAX
+                ):
+                    return (
+                        f"Erreur : la mémoire des agents est pleine ({PREFERENCES_AGENT_MAX} "
+                        "préférences). Ta préférence n'a pas été enregistrée, et rien n'a "
+                        "été oublié. Dis-le à John : lui seul peut faire le ménage dans les "
+                        "préférences du superviseur."
+                    )
+                # Le contrôle de place et l'écriture portent sur le MÊME texte lu :
+                # si quelqu'un a écrit entre les deux, on reprend tout depuis la
+                # lecture, la borne comprise.
+                ecrit = await _ecrire_si_inchange(
+                    db,
+                    lu=current.content if current.is_overridden else None,
+                    nouveau=f"{body}\n{line}".strip(),
                 )
-            await system_prompt_service.upsert(db, SUPERVISOR_PREFS_SLUG, f"{body}\n{line}".strip())
-            await db.commit()
+                if ecrit:
+                    await db.commit()
+                    break
+        else:
+            return (
+                "Erreur : les préférences changent trop vite pour y écrire en sûreté. "
+                "Ta préférence n'a pas été enregistrée. Réessaie dans un instant."
+            )
         logger.info("supervisor.remember", fait=fait, agent=libelle_agent)
         return f"Noté : {fait}"
 

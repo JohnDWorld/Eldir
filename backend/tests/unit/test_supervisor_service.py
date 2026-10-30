@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import AsyncIterator, Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 from app.core.config import get_settings
+from app.db.base import Base
 from app.db.models import Project, Session, User
 from app.schemas.claude_credential import ClaudeCredentialCreate
+from app.services import supervisor_service
 from app.services.claude_credential_service import claude_credential_service
 from app.services.event_bus import EventBus
 from app.services.session_manager import SessionManager
@@ -23,7 +27,7 @@ from app.services.supervisor_service import (
     SupervisorService,
 )
 from app.services.system_prompt_service import system_prompt_service
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
 @pytest.fixture(autouse=True)
@@ -325,6 +329,17 @@ async def test_le_dedoublonnage_ignore_les_espaces_laisses_par_une_edition_a_la_
     )
 
 
+async def test_un_retour_a_la_ligne_final_laisse_par_une_edition_a_la_main_ne_bloque_pas(
+    supervisor: SupervisorService,
+) -> None:
+    """L'écriture est conditionnée sur le texte tel que stocké, pas sur sa version rognée."""
+    async with supervisor._factory() as db:  # type: ignore[attr-defined]
+        await system_prompt_service.upsert(db, SUPERVISOR_PREFS_SLUG, "- Toujours une PR.\n\n")
+        await db.commit()
+    assert await supervisor.remember_preference("Autre chose.") == "Noté : Autre chose."
+    assert await _preferences(supervisor) == ["- Toujours une PR.", "- Autre chose."]
+
+
 async def test_la_memoire_du_superviseur_n_a_pas_de_plafond_de_nombre(
     supervisor: SupervisorService,
 ) -> None:
@@ -347,6 +362,135 @@ def test_la_description_de_remember_dit_a_l_appelant_qu_il_est_attribue_et_borne
     assert f"{PREFERENCE_LONGUEUR_MAX} caractères" in description
     assert f"{PREFERENCES_AGENT_MAX} préférences" in description
     assert f"{PREFERENCE_LONGUEUR_MAX} caractères" in schema["properties"]["fait"]["description"]
+
+
+# ── Écritures concurrentes ──────────────────────────────────────────────
+# La base en mémoire des autres tests n'a qu'UNE connexion, partagée par toutes
+# les sessions : deux écrivains s'y verraient mutuellement. Un fichier donne à
+# chaque session sa propre connexion, comme Postgres, et le même défaut : une
+# lecture n'y retient aucun verrou, deux écrivains lisent le même texte.
+@pytest.fixture
+async def service_concurrent(
+    tmp_path: Path,
+) -> AsyncIterator[tuple[SupervisorService, async_sessionmaker[AsyncSession]]]:
+    moteur = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'preferences.db'}")
+    async with moteur.begin() as connexion:
+        await connexion.run_sync(Base.metadata.create_all)
+    fabrique = async_sessionmaker(moteur, expire_on_commit=False)
+    manager = _FakeManager()
+    service = SupervisorService(
+        manager=manager, sessions=SessionService(manager=manager), session_factory=fabrique
+    )
+    yield service, fabrique
+    await moteur.dispose()
+
+
+@pytest.fixture
+def chevaucher(monkeypatch: pytest.MonkeyPatch) -> Callable[[], None]:
+    """Arme un point de rendez-vous entre la lecture des préférences et leur écriture.
+
+    Les deux premières lectures attendent l'une l'autre : quand elles reprennent,
+    les deux écrivains tiennent le même texte, et chacun écrit à partir de lui.
+    C'est la course elle-même, rejouée à l'identique à chaque exécution : un test
+    qui ne la gagnerait que par chance ne prouverait rien. Les lectures suivantes
+    (la reprise d'un écrivain qui a perdu) ne sont pas retenues.
+    """
+    reel = system_prompt_service.get
+
+    def armer() -> None:
+        barriere = asyncio.Barrier(2)
+        retenues: list[str] = []
+
+        async def get(db: AsyncSession, slug: str) -> Any:
+            lu = await reel(db, slug)
+            if slug == SUPERVISOR_PREFS_SLUG and len(retenues) < 2:
+                retenues.append(slug)
+                async with asyncio.timeout(10):
+                    await barriere.wait()
+            return lu
+
+        monkeypatch.setattr(system_prompt_service, "get", get)
+
+    return armer
+
+
+async def _stocke(fabrique: async_sessionmaker[AsyncSession]) -> list[str]:
+    async with fabrique() as db:
+        content = (await system_prompt_service.get(db, SUPERVISOR_PREFS_SLUG)).content
+    return content.splitlines()
+
+
+@pytest.mark.parametrize(
+    "deja_une_ligne", [False, True], ids=["premiere_ecriture", "ligne_existante"]
+)
+async def test_deux_ecritures_qui_se_chevauchent_laissent_les_deux_lignes(
+    service_concurrent: tuple[SupervisorService, async_sessionmaker[AsyncSession]],
+    chevaucher: Callable[[], None],
+    deja_une_ligne: bool,
+) -> None:
+    """Lecture puis écriture : sans atomicité, la seconde écrase la première, et les
+    deux auteurs reçoivent « Noté ». Aucune ligne ne doit disparaître en silence."""
+    service, fabrique = service_concurrent
+    if deja_une_ligne:
+        await service.remember_preference("Préférence de John.")
+    chevaucher()
+
+    reponses = await asyncio.gather(
+        service.remember_preference("De A.", libelle_agent="A"),
+        service.remember_preference("De B.", libelle_agent="B"),
+    )
+
+    stocke = await _stocke(fabrique)
+    # Tout « Noté » promis est une ligne stockée.
+    assert reponses == ["Noté : De A.", "Noté : De B."]
+    assert "- [agent « A »] De A." in stocke
+    assert "- [agent « B »] De B." in stocke
+    assert len(stocke) == (3 if deja_une_ligne else 2)
+
+
+async def test_la_borne_des_agents_ne_se_franchit_pas_par_une_course(
+    service_concurrent: tuple[SupervisorService, async_sessionmaker[AsyncSession]],
+    chevaucher: Callable[[], None],
+) -> None:
+    service, fabrique = service_concurrent
+    for i in range(PREFERENCES_AGENT_MAX - 1):
+        await service.remember_preference(f"Fait {i}.", libelle_agent="A")
+    chevaucher()
+
+    reponses = await asyncio.gather(
+        service.remember_preference("De B.", libelle_agent="B"),
+        service.remember_preference("De C.", libelle_agent="C"),
+    )
+
+    # Une place pour deux : l'une est notée, l'autre refusée par une phrase.
+    assert sum(r.startswith("Noté") for r in reponses) == 1
+    assert sum(r.startswith("Erreur : la mémoire des agents est pleine") for r in reponses) == 1
+    assert len(await _stocke(fabrique)) == PREFERENCES_AGENT_MAX
+
+
+async def test_une_ecriture_qui_ne_passe_jamais_est_refusee_par_une_phrase(
+    service_concurrent: tuple[SupervisorService, async_sessionmaker[AsyncSession]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Si les préférences changent sans cesse sous les pieds de l'écrivain, il abandonne
+    avec une phrase, il ne boucle pas et ne répond pas « Noté » à vide."""
+    service, fabrique = service_concurrent
+    tentatives: list[int] = []
+
+    async def perd_toujours(*_: Any, **__: Any) -> bool:
+        tentatives.append(1)
+        return False
+
+    monkeypatch.setattr(supervisor_service, "_ecrire_si_inchange", perd_toujours)
+
+    async with asyncio.timeout(10):
+        reponse = await service.remember_preference("Fait.", libelle_agent="A")
+
+    assert reponse.startswith("Erreur : ")
+    assert "Réessaie" in reponse
+    assert len(tentatives) == supervisor_service.TENTATIVES_ECRITURE
+    async with fabrique() as db:
+        assert not (await system_prompt_service.get(db, SUPERVISOR_PREFS_SLUG)).is_overridden
 
 
 async def test_ping_uniquement_pour_les_sessions_dispatchees(
