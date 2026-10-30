@@ -170,7 +170,7 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
               </p>
             )}
             <div className="mt-2 font-mono text-2xs text-eldir-gray">
-              slug : <code>{prompt.slug}</code>
+              slug : <code className="break-all">{prompt.slug}</code>
             </div>
           </div>
           <div className="flex flex-col items-end gap-1 font-mono text-2xs">

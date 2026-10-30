@@ -176,7 +176,7 @@ export function RemotePanel({ projectId }: RemotePanelProps): JSX.Element {
 
       {connected && data?.alias && (
         <p className="mt-3 font-mono text-2xs text-eldir-gray">
-          Alias <code className="text-eldir-ink">{data.alias}</code>, accessible
+          Alias <code className="break-all text-eldir-ink">{data.alias}</code>, accessible
           aux sessions via{' '}
           <code className="text-eldir-ink">$ELDIR_REMOTE_HOST</code>. La clé est
           retirée de la machine si tu supprimes le projet.
