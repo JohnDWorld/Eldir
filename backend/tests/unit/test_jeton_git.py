@@ -153,6 +153,50 @@ def test_le_helper_rend_le_jeton_a_git() -> None:
     assert f"password={JETON}" in resultat.stdout
 
 
+@pytest.mark.parametrize(
+    "jeton",
+    [
+        "ghp_$(whoami)",
+        "ghp_`id`",
+        "ghp_guillemets\"et'apostrophes",
+        "ghp_avec espace;rm -rf /tmp/x",
+        # `%s` et `%n` : le jeton est l'argument du printf du helper, pas son
+        # format. S'il devenait le format, `%n` écrirait en mémoire.
+        "ghp_%s%n",
+    ],
+)
+def test_un_jeton_a_metacaracteres_ressort_intact(jeton: str) -> None:
+    """Le helper est une commande shell : un jeton hostile ne doit pas s'y exécuter.
+
+    C'est l'autre raison de passer par l'environnement plutôt que par l'URL ou
+    la ligne de commande : la valeur n'est jamais interpolée dans du texte que
+    le shell relit.
+    """
+    resultat = subprocess.run(
+        [
+            "git",
+            "-c",
+            "credential.helper=",
+            "-c",
+            f"credential.helper={_AIDE_CREDENTIEL}",
+            "credential",
+            "fill",
+        ],
+        input="protocol=https\nhost=github.com\n\n",
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "ELDIR_GIT_TOKEN": jeton},
+    )
+
+    rendus = [
+        ligne.removeprefix("password=")
+        for ligne in resultat.stdout.splitlines()
+        if ligne.startswith("password=")
+    ]
+    assert rendus == [jeton]
+
+
 async def test_le_jeton_passe_par_l_environnement_et_pas_par_la_ligne_de_commande(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, depot_source: Path
 ) -> None:
