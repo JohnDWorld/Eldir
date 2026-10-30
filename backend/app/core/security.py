@@ -30,10 +30,14 @@ def extract_bearer(authorization: str | None) -> str:
     Le seul endroit qui décide de la forme de l'en-tête : l'API REST et la garde
     MCP passent ici, pour qu'aucune forme ne soit acceptée par l'une et refusée
     par l'autre. Le schéma se compare sans tenir compte de la casse (RFC 7235).
-    Ne dit rien du jeton lui-même, que le décodeur de chaque porte examine.
+    Un jeton est un seul mot : vide, ou coupé par une espace (deux jetons collés,
+    une espace en trop), l'en-tête est mal formé, et c'est ici qu'on le dit plutôt
+    que de laisser le décodeur répondre « Jeton invalide » à une forme qui n'en
+    est pas une. Ne dit rien de la valeur du jeton, que le décodeur de chaque
+    porte examine.
     """
     schema, _, jeton = (authorization or "").partition(" ")
-    if schema.lower() != "bearer" or not jeton:
+    if schema.lower() != "bearer" or jeton.split() != [jeton]:
         raise AuthenticationError("Header Authorization manquant ou mal formé.")
     return jeton
 

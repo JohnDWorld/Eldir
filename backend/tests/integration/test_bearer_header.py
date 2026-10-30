@@ -4,8 +4,10 @@ L'API REST (`get_current_user_id`) et la garde MCP (`GardeJeton`) décident chac
 si un en-tête est un Bearer complet. Deux lectures qui ne seraient pas la même
 fonction finissent par diverger : une forme que l'une tolère et que l'autre
 refuse, sans que personne l'ait voulu. Ici chaque forme passe par les deux portes
-avec un jeton valide POUR cette porte ; seule la forme de l'en-tête varie, donc
-tout refus vient de la lecture de l'en-tête et de rien d'autre.
+avec un jeton valide POUR cette porte ; seule la forme de l'en-tête varie. Un
+statut 401 ne dit pas qui a refusé (la lecture de l'en-tête, ou le décodeur du
+jeton) : c'est le motif qui le dit, et `test_tout_refus_de_forme_vient_de_la_lecture_de_l_en_tete`
+le contrôle pour chaque forme refusée.
 """
 
 from __future__ import annotations
@@ -83,16 +85,23 @@ async def test_l_absence_d_en_tete_est_refusee_par_les_deux_portes(client: Async
         assert (await mcp.post("/")).status_code == 401
 
 
-@pytest.mark.parametrize("valeur", ["Basic x", "Bearer", "Bearer ", "x"])
-async def test_les_deux_portes_refusent_un_en_tete_mal_forme_avec_le_meme_motif(
-    client: AsyncClient, valeur: str
+REFUSEES = [forme for forme, acceptee in FORMES if not acceptee]
+
+
+@pytest.mark.parametrize("forme", REFUSEES)
+async def test_tout_refus_de_forme_vient_de_la_lecture_de_l_en_tete(
+    client: AsyncClient, jeton_agent: str, forme: str
 ) -> None:
-    """Un seul texte d'erreur, et c'est celui de l'en-tête : sans le contrôle de
-    forme, `Bearer` sans jeton irait jusqu'au décodeur et dirait « Jeton invalide »,
-    ce qui renverrait l'intéressé chercher le mauvais défaut."""
-    rest = await client.get("/api/v1/system-prompts", headers={"Authorization": valeur})
+    """Chaque forme refusée l'est par la lecture de l'en-tête, avec le même motif sur les
+    deux portes : si c'était le décodeur du jeton, le motif serait « Jeton invalide » et
+    renverrait l'intéressé chercher le mauvais défaut. Le jeton est valide pour chaque
+    porte : seule la forme est en cause."""
+    rest = await client.get(
+        "/api/v1/system-prompts",
+        headers={"Authorization": forme.format(jeton=create_access_token("u-test"))},
+    )
     transport = ASGITransport(app=GardeJeton(_app_atteinte))
     async with AsyncClient(transport=transport, base_url="http://test") as mcp:
-        garde = await mcp.post("/", headers={"Authorization": valeur})
+        garde = await mcp.post("/", headers={"Authorization": forme.format(jeton=jeton_agent)})
     attendu = "Header Authorization manquant ou mal formé."
     assert (rest.json()["message"], garde.json()["message"]) == (attendu, attendu)
