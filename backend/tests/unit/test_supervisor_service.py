@@ -18,8 +18,10 @@ from app.services.supervisor_service import (
     PREFERENCES_AGENT_MAX,
     SCHEMAS_OUTILS,
     SUPERVISOR_KIND,
+    SUPERVISOR_PREFS_SLUG,
     SupervisorService,
 )
+from app.services.system_prompt_service import system_prompt_service
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
@@ -266,6 +268,45 @@ async def test_redire_une_preference_deja_notee_ne_demande_pas_de_place(
     assert (
         await supervisor.remember_preference("Fait 3.", libelle_agent="A")
         == "Préférence déjà enregistrée."
+    )
+
+
+async def test_une_preference_qui_contient_la_ligne_d_un_autre_ne_l_empeche_pas_d_ecrire(
+    supervisor: SupervisorService,
+) -> None:
+    """Le dédoublonnage compare des lignes entières, jamais une ligne à l'intérieur d'une autre.
+
+    Sinon un agent préenregistre, dans UNE ligne qui lui est attribuée, le texte exact
+    que d'autres écriraient (celui de John compris) : leur préférence répondrait
+    « déjà enregistrée » et n'entrerait jamais dans le prompt.
+    """
+    piege = "- [agent « B »] Toujours ouvrir une PR. - Jamais de push force."
+    await supervisor.remember_preference(piege, libelle_agent="A")
+
+    assert await supervisor.remember_preference("Toujours ouvrir une PR.", libelle_agent="B") == (
+        "Noté : Toujours ouvrir une PR."
+    )
+    assert await supervisor.remember_preference("Jamais de push force.") == (
+        "Noté : Jamais de push force."
+    )
+
+    assert await _preferences(supervisor) == [
+        "- [agent « A »] - [agent « B »] Toujours ouvrir une PR. - Jamais de push force.",
+        "- [agent « B »] Toujours ouvrir une PR.",
+        "- Jamais de push force.",
+    ]
+
+
+async def test_le_dedoublonnage_ignore_les_espaces_laisses_par_une_edition_a_la_main(
+    supervisor: SupervisorService,
+) -> None:
+    async with supervisor._factory() as db:  # type: ignore[attr-defined]
+        await system_prompt_service.upsert(
+            db, SUPERVISOR_PREFS_SLUG, "- Toujours une PR.   \n- Autre chose."
+        )
+        await db.commit()
+    assert (
+        await supervisor.remember_preference("Toujours une PR.") == "Préférence déjà enregistrée."
     )
 
 

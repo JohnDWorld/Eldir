@@ -584,7 +584,11 @@ class SupervisorService:
             # Le défaut versionné n'est qu'un placeholder : la première
             # préférence part d'une page blanche.
             body = current.content.strip() if current.is_overridden else ""
-            if line in body:
+            # Des lignes entières, jamais une ligne à l'intérieur d'une autre : une
+            # recherche de sous-chaîne laisserait un agent préenregistrer, dans une
+            # ligne qui lui est attribuée, le texte exact que d'autres écriraient
+            # (celui de John compris), qui répondraient alors « déjà enregistrée ».
+            if line in {existante.strip() for existante in body.splitlines()}:
                 return "Préférence déjà enregistrée."
             # On refuse la nouvelle plutôt que d'oublier la plus ancienne : un
             # agent en boucle effacerait sinon, par répétition, ce que les autres
