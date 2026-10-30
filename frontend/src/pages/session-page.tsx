@@ -19,7 +19,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { formatCost, formatDateTime, formatTokens } from '@/lib/format';
 import { Avatar } from '@/components/eldir/avatar';
 import { StatePill } from '@/components/eldir/state-pill';
-import { SESSION_STATE_LABEL } from '@/lib/constants';
+import {
+  MESSAGE_ORIGIN_AGENT_PREFIX,
+  MESSAGE_ORIGIN_ELDIR,
+  MESSAGE_ORIGIN_USER,
+  SESSION_STATE_LABEL,
+} from '@/lib/constants';
 import { DiffPanel } from '@/features/sessions/diff-panel';
 import { CommitDialog, OpenPrDialog } from '@/features/sessions/git-actions';
 import { SessionActions } from '@/features/sessions/session-actions';
@@ -495,7 +500,27 @@ interface NormalizedEvent {
   data: Record<string, unknown>;
 }
 
-function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
+/**
+ * Qui a écrit ce message, d'après son `origin` : `null` pour John, sinon le libellé
+ * de l'encart qui le dit. Seuls un `origin` absent (event écrit avant l'ajout du
+ * champ) et `user` sont John. Une origine qu'on ne reconnaît pas n'est pas lui non
+ * plus : l'afficher comme sa bulle serait mentir sur qui a demandé quoi.
+ *
+ * Le libellé d'un agent arrive déjà sur une seule ligne (cf. `origine_de_dispatch`
+ * côté backend) : il n'y a rien à nettoyer ici.
+ */
+function auteurDuMessage(origin: unknown): string | null {
+  if (origin === undefined || origin === MESSAGE_ORIGIN_USER) return null;
+  if (origin === MESSAGE_ORIGIN_ELDIR) return 'Eldir · automatique';
+  if (typeof origin !== 'string') return 'origine inconnue';
+  if (origin.startsWith(MESSAGE_ORIGIN_AGENT_PREFIX)) {
+    const nom = origin.slice(MESSAGE_ORIGIN_AGENT_PREFIX.length);
+    return nom ? `agent « ${nom} »` : 'agent sans nom';
+  }
+  return `origine « ${origin} »`;
+}
+
+export function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
   const scroll = useRef<HTMLDivElement>(null);
   // Suit le bas du fil seulement si John y était déjà. Sinon, remonter lire
   // une réponse pendant que l'agent travaille le ramenait en bas à chaque
@@ -540,14 +565,16 @@ function ChatStream({ events }: { events: NormalizedEvent[] }): JSX.Element {
       {visible.map((e) => {
         if (e.type === 'user_message') {
           // Eldir parle aussi dans le fil : consigne dispatchée par le
-          // superviseur, ping de fin de tour. L'afficher comme un message de
-          // John ferait croire qu'il l'a écrit.
-          if (e.data.origin === 'eldir') {
-            return (
-              <EldirNotice key={e.key}>{String(e.data.text ?? '')}</EldirNotice>
-            );
-          }
-          return <UserBubble key={e.key}>{String(e.data.text ?? '')}</UserBubble>;
+          // superviseur ou par un agent extérieur, ping de fin de tour. L'afficher
+          // comme un message de John ferait croire qu'il l'a écrit.
+          const auteur = auteurDuMessage(e.data.origin);
+          const texte = String(e.data.text ?? '');
+          if (auteur === null) return <UserBubble key={e.key}>{texte}</UserBubble>;
+          return (
+            <EldirNotice key={e.key} auteur={auteur}>
+              {texte}
+            </EldirNotice>
+          );
         }
         if (e.type === 'text') {
           return <ClaudeBubble key={e.key}>{String(e.data.text ?? '')}</ClaudeBubble>;
@@ -607,10 +634,16 @@ function TurnError({ children }: { children: React.ReactNode }): JSX.Element {
   );
 }
 
-function EldirNotice({ children }: { children: React.ReactNode }): JSX.Element {
+function EldirNotice({
+  auteur,
+  children,
+}: {
+  auteur: string;
+  children: React.ReactNode;
+}): JSX.Element {
   return (
     <div className="rounded-eldir border border-eldir-orange/35 bg-eldir-orange/5 px-3 py-2">
-      <div className="eldir-caps mb-1 text-eldir-orange-text">Eldir · automatique</div>
+      <div className="eldir-caps mb-1 break-words text-eldir-orange-text">{auteur}</div>
       <div className="whitespace-pre-wrap break-words font-sans text-sm text-eldir-ink-2">
         {children}
       </div>
