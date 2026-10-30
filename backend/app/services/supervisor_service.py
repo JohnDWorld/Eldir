@@ -42,6 +42,7 @@ from app.services.claude_credential_service import claude_credential_service
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
 from app.services.system_prompt_service import system_prompt_service
+from app.services.turn_webhook import prevenir
 
 logger = get_logger(__name__)
 
@@ -344,8 +345,12 @@ class SupervisorService:
         self._manager = manager
         self._sessions = sessions
         self._factory = session_factory
-        # Sessions dispatchées dont on attend la fin de tour pour pinger.
-        self._pending: set[str] = set()
+        # Sessions dispatchées dont on attend la fin de tour pour pinger, avec
+        # l'origine de la consigne (cf. `origine_de_dispatch`) : qui a demandé ce
+        # travail, que le ping rapporte. Une entrée par session : deux consignes
+        # sur une session qui travaille encore ne font qu'un ping, au nom de la
+        # dernière.
+        self._pending: dict[str, str] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         manager.register_persist_callback(self._on_event)
 
@@ -552,7 +557,7 @@ class SupervisorService:
         except NotFoundError as exc:
             return f"Erreur : {exc.message}"
 
-        self._pending.add(target)
+        self._pending[target] = origine_de_dispatch(libelle_agent)
         self._spawn(self._run_child(user_id, target, consigne, libelle_agent))
         origine = "nouvelle session" if created else "session reprise"
         return (
@@ -836,7 +841,7 @@ class SupervisorService:
             )
         except Exception as exc:
             logger.exception("supervisor.dispatch.failed", session_id=session_id)
-            self._pending.discard(session_id)
+            self._pending.pop(session_id, None)
             self._spawn(
                 self._tell_supervisor(
                     user_id,
@@ -850,14 +855,19 @@ class SupervisorService:
         """Callback branché sur le SessionManager (tous les events)."""
         if event_type not in (EVENT_TYPE_STOP, EVENT_TYPE_ERROR):
             return
-        if session_id not in self._pending:
+        demandeur = self._pending.pop(session_id, None)
+        if demandeur is None:
             return
-        self._pending.discard(session_id)
-        self._spawn(self._notify_turn_done(session_id, event_type, data))
+        self._spawn(self._notify_turn_done(session_id, event_type, data, demandeur))
 
     async def _notify_turn_done(
-        self, session_id: str, event_type: str, data: dict[str, Any]
+        self, session_id: str, event_type: str, data: dict[str, Any], demandeur: str
     ) -> None:
+        """Annonce la fin d'un tour dispatché : au superviseur, et à l'abonné HTTP.
+
+        `demandeur` est l'origine de la consigne : `eldir` si le superviseur l'a
+        donnée lui-même, `agent:<libellé>` si c'est un agent extérieur.
+        """
         async with self._factory() as db:
             child = await db.get(SessionRow, session_id)
             if child is None:
@@ -870,14 +880,36 @@ class SupervisorService:
                     project_name = project.name
             cr = (child.summary or "").strip()
 
+        # L'abonné HTTP part dans sa propre tâche, avant le superviseur. `_tell_supervisor`
+        # rend la main quand le superviseur a fini de réagir, soit des minutes, ou
+        # plus s'il est déjà occupé : attendre derrière lui ferait avancer l'agent
+        # extérieur d'un pas par réveil, ce que ce ping est là pour éviter. Et
+        # l'inverse aussi : un abonné lent ne retient pas le superviseur.
+        self._spawn(
+            prevenir(
+                {
+                    "session_id": session_id,
+                    "projet": project_name,
+                    "branche": child.branch,
+                    "etat": "erreur" if event_type == EVENT_TYPE_ERROR else "fin_de_tour",
+                    "cr": cr,
+                    "demandeur": demandeur,
+                }
+            )
+        )
+
         if event_type == EVENT_TYPE_ERROR:
             body = f"Elle a échoué : {data.get('message', 'erreur inconnue')}"
         else:
             body = f"Compte rendu :\n{cr}" if cr else "Elle n'a pas produit de compte rendu <cr>."
+        # Le ping reste signé `eldir` (c'est Eldir qui l'envoie, pas l'agent) ; le
+        # demandeur est dit dans le texte, pour que le superviseur ne prenne pas
+        # pour sienne une consigne qu'il n'a pas donnée.
+        qui = "" if demandeur == MESSAGE_ORIGIN_ELDIR else f" (consigne de {demandeur})"
         await self._tell_supervisor(
             user_id,
             f"[Eldir] La session {session_id} ({project_name}, branche "
-            f"{child.branch}) a terminé son tour.\n{body}\n\n"
+            f"{child.branch}) a terminé son tour{qui}.\n{body}\n\n"
             "Résume à John ce qui a été fait et dis-lui si c'est prêt à être "
             "relu et publié.",
         )

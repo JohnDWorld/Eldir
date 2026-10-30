@@ -105,10 +105,14 @@ class ServeurAbonne:
         _exc: BaseException | None,
         _tb: TracebackType | None,
     ) -> None:
-        self._arret.set()
+        self.liberer()
         self._http.shutdown()
         self._http.server_close()
         self._fil.join(timeout=5)
+
+    def liberer(self) -> None:
+        """Laisse repartir les requêtes que le serveur retenait (/silence, /goutte)."""
+        self._arret.set()
 
     async def attendre(self, nombre: int, delai: float = 5.0) -> None:
         """Bloque jusqu'à avoir reçu `nombre` requêtes (ou échoue au bout de `delai`)."""
