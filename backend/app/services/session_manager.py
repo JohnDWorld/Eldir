@@ -41,6 +41,7 @@ from app.core.constants import (
     STOP_REASON_TURN_COMPLETE,
 )
 from app.core.exceptions import (
+    SessionAlreadyStartingError,
     SessionLimitError,
     SessionNotFoundError,
     SessionQueueFullError,
@@ -282,6 +283,9 @@ class SessionManager:
 
     def __init__(self, event_bus: EventBus) -> None:
         self._sessions: dict[str, ActiveSession] = {}
+        # Les sessions dont le client SDK est en cours de connexion : elles ne
+        # sont pas encore dans `_sessions` et un second démarrage les doublerait.
+        self._en_demarrage: set[str] = set()
         self._bus = event_bus
         # Callbacks branchés par l'API au démarrage : (session_id, event_type, data)
         self._on_event_persist: list = []
@@ -461,9 +465,21 @@ class SessionManager:
             )
         )
 
-        options = ClaudeAgentOptions(**options_kwargs)
-        client = ClaudeSDKClient(options=options)
+        # Garde de ré-entrée. Tout ce qui précède est synchrone : le `connect`
+        # ci-dessous est le seul `await` avant que la session entre dans le
+        # pool, donc c'est là que deux démarrages concurrents se croisent. Sans
+        # cette garde ils montent deux clients, `self._sessions` n'en garde
+        # qu'un, et il reste un processus orphelin, un compteur de sessions
+        # actives faux et deux tours concurrents dans le même arbre de travail.
+        if session_id in self._sessions or session_id in self._en_demarrage:
+            raise SessionAlreadyStartingError(
+                f"La session {session_id} démarre déjà ou tourne déjà. "
+                "Attends la fin de son démarrage avant de lui parler."
+            )
+        self._en_demarrage.add(session_id)
         try:
+            options = ClaudeAgentOptions(**options_kwargs)
+            client = ClaudeSDKClient(options=options)
             await asyncio.wait_for(client.connect(), timeout=SESSION_CONNECT_TIMEOUT_S)
         except TimeoutError as exc:
             # Vu en production : le CLI démarre, reste en attente, et la
@@ -486,6 +502,11 @@ class SessionManager:
                 f"Démarrage de session interrompu après "
                 f"{SESSION_CONNECT_TIMEOUT_S}s (voir les logs `session.cli.stderr`)."
             ) from exc
+        finally:
+            # Retiré quoi qu'il arrive : un marqueur qui fuit sur un démarrage
+            # tombé interdirait toute reprise de cette session jusqu'au
+            # redémarrage. Aucun `await` entre ici et l'inscription au pool.
+            self._en_demarrage.discard(session_id)
         active.client = client
 
         self._sessions[session_id] = active

@@ -76,6 +76,20 @@ class SessionQueueFullError(EldirError):
     code = "session_queue_full"
 
 
+class SessionAlreadyStartingError(ConflictError):
+    """Cette session est déjà en train de démarrer.
+
+    Deux démarrages concurrents sur la même session montent deux clients SDK
+    dont un seul reste dans le pool : il reste un processus orphelin, un
+    compteur de sessions actives faux, et deux tours concurrents dans le même
+    arbre de travail. Déclencher la course demandait une main rapide sur la
+    souris ; un agent extérieur peut envoyer deux dispatches dans la même
+    milliseconde, en boucle, sans surveillance.
+    """
+
+    code = "session_already_starting"
+
+
 class SessionStartTimeoutError(EldirError):
     """Le CLI Claude n'a pas terminé son initialisation dans le délai imparti."""
 

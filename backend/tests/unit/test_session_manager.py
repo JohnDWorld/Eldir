@@ -7,13 +7,18 @@ pour tester la mécanique du pool sans dépendance externe.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.core.config import get_settings
-from app.core.exceptions import SessionLimitError, SessionNotFoundError
+from app.core.exceptions import (
+    SessionAlreadyStartingError,
+    SessionLimitError,
+    SessionNotFoundError,
+)
 from app.services.event_bus import EventBus
 from app.services.session_manager import MESSAGE_FLUX_SANS_RESULTAT, ActiveSession, SessionManager
 
@@ -90,6 +95,50 @@ async def test_start_enforces_concurrent_limit(
             user_id="u",
             cwd="/tmp",
         )
+
+
+async def test_deux_demarrages_concurrents_ne_montent_qu_un_client(
+    manager: SessionManager, fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le second démarrage de la même session est refusé, pas doublé.
+
+    Avant, les deux passaient : deux clients SDK montés, un seul gardé dans le
+    pool, donc un processus orphelin, un compteur de sessions actives faux et
+    deux tours concurrents dans le même arbre de travail. Il fallait une main
+    rapide sur la souris ; un agent extérieur envoie deux dispatches dans la
+    même milliseconde.
+    """
+    montes: list[object] = []
+
+    class ClientLent:
+        def __init__(self, *_: object, **__: object) -> None:
+            montes.append(self)
+            self.disconnect = AsyncMock()
+            self.query = AsyncMock()
+
+        async def connect(self) -> None:
+            # Le vrai `connect` lance un sous-process : il rend la main, et
+            # c'est pendant ce temps que le second démarrage arrive.
+            await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(fake_sdk, "ClaudeSDKClient", ClientLent)
+
+    resultats = await asyncio.gather(
+        manager.start(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp"),
+        manager.start(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp"),
+        return_exceptions=True,
+    )
+
+    refus = [r for r in resultats if isinstance(r, BaseException)]
+    assert len(refus) == 1, resultats
+    assert isinstance(refus[0], SessionAlreadyStartingError)
+    assert manager.active_count == 1
+    assert len(montes) == 1, "un second client SDK laisserait un processus orphelin"
+
+    # Et le marqueur est rendu : la session se reprend après un arrêt.
+    await manager.stop("s1")
+    await manager.start(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp")
+    assert manager.active_count == 1
 
 
 async def test_get_unknown_raises(manager: SessionManager) -> None:

@@ -398,6 +398,15 @@ interpréter, et ne le recopie pas dans un canal public sans y regarder.
 **Pas de file durable.** Un redémarrage perd les messages en attente d'une
 session, comme il perd les sessions actives.
 
+**Deux dispatches dans la même milliseconde sur une session endormie.** Le
+réveil d'une session n'est pas une opération que deux appels peuvent partager :
+le second est **refusé** plutôt que de monter un second client Claude dans le
+même arbre de travail. Mais `dispatch` a déjà répondu « Consigne transmise », et
+le refus n'arrive donc que par un ping de cause `non_livree` : sans abonné
+configuré, cette consigne-là est perdue en silence. Un dispatcheur autonome
+attend la fin d'un tour avant d'en demander un autre sur la même session, ou
+ouvre un `nouveau_chantier`.
+
 **Pas d'autorisation fine par outil.** Un jeton donne les cinq outils ou rien. Un
 jeton en lecture seule sera utile le jour où un agent tiers, non maîtrisé, se
 branche. Ce jour-là, pas avant.
