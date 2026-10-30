@@ -333,9 +333,7 @@ async def test_un_jeton_d_agent_ne_peut_pas_ouvrir_la_publication(
     """
     async with _agent(url_mcp, jeton_agent) as session:
         annonces = {o.name for o in (await session.list_tools()).tools}
-        resultat = await session.call_tool(
-            "allow_publish", {"session_id": "s1", "autoriser": True}
-        )
+        resultat = await session.call_tool("allow_publish", {"session_id": "s1", "autoriser": True})
 
     assert mcp_http.HORS_SURFACE_EXTERNE, "un retrait vide ferait passer ce test pour une garde"
     for retire in mcp_http.HORS_SURFACE_EXTERNE:
@@ -924,9 +922,7 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
     # Le geste humain, lui, la rouvre : la porte tourne, et le push forcé reste
     # refusé même ouverte. Sans cette preuve, un hook qui refuserait tout, tout
     # le temps, passerait pour un hook qui garde.
-    texte = await service.outil_allow_publish(
-        proprietaire, session_id=session_id, autoriser=True
-    )
+    texte = await service.outil_allow_publish(proprietaire, session_id=session_id, autoriser=True)
     assert texte.startswith(f"Publication autorisée pour la session {session_id}.")
     for commande in _PUBLIER:
         assert not await _refus(hook, commande), commande
@@ -936,9 +932,7 @@ async def test_la_surface_http_ne_degage_pas_la_publication(
     )
 
     # Et il la referme.
-    texte = await service.outil_allow_publish(
-        proprietaire, session_id=session_id, autoriser=False
-    )
+    texte = await service.outil_allow_publish(proprietaire, session_id=session_id, autoriser=False)
     assert texte.startswith(f"Publication de nouveau bloquée pour la session {session_id}.")
     for commande in _PUBLIER:
         assert await _refus(hook, commande), commande

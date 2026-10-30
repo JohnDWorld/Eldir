@@ -52,6 +52,7 @@ def _serialize_template(template) -> MissionTemplateRead:  # type: ignore[no-unt
         setup_commands=template.setup_commands,
         collect_commands=template.collect_commands,
         remote_host=template.remote_host,
+        source_externe=template.source_externe,
         source_preset=template.source_preset,
         created_at=template.created_at,
         updated_at=template.updated_at,

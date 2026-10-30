@@ -98,9 +98,7 @@ def test_tout_secret_de_settings_est_masque(monkeypatch: pytest.MonkeyPatch) -> 
     une liste qui dériverait.
     """
     secrets = [
-        nom
-        for nom, champ in Settings.model_fields.items()
-        if "SecretStr" in str(champ.annotation)
+        nom for nom, champ in Settings.model_fields.items() if "SecretStr" in str(champ.annotation)
     ]
     assert secrets, "aucun SecretStr trouvé : le test ne vérifie plus rien"
 

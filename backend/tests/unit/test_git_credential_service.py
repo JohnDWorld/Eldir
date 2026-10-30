@@ -112,9 +112,7 @@ async def test_le_jeton_du_projet_passe_avant_le_global(
     await git_credential_service.upsert(
         db_session,
         admin.id,
-        GitCredentialCreate(
-            provider="github", token="jeton-du-projet-bbbb", project_id=projet.id
-        ),
+        GitCredentialCreate(provider="github", token="jeton-du-projet-bbbb", project_id=projet.id),
     )
     await db_session.commit()
 
@@ -151,9 +149,7 @@ async def test_poser_le_jeton_d_un_projet_ne_chasse_pas_le_global(
     await git_credential_service.upsert(
         db_session,
         admin.id,
-        GitCredentialCreate(
-            provider="github", token="jeton-du-projet-bbbb", project_id=projet.id
-        ),
+        GitCredentialCreate(provider="github", token="jeton-du-projet-bbbb", project_id=projet.id),
     )
     await db_session.commit()
 
@@ -176,9 +172,7 @@ async def test_remplacer_le_jeton_d_un_projet_ne_touche_que_le_sien(
     await git_credential_service.upsert(
         db_session,
         admin.id,
-        GitCredentialCreate(
-            provider="github", token="jeton-un-remplace", project_id=projet.id
-        ),
+        GitCredentialCreate(provider="github", token="jeton-un-remplace", project_id=projet.id),
     )
     await db_session.commit()
 

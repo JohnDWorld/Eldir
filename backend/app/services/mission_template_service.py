@@ -199,9 +199,7 @@ class MissionTemplateService:
         if not identifiants:
             return
         await db.execute(
-            update(SessionRow)
-            .where(SessionRow.id.in_(identifiants))
-            .values(remote_host=None)
+            update(SessionRow).where(SessionRow.id.in_(identifiants)).values(remote_host=None)
         )
         for session_id in identifiants:
             self._manager_de_sessions().ferme_l_acces_serveur(session_id)

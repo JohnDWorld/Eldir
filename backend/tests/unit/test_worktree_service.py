@@ -15,5 +15,6 @@ def test_slugify_empty_fallback() -> None:
     assert slugify("@@@@") == "repo"
     assert slugify("") == "repo"
 
+
 # Le jeton n'est plus injecté dans les URL : il passe par un credential helper,
 # et les tests de cette garde vivent dans `test_jeton_git.py`.

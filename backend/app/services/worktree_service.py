@@ -393,9 +393,7 @@ class WorktreeService:
             propre = _sans_identifiants(valeur)
             if propre == valeur:
                 continue
-            await self._run_git(
-                "config", "--local", "--replace-all", cle, propre, cwd=repo_path
-            )
+            await self._run_git("config", "--local", "--replace-all", cle, propre, cwd=repo_path)
             logger.info("remote.identifiant.retire", repo=str(repo_path), cle=cle)
 
     async def _run_git(self, *args: str, cwd: Path, token: str | None = None) -> str:
