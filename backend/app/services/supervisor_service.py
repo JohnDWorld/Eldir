@@ -841,7 +841,16 @@ class SupervisorService:
             )
         except Exception as exc:
             logger.exception("supervisor.dispatch.failed", session_id=session_id)
-            self._pending.pop(session_id, None)
+            # Absent de `_pending` = un ERROR publié avant l'exception (démarrage
+            # interrompu) a déjà prévenu l'abonné : un second ping le doublerait.
+            demandeur = self._pending.pop(session_id, None)
+            if demandeur is not None:
+                # Aucun STOP ni ERROR ne viendra. Sans ce ping, l'abonné attendrait
+                # une fin de tour qui n'arrive pas, et ne pourrait pas distinguer ce
+                # silence d'un travail encore en cours.
+                self._spawn(
+                    self._signaler_echec(session_id, demandeur, str(exc) or type(exc).__name__)
+                )
             self._spawn(
                 self._tell_supervisor(
                     user_id,
@@ -868,38 +877,24 @@ class SupervisorService:
         `demandeur` est l'origine de la consigne : `eldir` si le superviseur l'a
         donnée lui-même, `agent:<libellé>` si c'est un agent extérieur.
         """
-        async with self._factory() as db:
-            child = await db.get(SessionRow, session_id)
-            if child is None:
-                return
-            user_id = child.user_id
-            project_name = "projet inconnu"
-            if child.project_id:
-                project = await db.get(Project, child.project_id)
-                if project is not None:
-                    project_name = project.name
-            cr = (child.summary or "").strip()
+        fiche = await self._fiche(session_id)
+        if fiche is None:
+            return
+        child, project_name = fiche
+        cr = (child.summary or "").strip()
+        erreur = None
+        if event_type == EVENT_TYPE_ERROR:
+            erreur = str(data.get("message") or "erreur inconnue")
 
         # L'abonné HTTP part dans sa propre tâche, avant le superviseur. `_tell_supervisor`
         # rend la main quand le superviseur a fini de réagir, soit des minutes, ou
         # plus s'il est déjà occupé : attendre derrière lui ferait avancer l'agent
         # extérieur d'un pas par réveil, ce que ce ping est là pour éviter. Et
         # l'inverse aussi : un abonné lent ne retient pas le superviseur.
-        self._spawn(
-            prevenir(
-                {
-                    "session_id": session_id,
-                    "projet": project_name,
-                    "branche": child.branch,
-                    "etat": "erreur" if event_type == EVENT_TYPE_ERROR else "fin_de_tour",
-                    "cr": cr,
-                    "demandeur": demandeur,
-                }
-            )
-        )
+        self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur)
 
-        if event_type == EVENT_TYPE_ERROR:
-            body = f"Elle a échoué : {data.get('message', 'erreur inconnue')}"
+        if erreur is not None:
+            body = f"Elle a échoué : {erreur}"
         else:
             body = f"Compte rendu :\n{cr}" if cr else "Elle n'a pas produit de compte rendu <cr>."
         # Le ping reste signé `eldir` (c'est Eldir qui l'envoie, pas l'agent) ; le
@@ -907,12 +902,58 @@ class SupervisorService:
         # pour sienne une consigne qu'il n'a pas donnée.
         qui = "" if demandeur == MESSAGE_ORIGIN_ELDIR else f" (consigne de {demandeur})"
         await self._tell_supervisor(
-            user_id,
+            child.user_id,
             f"[Eldir] La session {session_id} ({project_name}, branche "
             f"{child.branch}) a terminé son tour{qui}.\n{body}\n\n"
             "Résume à John ce qui a été fait et dis-lui si c'est prêt à être "
             "relu et publié.",
         )
+
+    async def _fiche(self, session_id: str) -> tuple[SessionRow, str] | None:
+        """La ligne de la session et le nom de son projet, ou `None` si elle a disparu."""
+        async with self._factory() as db:
+            child = await db.get(SessionRow, session_id)
+            if child is None:
+                return None
+            project_name = "projet inconnu"
+            if child.project_id:
+                project = await db.get(Project, child.project_id)
+                if project is not None:
+                    project_name = project.name
+            return child, project_name
+
+    def _prevenir_l_abonne(
+        self, child: SessionRow, project_name: str, *, demandeur: str, erreur: str | None
+    ) -> None:
+        """Lance le ping HTTP dans sa propre tâche. `erreur` absent = le tour s'est bien fini.
+
+        Le compte rendu d'une session en erreur est vide : celui que la ligne porte
+        encore date d'un tour précédent, et lu à côté de `etat: erreur` il ferait
+        croire à un travail fini et prêt.
+        """
+        self._spawn(
+            prevenir(
+                {
+                    "session_id": child.id,
+                    "projet": project_name,
+                    "branche": child.branch,
+                    "etat": "fin_de_tour" if erreur is None else "erreur",
+                    "cr": (child.summary or "").strip() if erreur is None else "",
+                    "erreur": erreur,
+                    "demandeur": demandeur,
+                }
+            )
+        )
+
+    async def _signaler_echec(self, session_id: str, demandeur: str, erreur: str) -> None:
+        """Prévient l'abonné qu'une consigne n'a pas pu partir : aucun tour n'a eu lieu."""
+        try:
+            fiche = await self._fiche(session_id)
+            if fiche is not None:
+                child, project_name = fiche
+                self._prevenir_l_abonne(child, project_name, demandeur=demandeur, erreur=erreur)
+        except Exception:
+            logger.exception("supervisor.dispatch.ping_failed", session_id=session_id)
 
     async def _tell_supervisor(self, user_id: str, content: str) -> None:
         """Envoie un message au superviseur au nom d'Eldir, pas de John."""

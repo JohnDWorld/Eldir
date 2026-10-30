@@ -79,16 +79,34 @@ class _FakeManager(SessionManager):
         self.sent.append((session_id, content, origin))
 
 
+class _TachesSuivies(set[asyncio.Task[None]]):
+    """Les tâches de fond du superviseur, avec la mémoire de toutes celles qui ont existé.
+
+    Le superviseur oublie une tâche dès qu'elle est finie : une qui a levé aussitôt
+    disparaîtrait sans que personne lise son exception.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.historique: list[asyncio.Task[None]] = []
+
+    def add(self, tache: asyncio.Task[None]) -> None:
+        self.historique.append(tache)
+        super().add(tache)
+
+
 @pytest.fixture
 def supervisor(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> SupervisorService:
     manager = _FakeManager()
-    return SupervisorService(
+    service = SupervisorService(
         manager=manager,
         sessions=SessionService(manager=manager),
         session_factory=session_factory,
     )
+    service._tasks = _TachesSuivies()
+    return service
 
 
 async def test_ensure_session_cree_une_session_sans_projet(
@@ -779,13 +797,16 @@ async def _attendre(condition: Callable[[], Any], delai: float = 5.0) -> None:
 async def _fin_des_taches_de_fond(supervisor: SupervisorService) -> None:
     """Attend les tâches de fond du superviseur, celles qu'elles lancent comprises.
 
-    L'une d'elles qui a levé fait échouer ici.
+    L'une d'elles qui a levé, même déjà finie, fait échouer ici.
     """
-    taches = supervisor._tasks  # type: ignore[attr-defined]
+    historique = supervisor._tasks.historique  # type: ignore[attr-defined]
     async with asyncio.timeout(10):
-        while taches:
-            await asyncio.gather(*list(taches))
+        while True:
+            connues = len(historique)
+            await asyncio.gather(*historique)
             await asyncio.sleep(0)
+            if len(historique) == connues:
+                return
 
 
 def _charge_recue(abonne: ServeurAbonne, rang: int = 0) -> dict[str, Any]:
@@ -831,27 +852,52 @@ async def test_l_abonne_http_apprend_la_fin_du_tour_et_qui_avait_demande_le_trav
         "branche": "claude/x",
         "etat": "fin_de_tour",
         "cr": "FAIT: ajout de la compétence\nPRET: oui",
+        "erreur": None,
         "demandeur": demandeur,
     }
 
 
-async def test_un_tour_en_erreur_part_aussi_vers_l_abonne_avec_l_etat_erreur(
+@pytest.mark.parametrize(
+    ("donnees", "erreur"),
+    [
+        ({"message": "boom"}, "boom"),
+        ({}, "erreur inconnue"),
+        ({"message": ""}, "erreur inconnue"),
+    ],
+    ids=["message", "sans_message", "message_vide"],
+)
+async def test_un_tour_en_erreur_part_aussi_vers_l_abonne_avec_son_message(
     db_session: AsyncSession,
     admin: User,
     supervisor: SupervisorService,
     monkeypatch: pytest.MonkeyPatch,
     reglages: Callable[..., None],
     abonne: ServeurAbonne,
+    donnees: dict[str, Any],
+    erreur: str,
 ) -> None:
     reglages(turn_webhook_url=abonne.url("/ok"))
     project, child = await _projet_et_session_dispatchee(db_session, admin)
     await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+    manager = supervisor._manager  # type: ignore[attr-defined]
 
-    await supervisor._on_event(child.id, "error", {"message": "boom"})  # type: ignore[attr-defined]
+    await supervisor._on_event(child.id, "error", donnees)  # type: ignore[attr-defined]
     await abonne.attendre(1)
+    await _attendre(lambda: manager.sent)
     await _fin_des_taches_de_fond(supervisor)
 
-    assert _charge_recue(abonne)["etat"] == "erreur"
+    # Le compte rendu de la ligne date d'un tour précédent : à côté de `erreur`, il
+    # ferait croire à un travail fini et prêt.
+    assert _charge_recue(abonne) == {
+        "session_id": child.id,
+        "projet": "munin",
+        "branche": "claude/x",
+        "etat": "erreur",
+        "cr": "",
+        "erreur": erreur,
+        "demandeur": "eldir",
+    }
+    assert f"Elle a échoué : {erreur}" in manager.sent[0][1], "le superviseur reçoit le même"
 
 
 async def test_un_tour_non_dispatche_ne_previent_pas_l_abonne(
@@ -927,7 +973,68 @@ async def test_un_second_stop_ne_previent_personne_une_deuxieme_fois(
     assert len(abonne.requetes) == 1
 
 
-async def test_une_consigne_qui_n_a_pas_pu_partir_n_attend_plus_de_fin_de_tour(
+@pytest.mark.parametrize(
+    ("libelle_agent", "demandeur", "levee", "erreur"),
+    [
+        (None, "eldir", RuntimeError("session illisible"), "session illisible"),
+        ("Munin Bot", "agent:Munin Bot", RuntimeError("session illisible"), "session illisible"),
+        # Un message vide ne dirait rien à l'abonné : on lui donne au moins le type.
+        (None, "eldir", RuntimeError(), "RuntimeError"),
+    ],
+    ids=["superviseur", "agent", "sans_message"],
+)
+async def test_une_consigne_qui_n_a_pas_pu_partir_previent_l_abonne_une_seule_fois(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+    libelle_agent: str | None,
+    demandeur: str,
+    levee: Exception,
+    erreur: str,
+) -> None:
+    """Aucun STOP ni ERROR ne viendra : `dispatch` a promis « tu seras notifié », et
+    l'abonné ne distinguerait pas ce silence d'un travail encore en cours."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+
+    async def refuse(*_: Any, **__: Any) -> None:
+        raise levee
+
+    monkeypatch.setattr(supervisor._sessions, "get", refuse)  # type: ignore[attr-defined]
+    await supervisor.outil_dispatch(
+        admin.id,
+        project_id=project.id,
+        consigne="Fais le travail.",
+        session_id=child.id,
+        libelle_agent=libelle_agent,
+    )
+    await _fin_des_taches_de_fond(supervisor)
+
+    assert len(abonne.requetes) == 1, "le ping d'échec est bien parti"
+    assert _charge_recue(abonne) == {
+        "session_id": child.id,
+        "projet": "munin",
+        "branche": "claude/x",
+        "etat": "erreur",
+        "cr": "",
+        "erreur": erreur,
+        "demandeur": demandeur,
+    }
+    manager = supervisor._manager  # type: ignore[attr-defined]
+    assert len(manager.sent) == 1 and "n'a pas pu traiter la consigne" in manager.sent[0][1]
+
+    # La consigne n'attend plus de fin de tour : le tour suivant, mené par John,
+    # ne réveille personne au nom d'une consigne qui n'a jamais tourné.
+    await supervisor._on_event(child.id, "stop", {})  # type: ignore[attr-defined]
+    await _fin_des_taches_de_fond(supervisor)
+    assert len(abonne.requetes) == 1
+    assert len(manager.sent) == 1
+
+
+async def test_un_demarrage_interrompu_ne_previent_l_abonne_qu_une_fois(
     db_session: AsyncSession,
     admin: User,
     supervisor: SupervisorService,
@@ -935,27 +1042,52 @@ async def test_une_consigne_qui_n_a_pas_pu_partir_n_attend_plus_de_fin_de_tour(
     reglages: Callable[..., None],
     abonne: ServeurAbonne,
 ) -> None:
-    """Sinon le prochain tour de cette session, mené par John, réveillerait l'abonné
-    au nom d'une consigne qui n'a jamais tourné."""
+    """Le démarrage publie un ERROR (qui prévient l'abonné) puis lève : le second
+    ping, celui de l'exception, doublerait le premier."""
+    reglages(turn_webhook_url=abonne.url("/ok"))
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+
+    async def publie_puis_leve(*_: Any, **__: Any) -> None:
+        await supervisor._on_event(child.id, "error", {"message": "CLI muet"})  # type: ignore[attr-defined]
+        raise RuntimeError("démarrage interrompu")
+
+    monkeypatch.setattr(supervisor._sessions, "get", publie_puis_leve)  # type: ignore[attr-defined]
+    await supervisor.outil_dispatch(
+        admin.id, project_id=project.id, consigne="Fais le travail.", session_id=child.id
+    )
+    await _fin_des_taches_de_fond(supervisor)
+
+    assert len(abonne.requetes) == 1
+    assert _charge_recue(abonne)["erreur"] == "CLI muet"
+
+
+async def test_un_ping_d_echec_qui_echoue_ne_prive_pas_le_superviseur_de_son_avis(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+    reglages: Callable[..., None],
+    abonne: ServeurAbonne,
+) -> None:
     reglages(turn_webhook_url=abonne.url("/ok"))
     project, child = await _projet_et_session_dispatchee(db_session, admin)
 
     async def refuse(*_: Any, **__: Any) -> None:
         raise RuntimeError("session illisible")
 
+    async def base_en_panne(*_: Any, **__: Any) -> None:
+        raise RuntimeError("base en panne")
+
     monkeypatch.setattr(supervisor._sessions, "get", refuse)  # type: ignore[attr-defined]
+    monkeypatch.setattr(supervisor, "_fiche", base_en_panne)
     await supervisor.outil_dispatch(
         admin.id, project_id=project.id, consigne="Fais le travail.", session_id=child.id
     )
-    await _fin_des_taches_de_fond(supervisor)
+    await _fin_des_taches_de_fond(supervisor)  # aucune tâche n'a levé
+
+    assert abonne.requetes == [], "pas de fiche, pas de ping"
     manager = supervisor._manager  # type: ignore[attr-defined]
     assert len(manager.sent) == 1 and "n'a pas pu traiter la consigne" in manager.sent[0][1]
-
-    await supervisor._on_event(child.id, "stop", {})  # type: ignore[attr-defined]
-    await _fin_des_taches_de_fond(supervisor)
-
-    assert len(manager.sent) == 1, "pas de ping de fin de tour en plus de l'avis d'échec"
-    assert abonne.requetes == []
 
 
 @pytest.mark.parametrize(
