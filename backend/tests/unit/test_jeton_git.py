@@ -23,7 +23,19 @@ from app.services.worktree_service import (
     _sans_identifiants,
 )
 
-JETON = "ghp_unJetonQuiNeDoitPasTrainer"
+# La sentinelle ne doit PAS ressembler à un vrai jeton. `ghp_` suivi
+# d'alphanumériques est le format d'un PAT GitHub : GitGuardian l'a signalée
+# comme un secret en clair sur la PR, un rapport qui n'était pas faux dans sa
+# forme et qui coûte cher sur un dépôt public, puisqu'un contrôle qui crie au
+# loup est un contrôle qu'on arrête de lire. Le test n'y perd rien : cette
+# valeur ne sert qu'à être cherchée dans les fichiers, dans `argv`, dans
+# l'environnement et dans la sortie de git.
+#
+# Les jetons à métacaractères plus bas gardent, eux, le préfixe `ghp_` : leur
+# corps contient `$`, des accents graves, des espaces ou `%`, donc aucun
+# détecteur ne les prend pour un vrai jeton, et le préfixe dit ce qu'ils
+# imitent.
+JETON = "sentinelle-de-jeton-a-ne-jamais-retrouver"
 
 
 def git(*args: str, cwd: Path) -> str:
