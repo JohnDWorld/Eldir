@@ -94,10 +94,26 @@ chacune.
 
 1. **Le masque d'environnement** (ce document). ✅ En place. Sans lui les deux
    autres seraient décoratives : une session se réautorise elle-même.
-2. **La publication n'est ouverte que par un geste humain dans le dashboard.**
-   ✅ En place. `allow_publish` n'est pas servi sur la surface externe
-   (`HORS_SURFACE_EXTERNE` dans `app/mcp_http.py`) : un jeton d'agent ne peut
-   pas l'ouvrir, même compromis.
+2. **Depuis l'extérieur, la publication n'est ouverte que par un geste humain
+   dans le dashboard.** ✅ En place. `allow_publish` n'est pas servi sur la
+   surface externe (`HORS_SURFACE_EXTERNE` dans `app/mcp_http.py`) : un jeton
+   d'agent ne peut pas l'ouvrir, même compromis.
+
+   **Risque accepté.** Le superviseur interne, lui, garde l'outil et ouvre la
+   publication sans geste humain. Décision de John du 2026-10-30, après
+   proposition de la remplacer par une demande à valider au dashboard. Il faut
+   voir précisément ce qui tient ici, parce que ce n'est pas un mécanisme : le
+   superviseur n'est pas coupé du texte extérieur, puisque `remember` est servi
+   sur la surface externe et dépose une ligne dans son prompt durable, qu'il
+   relit à chaque démarrage. Trois choses la bornent. Elle porte la marque de
+   son auteur, posée d'après le jeton et jamais lue dans le texte. Elle tient
+   sur une seule ligne, donc elle ne peut ni ouvrir une ligne sans marque ni en
+   imiter une. Et `_NOTE_AGENTS` interdit au superviseur de lire une ligne
+   marquée comme une demande de John, comme une autorisation de publier ou
+   comme une dérogation à ses règles. Cette dernière est une consigne de
+   prompt, c'est-à-dire exactement ce qu'une injection attaque. À rouvrir si le
+   superviseur se met à encaisser du texte extérieur au-delà d'une préférence
+   bornée et marquée.
 3. **Le jeton Git n'est jamais à portée d'une session.** ✅ En place. Il ne
    touche ni le disque ni la ligne de commande : git le demande à un credential
    helper qui le lit dans l'environnement du seul sous-processus concerné, et

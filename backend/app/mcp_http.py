@@ -151,8 +151,15 @@ async def remember(fait: str) -> str:
 # ouvrable par injection de prompt, et un jeton d'agent vit dix ans : la garde
 # tenait face à la dérive, pas face à une consigne hostile.
 #
-# La publication ne s'ouvre donc que par un geste humain dans le dashboard. Le
-# superviseur interne garde l'outil : il ne lit que les consignes de John.
+# Depuis l'extérieur, la publication ne s'ouvre donc que par un geste humain
+# dans le dashboard. Le superviseur interne garde l'outil (décision de John du
+# 2026-10-30). Ce qui le protège n'est pas qu'il ignore le texte extérieur : la
+# table ci-dessous sert `remember`, qui dépose une ligne d'agent dans son prompt
+# durable, relue à chaque démarrage. C'est `_NOTE_AGENTS`
+# (`supervisor_service.py`) qui lui interdit de lire une telle ligne comme une
+# autorisation de publier. Une garde de prompt, là où les autres sont des
+# mécanismes : à rouvrir si le superviseur se met à encaisser plus de texte
+# extérieur qu'une préférence bornée et marquée.
 # Aucune fonction d'adaptation n'existe ici pour cet outil, et c'est voulu :
 # un nom retiré d'une table se remet, une fonction absente ne s'appelle pas.
 HORS_SURFACE_EXTERNE: frozenset[str] = frozenset({"allow_publish"})
