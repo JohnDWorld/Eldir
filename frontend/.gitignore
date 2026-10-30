@@ -1,6 +1,9 @@
 node_modules
 dist
 dist-ssr
+
+# Rapports de `lhci autorun`, régénérés à chaque passage
+.lighthouseci
 *.local
 
 # logs

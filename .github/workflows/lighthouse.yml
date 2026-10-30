@@ -1,0 +1,50 @@
+name: lighthouse
+
+# Accessibilité en bloquant, performance et bonnes pratiques en avertissement.
+#
+# Ce job ne vérifie PAS que l'app est installable, bien que ce soit la promesse
+# du ROADMAP : Lighthouse 12 a supprimé la catégorie PWA et ses audits
+# (`installable-manifest`, `service-worker`) sans rien mettre à la place. Cette
+# garantie est tenue par `npm run verifie-pwa`, qui lit la sortie de build dans
+# le job `frontend`. Un audit qu'on ne peut plus lancer ne protège personne, et
+# une assertion sur un audit disparu échoue en disant « audit inconnu », ce qui
+# ressemble à une panne de CI plutôt qu'à une régression.
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/lighthouse.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  lighthouse:
+    name: lighthouse · accessibilité bloquante
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build (PWA)
+        run: npm run build
+        working-directory: frontend
+
+      - name: Lighthouse
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: ./frontend/lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: false
