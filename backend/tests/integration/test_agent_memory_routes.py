@@ -24,6 +24,7 @@ from tests.unit.conftest_supervisor import service_superviseur
 
 Fabrique = async_sessionmaker[AsyncSession]
 MEMOIRE = "/api/v1/supervisor/agent-memory"
+PROMPT_PREFS = f"/api/v1/system-prompts/{SUPERVISOR_PREFS_SLUG}"
 
 
 @pytest.fixture
@@ -166,6 +167,70 @@ async def test_un_jeton_d_agent_ne_lit_ni_ne_nettoie_la_memoire(
     )
     assert oubli.status_code == 401
     assert await _prompt(session_factory) == avant
+
+
+# ── Deux écrivains sur la même ligne ────────────────────────────────────
+async def test_une_sauvegarde_manuelle_perimee_n_efface_pas_la_preference_d_un_agent(
+    client: AsyncClient,
+    entetes_john: dict[str, str],
+    service: SupervisorService,
+    session_factory: Fabrique,
+) -> None:
+    """Le `PUT` de l'éditeur est conditionné sur le texte qu'il avait sous les yeux.
+
+    Un agent note une préférence et reçoit « Noté ». John appuie sur Sauvegarder
+    dans un éditeur ouvert trente secondes plus tôt. Sans la condition, la ligne
+    disparaît sans trace, alors que la documentation promet que rien n'est oublié.
+    """
+    lu = await _prompt(session_factory)  # ce que l'éditeur a chargé
+    await service.remember_preference("Fait A.", libelle_agent="A")
+
+    refus = await client.put(
+        PROMPT_PREFS,
+        json={"content": "Je réécris tout.", "base_content": lu},
+        headers=entetes_john,
+    )
+
+    assert refus.status_code == 409
+    assert refus.json()["code"] == "conflict"
+    # Rien n'a été écrit : la ligne de l'agent est toujours là.
+    assert "- [agent « A »] Fait A." in await _prompt(session_factory)
+
+    # Avec le texte à jour sous les yeux, la même sauvegarde passe.
+    frais = await _prompt(session_factory)
+    ok = await client.put(
+        PROMPT_PREFS,
+        json={"content": f"{frais}\n- À la main.", "base_content": frais},
+        headers=entetes_john,
+    )
+    assert ok.status_code == 200
+    assert ok.json()["content"].endswith("- À la main.")
+
+
+async def test_la_premiere_sauvegarde_part_du_defaut_affiche(
+    client: AsyncClient,
+    entetes_john: dict[str, str],
+    service: SupervisorService,
+    session_factory: Fabrique,
+) -> None:
+    """Sans surcharge en base, c'est le défaut que l'éditeur a lu : il doit passer."""
+    defaut = await _prompt(session_factory)
+    ok = await client.put(
+        PROMPT_PREFS,
+        json={"content": "- Première ligne.", "base_content": defaut},
+        headers=entetes_john,
+    )
+    assert ok.status_code == 200
+    assert ok.json()["is_overridden"] is True
+    assert await _prompt(session_factory) == "- Première ligne."
+
+    perime = await client.put(
+        PROMPT_PREFS,
+        json={"content": "- Deuxième ligne.", "base_content": defaut},
+        headers=entetes_john,
+    )
+    assert perime.status_code == 409
+    assert await _prompt(session_factory) == "- Première ligne."
 
 
 async def test_sans_jeton_de_connexion_la_memoire_est_fermee(client: AsyncClient) -> None:

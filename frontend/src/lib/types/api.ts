@@ -294,6 +294,13 @@ export interface SystemPromptRead {
 
 export interface SystemPromptWrite {
   content: string;
+  /**
+   * Le texte que l'éditeur avait sous les yeux. Le backend conditionne
+   * l'écriture dessus et répond 409 si quelqu'un a écrit entre-temps : sans
+   * lui, sauvegarder efface sans trace la préférence qu'un agent vient
+   * d'enregistrer.
+   */
+  base_content?: string;
 }
 
 // ── Mémoire des agents (préférences écrites par des agents extérieurs) ──

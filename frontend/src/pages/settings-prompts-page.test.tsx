@@ -115,6 +115,31 @@ describe('SettingsPromptsPage, mémoire des agents', () => {
     );
   });
 
+  it('envoie le texte chargé avec la sauvegarde, et dit à John si le prompt a bougé', async () => {
+    const { ApiError } = await import('@/lib/api/client');
+    api.put.mockRejectedValue(
+      new ApiError(409, {
+        code: 'conflict',
+        message: "Ce prompt a changé depuis que tu l'as ouvert.",
+        details: {},
+      }),
+    );
+    renderPage('/settings/prompts?prompt=supervisor_prefs');
+    await screen.findByText(/1 sur 20 préférences/);
+    fireEvent.change(screen.getByDisplayValue(LIGNE), { target: { value: '- Autre.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'sauvegarder' }));
+
+    // Le texte chargé part avec l'écriture : c'est ce qui la rend conditionnelle.
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/system-prompts/supervisor_prefs', {
+        content: '- Autre.',
+        base_content: LIGNE,
+      }),
+    );
+    // Et le motif du refus est affiché, pas remplacé par une erreur générique.
+    expect(await screen.findByText(/a changé depuis que tu l'as ouvert/)).toBeInTheDocument();
+  });
+
   it('relit la mémoire des agents quand John édite le prompt à la main', async () => {
     api.put.mockResolvedValue(prompt('supervisor_prefs', '- Autre.'));
     renderPage('/settings/prompts?prompt=supervisor_prefs');

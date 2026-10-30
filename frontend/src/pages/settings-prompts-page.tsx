@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { ApiError } from '@/lib/api/client';
 import {
   useResetSystemPrompt,
   useSystemPrompts,
@@ -131,10 +132,13 @@ function PromptEditor({ prompt }: { prompt: SystemPromptRead }): JSX.Element {
   const onSave = async () => {
     setStatus(null);
     try {
-      await upsert.mutateAsync({ content });
+      // `base_content` : le texte chargé, pas celui de l'éditeur. Un agent peut
+      // avoir écrit une préférence ici pendant que le brouillon était ouvert ;
+      // le backend refuse alors en 409 plutôt que de l'effacer en silence.
+      await upsert.mutateAsync({ content, base_content: prompt.content });
       setStatus('Sauvegardé.');
-    } catch {
-      setStatus('Erreur lors de la sauvegarde.');
+    } catch (e) {
+      setStatus(e instanceof ApiError ? e.message : 'Erreur lors de la sauvegarde.');
     }
   };
 

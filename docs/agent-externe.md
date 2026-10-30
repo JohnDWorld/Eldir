@@ -95,6 +95,13 @@ dans le code, pas dans une consigne de prompt :
   plafond, la nouvelle est refusée par une phrase que l'agent peut lire, et rien
   n'est oublié : c'est à toi de faire le ménage.
 
+Rien n'est oublié dans l'autre sens non plus. Les deux écrivains de cette ligne
+(un agent par `remember`, toi par l'éditeur) écrivent sous condition du texte
+qu'ils ont lu. Si un agent note une préférence pendant que ton éditeur est
+ouvert, ta sauvegarde est **refusée** avec le motif, pas appliquée par-dessus :
+recharge, puis refais ta modification. Symétriquement, le bouton **Retirer**
+d'une préférence est verrouillé tant que ton brouillon n'est pas sauvegardé.
+
 Tu lis et vides ces lignes dans **Settings > Agents extérieurs**, et le prompt
 entier dans **Settings > Prompts**. Rien n'est appris dans ton dos.
 
