@@ -81,6 +81,13 @@ describe('useSessionStream, reconnexion', () => {
       [2000, 3],
       [4000, 4],
       [8000, 5],
+      [16000, 6],
+      // Le palier se plafonne ici : une boucle de reconnexion indéfinie sur un
+      // jeton refusé n'est acceptable que parce qu'elle est bornée. Sans le
+      // plafond, l'attente suivante serait de 32 s.
+      [30000, 7],
+      // Et il reste plafonné : il ne redouble pas une fois atteint.
+      [30000, 8],
     ];
     for (const [attenteAvant, tentatives] of paliers) {
       accepterPuisRefuser();
