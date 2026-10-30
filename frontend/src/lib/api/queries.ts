@@ -7,6 +7,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from '@/lib/api/client';
 import type {
+  AgentTokenCreated,
+  AgentTokenInput,
+  AgentTokenRead,
   ClaudeCredentialCreate,
   ClaudeCredentialRead,
   ClaudeCredentialTestResult,
@@ -76,6 +79,7 @@ export const queryKeys = {
     ['projects', projectId, 'template', 'versions'] as const,
   costsDashboard: ['costs', 'dashboard'] as const,
   costsSession: (id: string) => ['costs', 'sessions', id] as const,
+  agentTokens: ['agent-tokens'] as const,
   systemPrompts: ['system-prompts'] as const,
   systemPrompt: (slug: string) => ['system-prompts', slug] as const,
   ollamaStatus: ['ollama', 'status'] as const,
@@ -1177,6 +1181,35 @@ export function useResetSystemPrompt(slug: string) {
       qc.setQueryData(queryKeys.systemPrompt(slug), data);
       qc.invalidateQueries({ queryKey: queryKeys.systemPrompts });
     },
+  });
+}
+
+// ── Jetons d'agent externe (Settings > Agents) ─────────────────
+export function useAgentTokens() {
+  return useQuery({
+    queryKey: queryKeys.agentTokens,
+    queryFn: () => apiClient.get<AgentTokenRead[]>('/agent-tokens'),
+  });
+}
+
+export function useCreateAgentToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AgentTokenInput) =>
+      apiClient.post<AgentTokenCreated, AgentTokenInput>('/agent-tokens', body),
+    // Le clair ne vit que dans le composant qui l'affiche. Avec le `reset()` de
+    // l'appelant, `gcTime: 0` retire la mutation du cache dès qu'elle est
+    // terminée au lieu de lui laisser cinq minutes.
+    gcTime: 0,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.agentTokens }),
+  });
+}
+
+export function useRevokeAgentToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete<void>(`/agent-tokens/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.agentTokens }),
   });
 }
 

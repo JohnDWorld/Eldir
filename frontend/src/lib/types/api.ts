@@ -296,6 +296,25 @@ export interface SystemPromptWrite {
   content: string;
 }
 
+// ── Jetons d'agent externe (Settings > Agents) ─────────────────
+export interface AgentTokenInput {
+  label: string;
+}
+
+/** Un jeton émis. Jamais le clair : Eldir ne le conserve pas. */
+export interface AgentTokenRead {
+  id: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+/** Réponse à la création, et seul endroit où le clair existe. */
+export interface AgentTokenCreated extends AgentTokenRead {
+  token: string;
+}
+
 // ── Costs (Phase 5 - Optimisation tokens) ──────────────────────
 export interface CostTotalsRead {
   input_tokens: number;
