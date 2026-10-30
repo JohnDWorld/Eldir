@@ -26,6 +26,7 @@ from app.core.constants import (
     EVENT_TYPE_STATE,
     EVENT_TYPE_TEXT,
     EVENT_TYPE_USAGE,
+    MESSAGE_ORIGIN_USER,
     SESSION_STATES,
 )
 from app.core.exceptions import (
@@ -327,7 +328,8 @@ class SessionService:
         await self.get(db, session_id, user_id)
         if not self._manager.is_active(session_id):
             await self.resume(db, user_id=user_id, session_id=session_id)
-        await self._manager.send_message(session_id, content)
+        # Ce service sert la route de John : ses messages sont les siens.
+        await self._manager.send_message(session_id, content, origin=MESSAGE_ORIGIN_USER)
 
     async def send_message_en_fond(
         self,
@@ -354,7 +356,11 @@ class SessionService:
         # Réserve la place DANS la requête : un refus de file pleine doit
         # remonter en 429 à l'appelant, pas mourir dans une tâche de fond.
         self._manager.reserver_place_file(session_id)
-        self._spawn(self._manager.send_message(session_id, content, place_reservee=True))
+        self._spawn(
+            self._manager.send_message(
+                session_id, content, origin=MESSAGE_ORIGIN_USER, place_reservee=True
+            )
+        )
 
     async def stop(self, db: AsyncSession, *, user_id: str, session_id: str) -> None:
         await self.get(db, session_id, user_id)

@@ -33,7 +33,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.constants import EVENT_TYPE_STOP, EVENT_TYPE_TEXT
+from app.core.constants import EVENT_TYPE_STOP, EVENT_TYPE_TEXT, MESSAGE_ORIGIN_ELDIR
 from app.core.exceptions import EldirError, NotFoundError
 from app.core.logging import get_logger
 from app.db.models import MissionTemplate, Project, SessionEvent
@@ -400,7 +400,8 @@ class TemplateGeneratorService:
         consumer_task = asyncio.create_task(consumer())
 
         try:
-            await self._manager.send_message(session_id, message)
+            # Le prompt vient d'Eldir, pas de John : sans origine il serait signé « John ».
+            await self._manager.send_message(session_id, message, origin=MESSAGE_ORIGIN_ELDIR)
             # send_message bloque déjà jusqu'à la fin du tour côté
             # SessionManager (cf. message_lock + _consume_response), donc
             # quand on revient ici, le STOP a déjà été publié. On laisse

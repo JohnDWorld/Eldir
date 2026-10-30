@@ -33,7 +33,6 @@ from app.core.constants import (
     EVENT_TYPE_TOOL_USE,
     EVENT_TYPE_USAGE,
     EVENT_TYPE_USER_MESSAGE,
-    MESSAGE_ORIGIN_USER,
     SESSION_CONNECT_TIMEOUT_S,
     SESSION_DISCONNECT_TIMEOUT_S,
     SESSION_STATE_IDLE,
@@ -497,7 +496,7 @@ class SessionManager:
         session_id: str,
         content: str,
         *,
-        origin: str = MESSAGE_ORIGIN_USER,
+        origin: str,
         place_reservee: bool = False,
     ) -> None:
         """Envoie un message à la session.
@@ -508,6 +507,10 @@ class SessionManager:
         c'est le même message, mais l'UI doit pouvoir les distinguer : afficher
         un message d'Eldir comme s'il venait de John est un mensonge sur qui a
         demandé quoi.
+
+        `origin` est obligatoire, sans valeur par défaut : un défaut `user`
+        signerait « John » tout appel qui oublie de dire qui parle, soit le
+        mensonge que ce champ existe pour empêcher. Un oubli est une erreur.
         """
         active = self.get(session_id)
         if active.client is None:

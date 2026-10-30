@@ -71,7 +71,7 @@ class _FakeManager(SessionManager):
         return self._sessions[session_id]
 
     async def send_message(  # type: ignore[override]
-        self, session_id: str, content: str, *, origin: str = "user"
+        self, session_id: str, content: str, *, origin: str
     ) -> None:
         self.sent.append((session_id, content, origin))
 
