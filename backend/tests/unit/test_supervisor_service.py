@@ -151,6 +151,36 @@ async def test_ensure_session_est_idempotente(
     assert len(supervisor._manager.started) == 1  # type: ignore[attr-defined]
 
 
+async def test_ensure_session_concurrente_ne_cree_qu_un_seul_superviseur(
+    admin: User,
+    supervisor: SupervisorService,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Deux appels en parallèle ne doivent pas rendre deux superviseurs.
+
+    Deux chemins y mènent en production, chacun avec sa propre session de base :
+    la route `GET /supervisor` et le ping de fin de tour en tâche de fond. Sans
+    verrou, les deux lisaient « aucune ligne », les deux en créaient une, et
+    John se retrouvait avec deux superviseurs qui ne partagent pas leur
+    conversation : ses comptes rendus partaient dans l'une ou dans l'autre.
+
+    Le test d'idempotence juste au-dessus ne voit rien de tout ça : il appelle
+    deux fois de suite, sur la même session de base. C'est
+    `test_un_tour_sans_compte_rendu_...` qui l'attrapait, par accident et une
+    fois sur six, sous la forme illisible d'un `too many values to unpack`.
+    """
+
+    async def appel() -> str:
+        async with session_factory() as db:
+            return (await supervisor.ensure_session(db, admin.id)).id
+
+    premier, second = await asyncio.gather(appel(), appel())
+
+    demarrages = supervisor._manager.started  # type: ignore[attr-defined]
+    assert premier == second, f"deux sessions superviseur pour un utilisateur : {premier}, {second}"
+    assert len(demarrages) == 1, f"{len(demarrages)} CLI démarrés au lieu d'un"
+
+
 async def test_remember_preference_ecrit_et_dedoublonne(
     supervisor: SupervisorService,
 ) -> None:
@@ -1936,7 +1966,6 @@ async def test_un_tour_sans_compte_rendu_envoie_null_et_non_celui_du_tour_d_avan
             libelle_agent="Munin Bot",
         )
         await abonne.attendre(rang)
-    await _fin_des_taches_de_fond(service)
 
     premier, second = (_charge_recue(abonne, r) for r in (0, 1))
     assert premier["cr"] == "FAIT: le premier tour\nPRET: oui"
