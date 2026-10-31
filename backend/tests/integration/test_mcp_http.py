@@ -67,13 +67,35 @@ _ENTETES = {
 
 Fabrique = async_sessionmaker[AsyncSession]
 
+# Ce que uvicorn s'accorde pour finir ses tâches de connexion avant de les
+# annuler. Laissé à None (son défaut), il vaut `wait_for(..., timeout=None)` :
+# il attend SANS FIN. Le client MCP tient un flux SSE ouvert, et quand l'arrêt
+# du serveur part avant que la tâche serveur ait fini de traiter la
+# déconnexion, le démontage se fige. En local la fenêtre est trop courte pour
+# se voir ; sur un runner chargé elle s'ouvre, et le job backend a brûlé deux
+# fois jusqu'au plafond de 6 h de GitHub sans jamais rien dire.
+_ARRET_GRACIEUX_S = 5
+
+# Ce qu'un appel d'outil s'accorde pour obtenir sa réponse. `ClientSession`
+# laisse ce délai à None par défaut : elle attend alors SANS FIN une réponse
+# qui peut ne jamais venir, et la boucle d'événements s'endort sans le moindre
+# timer armé. C'est l'état exact qu'a capturé la CI : `selectors.select` sans
+# échéance, pendant quinze minutes. Borné ici, le même incident devient un
+# test qui échoue en donnant son nom.
+_REPONSE_MAX = timedelta(seconds=30)
+
 
 # ── Le serveur et ses clients ───────────────────────────────────────────
 @asynccontextmanager
 async def _serveur() -> AsyncIterator[str]:
     """Lance l'application sous uvicorn, lifespan compris, et rend l'URL de /api/mcp/."""
     config = uvicorn.Config(
-        create_app(), host="127.0.0.1", port=0, lifespan="on", log_level="warning"
+        create_app(),
+        host="127.0.0.1",
+        port=0,
+        lifespan="on",
+        log_level="warning",
+        timeout_graceful_shutdown=_ARRET_GRACIEUX_S,
     )
     serveur = uvicorn.Server(config)
     tache = asyncio.create_task(serveur.serve())
@@ -113,24 +135,23 @@ async def _post(
         return await client.post(url, json=_LISTE, headers=envoyes)
 
 
-def _charge(reponse: httpx.Response) -> dict[str, Any]:
-    """Le transport répond en SSE : la charge JSON-RPC vit sur la ligne `data:`."""
-    for ligne in reponse.text.splitlines():
-        if ligne.startswith("data: "):
-            charge: dict[str, Any] = json.loads(ligne[6:])
-            return charge
-    raise AssertionError(f"aucune charge SSE dans : {reponse.text[:200]}")
-
-
 @asynccontextmanager
 async def _agent(url: str, jeton: str) -> AsyncIterator[ClientSession]:
     """Un vrai client MCP, tel qu'un agent extérieur se connecterait."""
     async with (
         httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {jeton}"}, timeout=httpx.Timeout(10)
+            headers={"Authorization": f"Bearer {jeton}"},
+            # Les valeurs que le paquet `mcp` pose sur son propre client
+            # (MCP_DEFAULT_TIMEOUT, MCP_DEFAULT_SSE_READ_TIMEOUT). Le `read`
+            # est volontairement à part et très long : il porte le flux SSE,
+            # qui est FAIT pour rester silencieux entre deux messages. Un
+            # `httpx.Timeout(10)` l'écrasait à 10 s, et au-delà httpx coupait
+            # le flux, le lecteur mourait, et la réponse attendue n'arrivait
+            # jamais. Voir _REPONSE_MAX pour ce qui se passait ensuite.
+            timeout=httpx.Timeout(30.0, read=300.0),
         ) as http,
         streamable_http_client(url, http_client=http) as (lecture, ecriture, _),
-        ClientSession(lecture, ecriture) as session,
+        ClientSession(lecture, ecriture, read_timeout_seconds=_REPONSE_MAX) as session,
     ):
         await session.initialize()
         yield session
@@ -259,6 +280,25 @@ async def test_un_jeton_valide_ouvre_la_surface_et_date_son_dernier_usage(
     # base, et sans commit de sa part l'écriture de `authentifier` est perdue.
     async with session_factory() as db:
         assert (await db.execute(select(AgentToken))).scalar_one().last_used_at is not None
+
+
+async def test_la_surface_repond_en_json_et_non_en_flux(url_mcp: str, jeton_agent: str) -> None:
+    """Le `Content-Type` de la réponse est la preuve que `json_response` tient.
+
+    Ce n'est pas un détail de présentation. Le chemin SSE écrit depuis une
+    seconde tâche qui, sous charge, sortait avant d'avoir reçu la réponse : le
+    serveur rendait 200 puis coupait sans corps, et le client attendait jusqu'à
+    expiration (3 échecs sur 6 en CI, bornés à 30 s par `_REPONSE_MAX`). Le
+    chemin JSON attend dans la même tâche et rend un 500 s'il n'obtient rien.
+    Si quelqu'un repasse en SSE, ce test tombe et dit pourquoi.
+    """
+    r = await _post(url_mcp, jeton_agent)
+
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json"), (
+        "la surface doit répondre en JSON : cf. json_response dans mcp_http.construire_app_mcp"
+    )
+    assert r.json()["result"]["tools"], "et la charge JSON-RPC doit être lisible telle quelle"
 
 
 async def test_la_garde_ne_journalise_jamais_le_jeton(

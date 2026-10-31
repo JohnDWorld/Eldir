@@ -245,7 +245,8 @@ reconstruire la logique de dispatch, ou bien conduire l'interface à la main.
       vivent dans une table unique, donc il ne peut pas exister deux descriptions ni
       deux comportements du même outil. Un test compare le texte rendu, outil par
       outil, par les deux chemins.
-- [x] **`/api/mcp/`** en MCP streamable HTTP, sans état, derrière un jeton d'agent.
+- [x] **`/api/mcp/`** en MCP streamable HTTP, sans état, réponses en JSON, derrière un
+      jeton d'agent.
 - [x] **Jeton d'agent révocable** : JWT longue durée portant `kind="agent"` et un
       `jti` inscrit en table (migration 0012). La borne n'est pas l'expiration, c'est
       la révocation. UI dans Settings > Agents extérieurs : création avec libellé,

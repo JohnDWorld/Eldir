@@ -121,6 +121,12 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Un test qui dépasse ce délai fait vider la pile de tous les threads. Il ne
+# tue rien : c'est `timeout-minutes` du workflow qui arrête le job. Sans ça,
+# un test qui se fige n'apprend rien à personne : le job backend a tourné six
+# heures, puis quinze minutes, en affichant seulement le fichier précédent.
+# La suite entière tient en 50 s.
+faulthandler_timeout = 120
 addopts = "-ra --strict-markers --cov=app --cov-report=term-missing"
 
 [tool.coverage.run]
