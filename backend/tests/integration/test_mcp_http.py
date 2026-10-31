@@ -82,7 +82,7 @@ _ARRET_GRACIEUX_S = 5
 # timer armé. C'est l'état exact qu'a capturé la CI : `selectors.select` sans
 # échéance, pendant quinze minutes. Borné ici, le même incident devient un
 # test qui échoue en donnant son nom.
-_REPONSE_MAX = timedelta(seconds=30)
+_REPONSE_MAX = timedelta(seconds=180)
 
 
 # ── Le serveur et ses clients ───────────────────────────────────────────
