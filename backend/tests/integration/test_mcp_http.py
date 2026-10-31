@@ -113,6 +113,32 @@ async def _serveur() -> AsyncIterator[str]:
 
 
 @pytest.fixture(autouse=True)
+async def _chien_de_garde() -> AsyncIterator[None]:
+    """TEMPORAIRE : imprime la pile de CHAQUE tache encore vivante au bout d'une minute.
+
+    Un vidage de threads ne montre rien ici : le serveur et le client tournent
+    dans la meme boucle, en taches asyncio, et une tache suspendue n'a pas de
+    pile de thread. Seul `task.print_stack()` dit qui attend quoi.
+    """
+
+    async def aboie() -> None:
+        await asyncio.sleep(60)
+        courante = asyncio.current_task()
+        print("\n===== TACHES VIVANTES AU BLOCAGE =====", flush=True)
+        for tache in asyncio.all_tasks():
+            if tache is courante:
+                continue
+            print(f"\n--- {tache.get_name()} | done={tache.done()} ---", flush=True)
+            tache.print_stack(limit=12)
+
+    garde = asyncio.create_task(aboie())
+    try:
+        yield
+    finally:
+        garde.cancel()
+
+
+@pytest.fixture(autouse=True)
 def base_de_test(monkeypatch: pytest.MonkeyPatch, session_factory: Fabrique) -> None:
     """La garde lit la base par le factory du module : on lui donne celle du test."""
     monkeypatch.setattr(mcp_http, "async_session_factory", session_factory)
