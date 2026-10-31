@@ -67,13 +67,27 @@ _ENTETES = {
 
 Fabrique = async_sessionmaker[AsyncSession]
 
+# Ce que uvicorn s'accorde pour finir ses tâches de connexion avant de les
+# annuler. Laissé à None (son défaut), il vaut `wait_for(..., timeout=None)` :
+# il attend SANS FIN. Le client MCP tient un flux SSE ouvert, et quand l'arrêt
+# du serveur part avant que la tâche serveur ait fini de traiter la
+# déconnexion, le démontage se fige. En local la fenêtre est trop courte pour
+# se voir ; sur un runner chargé elle s'ouvre, et le job backend a brûlé deux
+# fois jusqu'au plafond de 6 h de GitHub sans jamais rien dire.
+_ARRET_GRACIEUX_S = 5
+
 
 # ── Le serveur et ses clients ───────────────────────────────────────────
 @asynccontextmanager
 async def _serveur() -> AsyncIterator[str]:
     """Lance l'application sous uvicorn, lifespan compris, et rend l'URL de /api/mcp/."""
     config = uvicorn.Config(
-        create_app(), host="127.0.0.1", port=0, lifespan="on", log_level="warning"
+        create_app(),
+        host="127.0.0.1",
+        port=0,
+        lifespan="on",
+        log_level="warning",
+        timeout_graceful_shutdown=_ARRET_GRACIEUX_S,
     )
     serveur = uvicorn.Server(config)
     tache = asyncio.create_task(serveur.serve())
