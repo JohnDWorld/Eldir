@@ -135,15 +135,6 @@ async def _post(
         return await client.post(url, json=_LISTE, headers=envoyes)
 
 
-def _charge(reponse: httpx.Response) -> dict[str, Any]:
-    """Le transport répond en SSE : la charge JSON-RPC vit sur la ligne `data:`."""
-    for ligne in reponse.text.splitlines():
-        if ligne.startswith("data: "):
-            charge: dict[str, Any] = json.loads(ligne[6:])
-            return charge
-    raise AssertionError(f"aucune charge SSE dans : {reponse.text[:200]}")
-
-
 @asynccontextmanager
 async def _agent(url: str, jeton: str) -> AsyncIterator[ClientSession]:
     """Un vrai client MCP, tel qu'un agent extérieur se connecterait."""
@@ -289,6 +280,25 @@ async def test_un_jeton_valide_ouvre_la_surface_et_date_son_dernier_usage(
     # base, et sans commit de sa part l'écriture de `authentifier` est perdue.
     async with session_factory() as db:
         assert (await db.execute(select(AgentToken))).scalar_one().last_used_at is not None
+
+
+async def test_la_surface_repond_en_json_et_non_en_flux(url_mcp: str, jeton_agent: str) -> None:
+    """Le `Content-Type` de la réponse est la preuve que `json_response` tient.
+
+    Ce n'est pas un détail de présentation. Le chemin SSE écrit depuis une
+    seconde tâche qui, sous charge, sortait avant d'avoir reçu la réponse : le
+    serveur rendait 200 puis coupait sans corps, et le client attendait jusqu'à
+    expiration (3 échecs sur 6 en CI, bornés à 30 s par `_REPONSE_MAX`). Le
+    chemin JSON attend dans la même tâche et rend un 500 s'il n'obtient rien.
+    Si quelqu'un repasse en SSE, ce test tombe et dit pourquoi.
+    """
+    r = await _post(url_mcp, jeton_agent)
+
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json"), (
+        "la surface doit répondre en JSON : cf. json_response dans mcp_http.construire_app_mcp"
+    )
+    assert r.json()["result"]["tools"], "et la charge JSON-RPC doit être lisible telle quelle"
 
 
 async def test_la_garde_ne_journalise_jamais_le_jeton(
