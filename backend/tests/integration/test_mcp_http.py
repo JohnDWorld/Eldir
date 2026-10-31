@@ -76,6 +76,14 @@ Fabrique = async_sessionmaker[AsyncSession]
 # fois jusqu'au plafond de 6 h de GitHub sans jamais rien dire.
 _ARRET_GRACIEUX_S = 5
 
+# Ce qu'un appel d'outil s'accorde pour obtenir sa réponse. `ClientSession`
+# laisse ce délai à None par défaut : elle attend alors SANS FIN une réponse
+# qui peut ne jamais venir, et la boucle d'événements s'endort sans le moindre
+# timer armé. C'est l'état exact qu'a capturé la CI : `selectors.select` sans
+# échéance, pendant quinze minutes. Borné ici, le même incident devient un
+# test qui échoue en donnant son nom.
+_REPONSE_MAX = timedelta(seconds=30)
+
 
 # ── Le serveur et ses clients ───────────────────────────────────────────
 @asynccontextmanager
@@ -141,10 +149,18 @@ async def _agent(url: str, jeton: str) -> AsyncIterator[ClientSession]:
     """Un vrai client MCP, tel qu'un agent extérieur se connecterait."""
     async with (
         httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {jeton}"}, timeout=httpx.Timeout(10)
+            headers={"Authorization": f"Bearer {jeton}"},
+            # Les valeurs que le paquet `mcp` pose sur son propre client
+            # (MCP_DEFAULT_TIMEOUT, MCP_DEFAULT_SSE_READ_TIMEOUT). Le `read`
+            # est volontairement à part et très long : il porte le flux SSE,
+            # qui est FAIT pour rester silencieux entre deux messages. Un
+            # `httpx.Timeout(10)` l'écrasait à 10 s, et au-delà httpx coupait
+            # le flux, le lecteur mourait, et la réponse attendue n'arrivait
+            # jamais. Voir _REPONSE_MAX pour ce qui se passait ensuite.
+            timeout=httpx.Timeout(30.0, read=300.0),
         ) as http,
         streamable_http_client(url, http_client=http) as (lecture, ecriture, _),
-        ClientSession(lecture, ecriture) as session,
+        ClientSession(lecture, ecriture, read_timeout_seconds=_REPONSE_MAX) as session,
     ):
         await session.initialize()
         yield session
