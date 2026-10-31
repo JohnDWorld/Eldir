@@ -24,7 +24,7 @@ dependencies = [
     "claude-agent-sdk>=0.1.0",
     # Importé directement par `app/mcp_http.py` (surface MCP HTTP) : ne pas
     # dépendre d'un transitif de claude-agent-sdk, qui peut le changer sans prévenir.
-    "mcp>=1.30.0,<2",
+    "mcp>=1.27.1",
     "cryptography>=43.0.0",
     "structlog>=24.4.0",
     "python-multipart>=0.0.12",
