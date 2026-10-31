@@ -1966,6 +1966,16 @@ async def test_un_tour_sans_compte_rendu_envoie_null_et_non_celui_du_tour_d_avan
             libelle_agent="Munin Bot",
         )
         await abonne.attendre(rang)
+        # Vidé À CHAQUE TOUR, pas seulement à la fin : « deux consignes à la
+        # suite » veut dire que le tour d'avant est fini, ping du superviseur
+        # compris. `abonne.attendre` n'attend que le webhook, qui part dans sa
+        # propre tâche AVANT le ping. Les deux tours se chevauchaient donc, et
+        # leurs deux `ensure_session` tombaient sur la même et unique connexion
+        # SQLite du `StaticPool` de test : le SELECT du second passait à côté de
+        # l'INSERT du premier, chaque tour se fabriquait son superviseur, et
+        # l'assertion plus bas échouait sur un illisible « too many values to
+        # unpack ». Une fois sur six en CI.
+        await _fin_des_taches_de_fond(service)
 
     premier, second = (_charge_recue(abonne, r) for r in (0, 1))
     assert premier["cr"] == "FAIT: le premier tour\nPRET: oui"
