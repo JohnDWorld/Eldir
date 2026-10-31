@@ -82,7 +82,7 @@ _ARRET_GRACIEUX_S = 5
 # timer armé. C'est l'état exact qu'a capturé la CI : `selectors.select` sans
 # échéance, pendant quinze minutes. Borné ici, le même incident devient un
 # test qui échoue en donnant son nom.
-_REPONSE_MAX = timedelta(seconds=180)
+_REPONSE_MAX = timedelta(seconds=30)
 
 
 # ── Le serveur et ses clients ───────────────────────────────────────────
@@ -110,32 +110,6 @@ async def _serveur() -> AsyncIterator[str]:
     finally:
         serveur.should_exit = True
         await tache
-
-
-@pytest.fixture(autouse=True)
-async def _chien_de_garde() -> AsyncIterator[None]:
-    """TEMPORAIRE : imprime la pile de CHAQUE tache encore vivante au bout d'une minute.
-
-    Un vidage de threads ne montre rien ici : le serveur et le client tournent
-    dans la meme boucle, en taches asyncio, et une tache suspendue n'a pas de
-    pile de thread. Seul `task.print_stack()` dit qui attend quoi.
-    """
-
-    async def aboie() -> None:
-        await asyncio.sleep(60)
-        courante = asyncio.current_task()
-        print("\n===== TACHES VIVANTES AU BLOCAGE =====", flush=True)
-        for tache in asyncio.all_tasks():
-            if tache is courante:
-                continue
-            print(f"\n--- {tache.get_name()} | done={tache.done()} ---", flush=True)
-            tache.print_stack(limit=12)
-
-    garde = asyncio.create_task(aboie())
-    try:
-        yield
-    finally:
-        garde.cancel()
 
 
 @pytest.fixture(autouse=True)
