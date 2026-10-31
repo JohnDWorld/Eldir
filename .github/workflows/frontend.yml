@@ -48,3 +48,9 @@ jobs:
 
       - name: Build (PWA)
         run: npm run build
+
+      # Lighthouse portait cette garantie jusqu'à sa version 11. La 12 a
+      # supprimé la catégorie PWA et ses audits sans remplacement : sans ce
+      # pas, plus rien ne vérifie que l'app reste installable.
+      - name: Installable (manifeste, service worker, icônes)
+        run: npm run verifie-pwa

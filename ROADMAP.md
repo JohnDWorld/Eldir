@@ -82,7 +82,10 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
 - [x] Logo et favicon
 - [x] Monorepo : `/backend` (FastAPI), `/frontend` (React+Vite), `/shared`, `/docs`, `/docker`, `/scripts`
 - [x] CI GitHub Actions : tests, lint, build (Docker Hub remis à V2)
-- [ ] CI Lighthouse sur PR : score PWA > 90 obligatoire
+- [x] CI Lighthouse sur PR : accessibilité bloquante à 0,9, performance et
+      bonnes pratiques en avertissement. La catégorie PWA agrégée n'existe plus
+      dans Lighthouse 12 : l'installabilité est vérifiée sur la sortie de build
+      par `npm run verifie-pwa` (manifeste, service worker, icônes)
 - [x] `docker-compose.yml` minimal qui boot Postgres + Redis + backend + frontend
 - [x] Setup wizard web v0 : première connexion → admin + tokens
 - [x] **Configuration PWA complète dès le bootstrap** :
@@ -99,9 +102,10 @@ Dashboard web open-source self-hosted pour orchestrer plusieurs sessions Claude 
   - [x] Génération automatique des types TS depuis schémas Pydantic (script + CI)
   - [x] Client API frontend généré ou centralisé
 - [x] Doc d'installation v0 (`docs/installation.md`)
-- [ ] Templates de PR et issues GitHub
+- [x] Templates de PR et issues GitHub
 - [x] `CONTRIBUTING.md`
-- [ ] `CODE_OF_CONDUCT.md`
+- [x] `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, signalement par le
+      formulaire privé de GitHub, jamais une adresse personnelle)
 
 ### Phase 1 - MVP : 1 user, 1 projet, 1 session ✅
 

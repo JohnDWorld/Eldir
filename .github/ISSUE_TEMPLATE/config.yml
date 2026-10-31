@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Démarrer, installer, configurer
+    url: https://github.com/JohnDWorld/Eldir/blob/main/docs/getting-started.md
+    about: >-
+      « Comment je fais pour… », un souci d'installation, une variable
+      d'environnement : regarde d'abord docs/. Si la réponse n'y est pas,
+      c'est une anomalie de documentation et une issue est la bienvenue.
+  - name: Faille de sécurité
+    url: https://github.com/JohnDWorld/Eldir/security/advisories/new
+    about: >-
+      N'ouvre jamais d'issue publique pour une faille : elle serait lisible
+      par tout le monde, y compris par qui n'a pas encore mis à jour son
+      instance. Voir SECURITY.md.

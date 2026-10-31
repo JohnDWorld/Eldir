@@ -25,3 +25,6 @@ eldir_workspaces/
 
 # brouillons d'outillage d'agent (plans en cours, journaux de revue)
 .superpowers/
+
+# Rapports de `lhci autorun`, régénérés à chaque passage
+.lighthouseci/
