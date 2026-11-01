@@ -42,6 +42,7 @@ npx eslint .
 npx tsc --noEmit -p tsconfig.app.json
 npm test -- --run
 npm run build                 # Vérifie que la build PWA passe
+npm run verifie-pwa           # Vérifie que la build est installable (après build)
 ```
 
 ## Stack - versions imposées

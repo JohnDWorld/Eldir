@@ -15,6 +15,7 @@ jobs:
   check-drift:
     name: Vérifie que api-generated.ts est synchro avec le backend
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

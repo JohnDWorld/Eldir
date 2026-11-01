@@ -660,7 +660,7 @@ function AddProjectDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
+    <div className="eldir-overlay">
       <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="flex items-center justify-between gap-3 border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Ajouter des repos</div>
@@ -842,7 +842,7 @@ function PostCloneOfferDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-eldir-scrim/60 p-4">
+    <div className="eldir-overlay">
       <div className="flex w-full max-w-md flex-col rounded-eldir border border-eldir-gray-3 bg-eldir-paper">
         <header className="border-b border-eldir-gray-3 px-4 py-3">
           <div className="eldir-caps">Mission Template</div>
