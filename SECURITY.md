@@ -37,7 +37,11 @@ Le code de ce dépôt : backend FastAPI, frontend, hooks du SDK, migrations,
 images Docker et exemples de configuration fournis. En particulier :
 
 - contournement de la porte de validation humaine (`git commit`, `git push`,
-  `gh pr`, `glab mr` refusés au niveau du hook `PreToolUse`) ;
+  `gh pr`, `glab mr` refusés au niveau du hook `PreToolUse`) par une session
+  dont la publication n'a PAS été autorisée. Qu'un jeton d'agent l'autorise
+  est voulu, cf. hors périmètre ;
+- le push forcé (`--force`, `--mirror`, `-f`) accepté, y compris sur une
+  session dont la publication est autorisée ;
 - lecture ou écriture dans les projets, sessions ou prompts d'un autre
   utilisateur ;
 - fuite d'un secret dans une réponse d'API, un journal ou le flux d'events :
@@ -56,6 +60,14 @@ Ce ne sont pas des failles, c'est la conception. Elles sont documentées :
 - **un jeton d'agent extérieur donne les cinq outils ou rien**, et il vit dix
   ans : la borne est la révocation, pas l'expiration. Il n'existe pas
   d'autorisation fine par outil (`docs/agent-externe.md`) ;
+- **un jeton d'agent extérieur peut ouvrir la publication**, donc publier sur
+  les dépôts de son utilisateur. `allow_publish` est servi sur `/api/mcp/`
+  depuis le 2026-10-30 : c'est une décision du mainteneur, prise pour avoir un
+  agent autonome de bout en bout, et le risque d'injection de prompt par le
+  texte des comptes rendus est assumé et documenté
+  (`docs/securite-sessions.md`, garde nº2). Deux bornes restent mécaniques et
+  sont, elles, dans le périmètre : un jeton n'ouvre que les sessions de SON
+  utilisateur, et le push forcé reste refusé même porte ouverte ;
 - **aucun plafond de dépense autonome** : la politique est d'alerter, jamais de
   bloquer ;
 - **Eldir ne fournit pas de TLS** et n'a pas vocation à être exposé nu sur
