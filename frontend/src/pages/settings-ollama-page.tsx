@@ -152,7 +152,7 @@ export function SettingsOllamaPage(): JSX.Element {
           Garde-fous : le sub-agent n'est PAS injecté si Ollama n'est pas
           configuré ou pas joignable, même si cette option est activée. C'est
           Claude qui décide d'invoquer le sub-agent (vue Option A+C du
-          ROADMAP — auto-routing en V3).
+          ROADMAP - auto-routing en V3).
         </p>
         {exposeSettings.isPending && (
           <p className="font-mono text-2xs text-eldir-gray">chargement…</p>

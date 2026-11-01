@@ -9,7 +9,7 @@ Une **session** = une instance vivante de `ClaudeSDKClient` (Claude Agent SDK Py
 - Chaque session a son propre worktree : `/var/eldir/workspaces/{user_id}/{repo_slug}.{session_id}/`
 - Chaque session vit sur sa propre branche : `claude/{session_id}`
 - N sessions peuvent tourner en parallèle sur le **même** repo sans se gêner
-- Au premier message, le SDK renvoie un `sdk_session_id` (UUID Anthropic) qu'Eldir capture et persiste — pour pouvoir **reprendre** la session plus tard
+- Au premier message, le SDK renvoie un `sdk_session_id` (UUID Anthropic) qu'Eldir capture et persiste - pour pouvoir **reprendre** la session plus tard
 - Les hooks SDK + `ResultMessage` sont câblés vers Redis pub/sub → WebSocket → frontend, ce qui donne le **streaming live** des outils utilisés, des réponses et de l'usage en tokens
 
 Chaque session obéit en plus au **protocole enfant** d'Eldir : elle termine ses tours par un compte rendu `<cr>` et n'a pas le droit de commiter ni de pousser elle-même. Voir [`docs/supervisor.md`](./supervisor.md).
@@ -89,7 +89,7 @@ Tous sont à la fois publiés sur Redis (WS) et persistés en DB (`session_event
 Le pool en mémoire est vide après reboot. Mais les `sdk_session_id` sont en DB :
 
 1. Va sur `/sessions/{id}` après reboot.
-2. Envoie un message — Eldir détecte que la session n'est plus active, instancie un nouveau `ClaudeSDKClient` avec `resume=sdk_session_id`.
+2. Envoie un message - Eldir détecte que la session n'est plus active, instancie un nouveau `ClaudeSDKClient` avec `resume=sdk_session_id`.
 3. Anthropic restaure le contexte côté SDK, tu reprends où tu en étais.
 
 ## Worktrees & travail parallèle
@@ -112,9 +112,9 @@ Chaque worktree partage le même `.git/` (objets), donc le clonage de N sessions
 
 Configurables au niveau du Mission Template du projet, ou override par session :
 
-- `claude-opus-5` — le plus puissant (par défaut sur le preset Eldir)
-- `claude-sonnet-5` — équilibré
-- `claude-haiku-4-5` — le plus rapide / le moins cher (utilisé par "Mode économe")
+- `claude-opus-5` - le plus puissant (par défaut sur le preset Eldir)
+- `claude-sonnet-5` - équilibré
+- `claude-haiku-4-5` - le plus rapide / le moins cher (utilisé par "Mode économe")
 
 > Haiku n'a pas de version 5 : la génération courante reste Haiku 4.5. Les
 > identifiants ne portent jamais de suffixe de date.
@@ -124,7 +124,7 @@ Le SDK suit aussi le défaut configuré côté Anthropic si on ne précise rien.
 ## Sécurité
 
 - Le WebSocket exige un JWT en query param (`?token=…`). Le handler vérifie l'ownership (`Session.user_id` = user courant) avant d'attacher au pubsub.
-- Les credentials Claude ne sont jamais retournés en clair par l'API — uniquement masqués (`…aB12`).
+- Les credentials Claude ne sont jamais retournés en clair par l'API - uniquement masqués (`…aB12`).
 - Les events SDK passent par Redis pubsub, pas exposés directement.
 - Mode `bypassPermissions` côté SDK : pas de TTY côté serveur, le filet de sécurité est l'**isolation worktree** + le **stream visible** de tous les `tool_use` côté UI.
 
@@ -137,7 +137,7 @@ Le SDK suit aussi le défaut configuré côté Anthropic si on ne précise rien.
 
 ## Voir aussi
 
-- [`templates.md`](./templates.md) — Mission Templates appliqués à chaque session
-- [`costs.md`](./costs.md) — usage tokens capturé par session
-- [`git-workflow.md`](./git-workflow.md) — commit & push depuis la session
-- [`architecture.md`](./architecture.md) — flow complet d'un message
+- [`templates.md`](./templates.md) - Mission Templates appliqués à chaque session
+- [`costs.md`](./costs.md) - usage tokens capturé par session
+- [`git-workflow.md`](./git-workflow.md) - commit & push depuis la session
+- [`architecture.md`](./architecture.md) - flow complet d'un message

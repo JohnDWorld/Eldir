@@ -30,7 +30,7 @@ Le `SessionManager` capture ces valeurs dans `_consume_response` et publie un ev
 1. Diffusé en temps réel sur le WS (UI)
 2. Persisté en DB dans `session_costs` via `CostService.record_turn()`
 
-Une ligne `session_costs` par tour SDK — pas un agrégat par session — pour permettre toutes les agrégations possibles (par jour, par projet, par modèle).
+Une ligne `session_costs` par tour SDK - pas un agrégat par session - pour permettre toutes les agrégations possibles (par jour, par projet, par modèle).
 
 ## Quand ça se met à jour ?
 
@@ -43,16 +43,16 @@ Le hook frontend `useSessionCostTotals` re-fetch toutes les 15s pour mettre à j
 Page complète accessible depuis la topbar **Costs**.
 
 3 KPI cards :
-- **Aujourd'hui** — depuis 00h UTC
+- **Aujourd'hui** - depuis 00h UTC
 - **7 derniers jours**
 - **30 derniers jours**
 
 Chaque card affiche : coût USD, nombre de tours, breakdown input/output/cache read/cache write, et le **cache ratio** (proportion de tokens lus depuis le cache vs envoyés).
 
 3 sections :
-- **Coût par jour (7 derniers jours)** — sparkline + tableau jour par jour
-- **Tokens par jour** — sparkline d'évolution
-- **Répartition par projet (30 jours)** — tableau trié par coût décroissant
+- **Coût par jour (7 derniers jours)** - sparkline + tableau jour par jour
+- **Tokens par jour** - sparkline d'évolution
+- **Répartition par projet (30 jours)** - tableau trié par coût décroissant
 
 Bouton **Export CSV** en haut à droite → télécharge `eldir-costs-YYYY-MM-DD.csv` avec une ligne par tour (utilisable pour facturation/comptabilité).
 
@@ -71,8 +71,8 @@ Cohérent avec le principe directeur #5 : **l'utilisateur reste maître, alertes
 
 Sur `/` (Ops home), le rail telemetry du haut affiche :
 
-- **Tokens** — total tokens du jour (input + output), avec sparkline 7 jours
-- **Spend** — coût USD sur 7 jours, avec sparkline 7 jours
+- **Tokens** - total tokens du jour (input + output), avec sparkline 7 jours
+- **Spend** - coût USD sur 7 jours, avec sparkline 7 jours
 
 Le rail droit affiche un panneau "Spend · 7-day" plus large avec lien vers `/costs`.
 
@@ -135,6 +135,6 @@ Index sur `session_id`, `project_id`, `user_id`, `model`, `created_at` pour les 
 
 ## Voir aussi
 
-- [`sessions.md#types-devents-stream%C3%A9s`](./sessions.md#types-devents-stream%C3%A9s) — l'event `usage`
-- [`templates.md`](./templates.md) — choisir le modèle au niveau projet
-- [`architecture.md#le-flow-complet-dun-message-utilisateur`](./architecture.md) — où l'`usage` est capturé dans le code
+- [`sessions.md#types-devents-stream%C3%A9s`](./sessions.md#types-devents-stream%C3%A9s) - l'event `usage`
+- [`templates.md`](./templates.md) - choisir le modèle au niveau projet
+- [`architecture.md#le-flow-complet-dun-message-utilisateur`](./architecture.md) - où l'`usage` est capturé dans le code

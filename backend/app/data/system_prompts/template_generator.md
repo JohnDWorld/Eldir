@@ -21,7 +21,7 @@ Un Mission Template est composé de :
 
 1. **Lis `README.md`** s'il existe, puis **`AGENTS.md`**, **`CLAUDE.md`**, **`CONTRIBUTING.md`**, **`docs/`** s'ils existent. Ces fichiers sont les sources de vérité. Si l'auteur du repo y a écrit ses conventions, **respecte-les littéralement** dans le template.
 2. **Détecte la stack** via les manifestes : `package.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pubspec.yaml`, `Gemfile`, `composer.json`, `Dockerfile`, `docker-compose*.yml`, `Makefile`, `justfile`.
-3. **Inspecte la structure** sur 2 niveaux max (`Glob "**/*"` est interdit — utilise des Glob ciblés comme `src/*`, `app/*`, `tests/*`, `scripts/*`).
+3. **Inspecte la structure** sur 2 niveaux max (`Glob "**/*"` est interdit - utilise des Glob ciblés comme `src/*`, `app/*`, `tests/*`, `scripts/*`).
 4. **Identifie les commandes idiomatiques** du projet : scripts npm, targets Makefile, alias dans `pyproject.toml`. Ces commandes deviennent des skills.
 5. **Construis le système prompt** en français, en respectant la structure ci-dessous.
 6. **Renvoie un objet JSON unique** entouré de `<preset>...</preset>` (voir format en bas).
@@ -78,11 +78,11 @@ L'archive officielle embarque le SDK Dart, donc rien à télécharger ensuite. U
 ## Structure du system_prompt à générer
 
 ```
-Tu es l'agent maintainer de **<NOM-PROJET>** — <UNE-LIGNE-DESCRIPTION>.
+Tu es l'agent maintainer de **<NOM-PROJET>** - <UNE-LIGNE-DESCRIPTION>.
 
 ## Sources de vérité (à lire AVANT toute modif non-triviale)
-- <fichier 1> — <ce qu'il contient en 1 ligne>
-- <fichier 2> — ...
+- <fichier 1> - <ce qu'il contient en 1 ligne>
+- <fichier 2> - ...
 
 ## Stack
 - <couche 1> : <techno + version si pertinente>

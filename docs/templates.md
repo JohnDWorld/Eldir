@@ -103,7 +103,7 @@ Chaque skill = un fichier `.md` avec frontmatter. Edite via la modale :
 
 - **Name** (slug filesystem-safe : `[a-zA-Z0-9_-]+`)
 - **Description** : 1 ligne, visible par l'agent dans la liste
-- **Content** : markdown libre — commandes, exemples, contraintes
+- **Content** : markdown libre - commandes, exemples, contraintes
 
 Exemple :
 
@@ -140,7 +140,7 @@ Deux modes :
 
 ### Versions / rollback
 
-Chaque modification de template prend un snapshot JSON dans `template_versions`. La section **Historique** liste les N dernières versions avec timestamp + diff résumé. Bouton **Restore** pour rollback (qui crée lui aussi un nouveau snapshot — pas de perte).
+Chaque modification de template prend un snapshot JSON dans `template_versions`. La section **Historique** liste les N dernières versions avec timestamp + diff résumé. Bouton **Restore** pour rollback (qui crée lui aussi un nouveau snapshot - pas de perte).
 
 ## Presets fournis
 
@@ -148,7 +148,7 @@ Stockés dans `backend/app/data/template_presets/*.json`. Listés par `GET /api/
 
 Phase 4 livre :
 
-- **`eldir`** (self-hosted) — le preset pour bosser sur Eldir lui-même. Référence AGENTS.md / CLAUDE.md / ROADMAP.md comme sources de vérité, 8 skills (`backend-tests`, `frontend-typecheck`, `gen-types`, `alembic-migrate`, …), 3 sub-agents (`test-runner`, `doc-keeper`, `roadmap-checker`).
+- **`eldir`** (self-hosted) - le preset pour bosser sur Eldir lui-même. Référence AGENTS.md / CLAUDE.md / ROADMAP.md comme sources de vérité, 8 skills (`backend-tests`, `frontend-typecheck`, `gen-types`, `alembic-migrate`, …), 3 sub-agents (`test-runner`, `doc-keeper`, `roadmap-checker`).
 
 Plus de presets viendront (Django, FastAPI standalone, React + Vite générique, n8n…). Cf. [`docs/extending.md`](./extending.md) pour ajouter le tien.
 
@@ -200,5 +200,5 @@ Déposer le fichier dans `backend/app/data/template_presets/<slug>.json` et red�
 
 ## Voir aussi
 
-- [`sessions.md`](./sessions.md) — comment le template est appliqué à chaque session
-- [`extending.md`](./extending.md) — ajouter ton propre preset
+- [`sessions.md`](./sessions.md) - comment le template est appliqué à chaque session
+- [`extending.md`](./extending.md) - ajouter ton propre preset

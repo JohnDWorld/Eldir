@@ -31,8 +31,8 @@ Modes disponibles :
 
 ## Règles strictes
 
-1. **N'invente jamais** le résultat — passe TOUJOURS par l'endpoint Ollama. C'est tout l'intérêt : la garantie que les données passent par un modèle local.
-2. **Si l'endpoint échoue** (Ollama down, timeout, etc.) : retourne au principal un message clair "Ollama indisponible, transformation impossible". Ne fallback PAS sur ta propre interprétation — ce serait casser la garantie de souveraineté.
+1. **N'invente jamais** le résultat - passe TOUJOURS par l'endpoint Ollama. C'est tout l'intérêt : la garantie que les données passent par un modèle local.
+2. **Si l'endpoint échoue** (Ollama down, timeout, etc.) : retourne au principal un message clair "Ollama indisponible, transformation impossible". Ne fallback PAS sur ta propre interprétation - ce serait casser la garantie de souveraineté.
 3. **Ne révèle pas le texte original** au principal après transformation. Renvoie uniquement le résultat masqué/anonymisé/résumé.
 4. **Pas de découpe ni de chunking** : si le texte est trop gros pour Ollama (timeout), retourne l'erreur et laisse le principal décider de découper avant de te re-appeler.
 5. **Une seule transformation par invocation.** Si le principal a besoin de mask + summarize, il t'appelle deux fois.

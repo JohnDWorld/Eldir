@@ -1,4 +1,4 @@
-# Intégration Ollama — mode "données sensibles"
+# Intégration Ollama - mode "données sensibles"
 
 > Phase 6 du ROADMAP. Permet de pré-traiter du texte localement (masquage de secrets, anonymisation PII, résumé court) avant tout appel à Claude. Tes données sensibles ne traversent jamais Internet.
 
@@ -94,7 +94,7 @@ Va dans **Settings > Ollama · local**. Tu dois voir :
 
 Si `reachable: ✗ inaccessible`, vérifie :
 1. `curl <OLLAMA_BASE_URL>/api/tags` depuis l'host fonctionne
-2. Le container backend peut bien atteindre cette URL (problème courant : `localhost` dans le container ne pointe pas vers l'host — utiliser `host.docker.internal`)
+2. Le container backend peut bien atteindre cette URL (problème courant : `localhost` dans le container ne pointe pas vers l'host - utiliser `host.docker.internal`)
 3. Le firewall n'est pas en train de bloquer le port 11434
 
 ## Utilisation depuis l'UI
@@ -158,7 +158,7 @@ Tu peux changer le modèle par défaut via `OLLAMA_DEFAULT_MODEL` ou override pa
 
 ## Voir aussi
 
-- [`architecture.md`](./architecture.md) — où s'insère Ollama dans la stack
-- [`ROADMAP.md`](../ROADMAP.md) — Phase 6 et 7
+- [`architecture.md`](./architecture.md) - où s'insère Ollama dans la stack
+- [`ROADMAP.md`](../ROADMAP.md) - Phase 6 et 7
 - Site officiel Ollama : <https://ollama.com>
 - Liste des modèles : <https://ollama.com/library>

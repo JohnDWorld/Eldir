@@ -100,13 +100,13 @@ Cf. [`AGENTS.md`](../AGENTS.md) pour le détail. Résumé :
 ```
 
 Migrations Alembic : `backend/alembic/versions/`
-- `0001_initial_schema.py` — base Phase 0-3
-- `0002_mission_templates.py` — Phase 4
-- `0003_session_costs_per_turn.py` — Phase 5
-- `0004_system_prompt_overrides.py` — prompts système éditables
-- `0005_sessions_is_system.py` — sessions internes Eldir
-- `0006_ollama_settings.py` — Phase 6
-- `0007_sessions_nullable_project.py` — session superviseur (sans repo)
+- `0001_initial_schema.py` - base Phase 0-3
+- `0002_mission_templates.py` - Phase 4
+- `0003_session_costs_per_turn.py` - Phase 5
+- `0004_system_prompt_overrides.py` - prompts système éditables
+- `0005_sessions_is_system.py` - sessions internes Eldir
+- `0006_ollama_settings.py` - Phase 6
+- `0007_sessions_nullable_project.py` - session superviseur (sans repo)
 
 Le superviseur et le protocole `<cr>` sont détaillés dans [`supervisor.md`](./supervisor.md).
 
@@ -164,7 +164,7 @@ Chaque session a son propre git worktree pour éviter les conflits entre session
                 └── {repo_slug}.{session_id_2}/   ← worktree branche claude/{session_2}
 ```
 
-Côté disque, ces worktrees sont à `/var/eldir/workspaces/{user_id}/{repo_slug}.{session_id}/` — montés en volume dans le container backend.
+Côté disque, ces worktrees sont à `/var/eldir/workspaces/{user_id}/{repo_slug}.{session_id}/` - montés en volume dans le container backend.
 
 Chaque session démarre :
 1. `git fetch origin` (best-effort)
@@ -211,7 +211,7 @@ Channel naming : voir `app/core/constants.py` → `REDIS_SESSION_CHANNEL_TEMPLAT
 - **JWT** : signé avec `JWT_SECRET`, à régénérer en prod
 - **OAuth state** : stocké en Redis avec TTL 600s, anti-CSRF
 - **Pas de secret loggé** : tokens masqués (`masked_token`, `masked_value` côté schemas)
-- **Tools Claude** : `permission_mode=bypassPermissions` (pas de TTY côté serveur) — sécurité = worktree isolé + stream des `tool_use` visibles à l'utilisateur
+- **Tools Claude** : `permission_mode=bypassPermissions` (pas de TTY côté serveur) - sécurité = worktree isolé + stream des `tool_use` visibles à l'utilisateur
 
 ## Points d'extension
 
@@ -238,10 +238,10 @@ Coverage cible V1 : 70% backend, 50% frontend.
 
 ## Pour aller plus loin
 
-- [`docs/sessions.md`](./sessions.md) — détail du cycle de vie d'une session
-- [`docs/templates.md`](./templates.md) — Mission Templates, skills, sub-agents, presets
-- [`docs/costs.md`](./costs.md) — dashboard de coûts, prompt caching, mode économe
-- [`docs/git-workflow.md`](./git-workflow.md) — commit/push/PR depuis Eldir
-- [`docs/extending.md`](./extending.md) — comment étendre Eldir
-- [`docs/github.md`](./github.md) — connecter GitHub
-- [`docs/providers/forgejo.md`](./providers/forgejo.md) — connecter Forgejo
+- [`docs/sessions.md`](./sessions.md) - détail du cycle de vie d'une session
+- [`docs/templates.md`](./templates.md) - Mission Templates, skills, sub-agents, presets
+- [`docs/costs.md`](./costs.md) - dashboard de coûts, prompt caching, mode économe
+- [`docs/git-workflow.md`](./git-workflow.md) - commit/push/PR depuis Eldir
+- [`docs/extending.md`](./extending.md) - comment étendre Eldir
+- [`docs/github.md`](./github.md) - connecter GitHub
+- [`docs/providers/forgejo.md`](./providers/forgejo.md) - connecter Forgejo
