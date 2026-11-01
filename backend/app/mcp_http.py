@@ -259,8 +259,9 @@ def construire_app_mcp() -> tuple[FastMCP, ASGIApp]:
         # `stateless_http=False`, qui ne change rien (4 sur 12), parce que le
         # défaut est dans le chemin POST commun aux deux modes.
         #
-        # Ce que ça retire : les notifications du serveur pendant un appel. Les
-        # quatre outils servis rendent une chaîne et n'en émettent aucune.
+        # Ce que ça retire : les notifications du serveur pendant un appel. Tous
+        # les outils servis rendent une chaîne et n'en émettent aucune, et
+        # `OUTILS` est typé pour que ça reste vrai.
         json_response=True,
         # Le chemin par défaut est /mcp : monté sous /api/mcp il donnerait
         # /api/mcp/mcp, et /api/mcp/ rendrait 404.

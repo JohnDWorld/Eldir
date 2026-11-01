@@ -204,7 +204,7 @@ régler. Ce n'est pas un détail de confort : le chemin SSE du paquet `mcp`
 abandonnait une réponse sur deux sous charge, laissant le client attendre sans
 fin (cf. le commentaire dans `backend/app/mcp_http.py`, et
 modelcontextprotocol/python-sdk#1764). En contrepartie, un outil ne peut pas
-émettre de notification pendant son exécution : les quatre outils servis rendent
+émettre de notification pendant son exécution : tous les outils servis rendent
 une chaîne et n'en émettent aucune.
 
 **Un jeton d'agent et un jeton de connexion ne sont pas interchangeables, dans les
