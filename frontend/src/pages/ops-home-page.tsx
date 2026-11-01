@@ -110,9 +110,13 @@ export function OpsHomePage(): JSX.Element {
     (d) => d.input_tokens + d.output_tokens,
   );
 
+  // Ordre = urgence, et il se lit différemment sur un téléphone. Les six tuiles
+  // tiennent sur une ligne à partir de `md`, mais sur 375px elles passent en
+  // trois colonnes : « À toi » et « Bloquées », placées en 3e et 4e, se
+  // retrouvaient l'une en haut à droite et l'autre en bas à gauche, séparées par
+  // un saut de ligne. Les deux seules qui demandent un geste occupent maintenant
+  // le coin que l'œil atteint d'abord.
   const telemetry: readonly TelemetryItem[] = [
-    { label: 'Actives', value: String(activeSessions.length), sub: 'sessions' },
-    { label: 'Projets', value: String((projects.data ?? []).length), sub: 'clonés' },
     // Ces deux-là appellent une action : elles se colorent dès qu'elles ne
     // sont pas à zéro, sinon « 1 en attente » pesait autant que « 2 projets ».
     {
@@ -127,6 +131,8 @@ export function OpsHomePage(): JSX.Element {
       sub: 'sessions',
       ...(blocked > 0 ? { tone: 'alerte' as const } : {}),
     },
+    { label: 'Actives', value: String(activeSessions.length), sub: 'sessions' },
+    { label: 'Projets', value: String((projects.data ?? []).length), sub: 'clonés' },
     {
       label: 'Tokens',
       value: formatTokens(tokensToday),
@@ -177,9 +183,18 @@ export function OpsHomePage(): JSX.Element {
 
   return (
     <OpsShell telemetry={telemetry}>
+      {/* `order` plutôt qu'un déplacement dans le DOM : sur un téléphone les trois
+          colonnes s'empilent, et le rail des projets passait AVANT les sessions.
+          Avec douze projets, il fallait défiler ~650px (la barre, deux rangs de
+          tuiles, puis douze lignes de 44px) avant la première carte de session,
+          c'est-à-dire avant la seule chose qu'on vient voir. Déplacer la section
+          dans le source aurait fait entendre les sessions avant les projets à un
+          lecteur d'écran sur mobile, mais aussi inversé l'ordre de tabulation sur
+          le bureau, où les trois colonnes sont côte à côte et où l'ordre du source
+          est le bon. On ne déplace donc que le rendu, et seulement sous `md`. */}
       <div className="grid h-full min-h-0 min-w-0 grid-cols-1 md:grid-cols-[260px_1fr_320px]">
         {/* ── Projects rail ───────────────────────────────────── */}
-        <aside className="flex min-w-0 flex-col overflow-y-auto border-eldir-gray-3 py-2.5 md:border-r">
+        <aside className="order-2 flex min-w-0 flex-col overflow-y-auto border-eldir-gray-3 py-2.5 md:order-1 md:border-r">
           <div className="flex items-center justify-between px-3.5 py-1 pb-2">
             <h2 className="eldir-caps">
               Projets · {(projects.data ?? []).length}
@@ -222,7 +237,7 @@ export function OpsHomePage(): JSX.Element {
         </aside>
 
         {/* ── Sessions grid ──────────────────────────────────── */}
-        <section className="flex min-h-0 min-w-0 flex-col overflow-y-auto p-3.5">
+        <section className="order-1 flex min-h-0 min-w-0 flex-col overflow-y-auto p-3.5 md:order-2">
           {activeSystemSessions.length > 0 && (
             <div className="mb-2.5 flex items-center justify-between gap-2 rounded-eldir border border-eldir-orange/40 bg-eldir-orange/5 px-3 py-1.5">
               <span className="inline-flex min-w-0 items-center gap-1.5 truncate font-mono text-2xs uppercase tracking-caps text-eldir-orange-text">
@@ -330,7 +345,7 @@ export function OpsHomePage(): JSX.Element {
         </section>
 
         {/* ── Right rail : spend + events ─────────────────────── */}
-        <aside className="hidden flex-col gap-3.5 overflow-y-auto border-l border-eldir-gray-3 px-3.5 py-2.5 md:flex">
+        <aside className="order-3 hidden flex-col gap-3.5 overflow-y-auto border-l border-eldir-gray-3 px-3.5 py-2.5 md:flex">
           <div>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="eldir-caps">Dépense · 7 jours</h2>
