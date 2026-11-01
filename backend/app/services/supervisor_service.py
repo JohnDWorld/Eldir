@@ -421,11 +421,36 @@ class SupervisorService:
         self._attendues: dict[str, list[tuple[str, str]]] = {}
         self._en_cours: dict[str, list[str]] = {}
         self._tasks: set[asyncio.Task[None]] = set()
+        # Un verrou par porteur, parce que `ensure_session` lit « pas de ligne »
+        # PUIS crée et démarre, avec des `await` entre les deux. Deux chemins y
+        # arrivent en parallèle en production, chacun avec sa session de base :
+        # la route `GET /supervisor` et le ping de fin de tour en tâche de fond.
+        # Sans verrou, tous deux lisaient « pas de ligne » et démarraient chacun
+        # leur superviseur : deux conversations distinctes pour un seul John, et
+        # ses comptes rendus qui partent dans l'une ou dans l'autre.
+        #
+        # `setdefault` suffit : aucun `await` entre la lecture et l'écriture du
+        # dictionnaire, donc personne ne se glisse au milieu.
+        #
+        # Un verrou en mémoire ne garde qu'un processus, et c'est assez : le
+        # manager tient les clients SDK dans la mémoire de CE processus, donc un
+        # second worker ne pourrait de toute façon pas partager les sessions.
+        # Si Eldir devenait multi-processus, il faudrait un index unique en base
+        # sur (user_id, system_kind), pas un verrou plus gros.
+        self._verrous_superviseur: dict[str, asyncio.Lock] = {}
         manager.register_persist_callback(self._on_event)
 
     # ── cycle de vie ────────────────────────────────────────────
     async def ensure_session(self, db: AsyncSession, user_id: str) -> SessionRow:
-        """Renvoie la session superviseur, démarrée si besoin (idempotent)."""
+        """Renvoie la session superviseur, démarrée si besoin (idempotent).
+
+        Idempotente aussi en parallèle, et c'est le verrou qui le tient : cf.
+        `_verrous_superviseur`.
+        """
+        async with self._verrous_superviseur.setdefault(user_id, asyncio.Lock()):
+            return await self._ensure_session(db, user_id)
+
+    async def _ensure_session(self, db: AsyncSession, user_id: str) -> SessionRow:
         row = await self._find_row(db, user_id)
         if row is not None and self._manager.is_active(row.id):
             return row
