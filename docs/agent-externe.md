@@ -172,12 +172,21 @@ refusé (voir juste en dessous), ce qui limite les dégâts mais ne les annule p
 | Réglage | Valeur |
 |---|---|
 | URL | `https://eldir.exemple.lan/api/mcp/` (**la barre finale compte**) |
-| Transport | MCP streamable HTTP, sans état |
+| Transport | MCP streamable HTTP, sans état, réponses en JSON |
 | Authentification | en-tête `Authorization: Bearer <jeton d'agent>` |
 
 Le serveur est **sans état** (`stateless_http=True`) : aucune affinité de session
 HTTP, donc un redémarrage du backend ne casse pas l'agent et n'importe quel proxy
 convient. Chaque requête se présente avec son en-tête, et c'est tout.
+
+Il répond en **`application/json`**, pas en flux `text/event-stream`
+(`json_response=True`). Un client MCP conforme accepte les deux et n'a rien à
+régler. Ce n'est pas un détail de confort : le chemin SSE du paquet `mcp`
+abandonnait une réponse sur deux sous charge, laissant le client attendre sans
+fin (cf. le commentaire dans `backend/app/mcp_http.py`, et
+modelcontextprotocol/python-sdk#1764). En contrepartie, un outil ne peut pas
+émettre de notification pendant son exécution : les quatre outils servis rendent
+une chaîne et n'en émettent aucune.
 
 **Un jeton d'agent et un jeton de connexion ne sont pas interchangeables, dans les
 deux sens.** Un jeton de connexion ordinaire (celui de l'interface web) ne passe

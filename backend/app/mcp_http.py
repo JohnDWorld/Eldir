@@ -204,6 +204,28 @@ def construire_app_mcp() -> tuple[FastMCP, ASGIApp]:
         # Sans état : aucune affinité de session, donc un redémarrage du
         # backend ne casse pas l'agent, et n'importe quel proxy convient.
         stateless_http=True,
+        # Réponse en JSON plutôt qu'en flux SSE sur les POST. Pas un réglage
+        # de confort : la correction d'un blocage.
+        #
+        # Le chemin SSE écrit le flux depuis une seconde tâche, et sous charge
+        # elle sortait AVANT d'avoir reçu la réponse. Le serveur le disait
+        # lui-même : « Closing SSE writer », puis « Request stream 0 not found
+        # for message ». La réponse revenait du serveur bas niveau, son flux
+        # n'existait plus, elle tombait par terre. Le client recevait les
+        # en-têtes 200 `text/event-stream`, puis une connexion coupée sans
+        # corps, et attendait jusqu'à expiration une réponse que plus personne
+        # ne produisait. Cf. modelcontextprotocol/python-sdk#1764.
+        #
+        # Le chemin JSON attend la réponse dans la MÊME tâche, et si le flux
+        # meurt sans réponse il rend un 500 : le client échoue tout de suite au
+        # lieu d'attendre. Mesuré sous contention (coverage + CPU saturé) :
+        # 3 échecs sur 6 en SSE, 0 sur 12 en JSON. Écarté avant lui :
+        # `stateless_http=False`, qui ne change rien (4 sur 12), parce que le
+        # défaut est dans le chemin POST commun aux deux modes.
+        #
+        # Ce que ça retire : les notifications du serveur pendant un appel. Les
+        # quatre outils servis rendent une chaîne et n'en émettent aucune.
+        json_response=True,
         # Le chemin par défaut est /mcp : monté sous /api/mcp il donnerait
         # /api/mcp/mcp, et /api/mcp/ rendrait 404.
         streamable_http_path="/",
