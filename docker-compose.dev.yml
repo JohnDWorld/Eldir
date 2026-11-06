@@ -50,6 +50,8 @@ services:
       WORKSPACES_ROOT: /var/eldir/workspaces
       APP_ENV: dev
       APP_DEBUG: "true"
+      # Pas de proxy de socket ni d'image de session en dev : le CLI tourne dans le backend.
+      SESSION_RUNTIME: processus
     command:
       - "sh"
       - "-c"

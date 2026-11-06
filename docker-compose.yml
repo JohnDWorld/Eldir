@@ -42,6 +42,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       WORKSPACES_ROOT: /var/eldir/workspaces
       APP_ENV: prod
+      # Un conteneur par session (Phase 6 bis). Redondant avec le défaut du
+      # code, écrit ici pour que l'opérateur le lise.
+      SESSION_RUNTIME: conteneur
     # Migrations avant l'app, comme en dev : le premier `up` sur une base
     # vierge crée le schéma tout seul.
     command:
@@ -111,6 +114,7 @@ volumes:
   eldir_workspaces:
   eldir_toolchains:
   eldir_claude_home:
+  eldir_collectes:
   eldir_ssh:
   eldir_caddy_data:
   eldir_caddy_config:

@@ -21,6 +21,10 @@ os.environ["APP_ENV"] = "test"
 os.environ["APP_DEBUG"] = "false"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"
+# La suite n'a pas de démon Docker : elle demande le mode `processus` en
+# clair. Le défaut du code est `conteneur` (isolement), c'est donc ici que
+# l'exception est nommée, et pas dans un défaut faible.
+os.environ["SESSION_RUNTIME"] = "processus"
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("JWT_SECRET", "test-secret-please-change")
 

@@ -102,6 +102,45 @@ class Settings(BaseSettings):
     # l'un de l'autre.
     claude_home_root: Path = Path("/home/eldir/.claude")
 
+    # ── Isolement des sessions (Phase 6 bis) ────────────────────
+    # `conteneur` : un conteneur par session, monté sur son seul worktree, sa
+    #   seule clé et la seule maison `.claude` de son projet.
+    # `processus` : le CLI de la session tourne dans le conteneur du backend,
+    #   qui voit le disque de tous les projets. C'est le mode qui marche sans
+    #   démon Docker joignable, pas le mode sûr.
+    # Le défaut est `conteneur` : un réglage oublié doit coûter de la
+    # disponibilité (la session échoue au démarrage), jamais l'isolement.
+    # Une installation dont le backend n'a pas de démon joignable règle
+    # `SESSION_RUNTIME=processus` explicitement. Le font les tests (cf.
+    # `backend/tests/conftest.py`) et le compose de dev (`docker-compose.dev.yml`).
+    # Le réglage existe parce qu'Eldir doit pouvoir tourner là où le backend
+    # n'a pas de Docker.
+    session_runtime: Literal["processus", "conteneur"] = "conteneur"
+    # Image de la session : le CLI Claude, git et Node, rien d'autre.
+    # Construite par `docker build -t eldir-session:local backend/docker/session`.
+    # Sans elle, une session échoue au démarrage avec le message du démon.
+    session_image: str = "eldir-session:local"
+    # Réseau dédié, sans route vers le réseau interne qui porte Postgres,
+    # Redis et le proxy de socket. À créer une fois (cf. docs/deployment.md) :
+    # compose ne crée pas un réseau qu'aucun de ses services n'utilise. Sans
+    # lui, chaque session échoue au démarrage, le réseau étant introuvable.
+    session_network: str = "eldir-sessions"
+    # Les noms DOCKER des volumes, à distinguer des `*_root` ci-dessus, qui
+    # sont leurs points de montage chez le backend. `docker run` monte un
+    # volume par son nom, et compose préfixe ce nom par le nom effectif du
+    # projet compose, y compris si `COMPOSE_PROJECT_NAME` le change (ordre :
+    # `-p`, puis `COMPOSE_PROJECT_NAME`, puis `name:`). Le volume
+    # `eldir_workspaces` du compose de prod (`name: eldir`) s'appelle donc
+    # `eldir_eldir_workspaces` pour le démon, et une variable
+    # `COMPOSE_PROJECT_NAME` exportée renommerait les quatre volumes d'un coup.
+    # Les deux informations ne se déduisent pas l'une de l'autre, donc elles se
+    # déclarent toutes les deux. Une installation dont le projet compose porte
+    # un autre nom renseigne ces quatre variables (cf. docs/deployment.md).
+    workspaces_volume: str = "eldir_eldir_workspaces"
+    toolchains_volume: str = "eldir_eldir_toolchains"
+    claude_home_volume: str = "eldir_eldir_claude_home"
+    collectes_volume: str = "eldir_eldir_collectes"
+
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"
 
