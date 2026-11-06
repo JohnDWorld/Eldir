@@ -30,6 +30,77 @@ services:
       timeout: 5s
       retries: 10
 
+  # Le backend doit pouvoir créer les conteneurs des sessions. Lui monter le
+  # socket du démon suffirait et n'affaiblirait pas l'isolement des sessions
+  # (après cette phase, une session n'est plus dans le conteneur du backend,
+  # donc elle ne peut pas joindre ce socket). Mais ce serait lui donner tout le
+  # démon. D'où ce proxy : une image existante de l'amont, à un réglage près
+  # (cf. `build` ci-dessous), qui ne transmet que les pans de l'API que ses
+  # variables ouvrent.
+  #
+  # Ce qu'il retire (mesuré, réponse 403) : démarrer un `exec` dans un
+  # conteneur, construire une image, modifier les réseaux, lister les volumes,
+  # lire `info`. Le reste de l'API (swarm, secrets...) est refusé de la même
+  # façon par la configuration de l'image. Et le socket du démon n'est jamais
+  # dans le système de fichiers du backend. Ce qu'il ne retire pas : écrire un
+  # fichier dans un conteneur puis le redémarrer (cf. CONTAINERS). Et il filtre
+  # les chemins, jamais le contenu d'une requête : créer un conteneur étant
+  # permis, la requête peut en demander un privilégié qui monte la racine de la
+  # machine, ou qui rejoint n'importe quel réseau (mesuré : réponse 201). Le
+  # proxy réduit donc ce qu'un backend compromis ou maladroit peut tenter, il ne
+  # le sépare pas de root sur la machine.
+  #
+  # Créer un conteneur par ce proxy équivaut donc à être root sur la machine :
+  # la vraie garde est l'ensemble des conteneurs qui peuvent le joindre, et il
+  # n'en contient qu'un, le backend. D'où le réseau `docker-api`, déclaré en bas
+  # de ce fichier et rejoint par `docker-proxy` et `backend` seulement. Caddy, le
+  # frontend, Postgres et Redis restent sur le réseau par défaut : le proxy n'a
+  # pas d'authentification, et sur ce réseau un seul d'entre eux compromis
+  # aurait suffi.
+  docker-proxy:
+    # L'image amont (tecnativa/docker-socket-proxy), avec ses délais d'inactivité
+    # relevés : sans cela, le `docker run` d'une session muette 10 minutes est
+    # coupé (cf. docker/docker-proxy/Dockerfile).
+    build:
+      context: ./docker/docker-proxy
+    image: eldir-docker-proxy:local
+    container_name: eldir-docker-proxy
+    environment:
+      # Tout ce qui n'est pas écrit ici est refusé, sauf trois lectures que
+      # l'image ouvre d'office : `_ping`, `version` et `events` (le flux des
+      # événements du démon, tous conteneurs confondus). Mesuré avec l'enrobage
+      # (`docker run -i`, lancé sur `claude --version`) : CONTAINERS et POST
+      # suffisent. Chaque ligne ouvre quelque chose, et
+      # `test_le_proxy_de_socket_n_autorise_que_ce_qu_il_faut` épingle la liste :
+      # en ajouter une est une décision, à écrire ici avec ce qu'elle ouvre.
+      #
+      # CONTAINERS : créer, démarrer, attacher, redémarrer, tuer et supprimer un
+      # conteneur ; lire l'environnement, les journaux et les fichiers de
+      # n'importe quel conteneur de la machine, pas seulement ceux des sessions.
+      # Avec POST, y écrire aussi des fichiers (`PUT /containers/<id>/archive`).
+      # Tout cela est mesuré (réponses 200, 201 ou 204), la lecture, l'écriture et
+      # le redémarrage sur un conteneur étranger aux sessions, le fichier écrit
+      # retrouvé dedans. N'est pas mesuré ici ce qui s'en déduit : un fichier
+      # écrit puis un redémarrage, c'est du code exécuté, `exec` refusé ou non.
+      CONTAINERS: 1
+      # POST : les méthodes d'écriture (POST, PUT, DELETE) sur tous les pans
+      # ouverts, sans distinction. Sans lui tout est en lecture seule et aucune
+      # session ne démarre.
+      POST: 1
+      # IMAGES : lister, télécharger depuis un registre, exporter, étiqueter
+      # (`tag`), charger (`load`) et pousser (`push`) des images : le proxy n'en
+      # refuse aucune (mesuré). Les supprimer aussi, par POST (lu dans le modèle
+      # de l'image, non mesuré). Une session n'en a pas besoin (mesuré). La ligne
+      # sert un seul message : avec elle, une image de session jamais construite
+      # donne celui du démon (« pull access denied for eldir-session »), sans
+      # elle un « 403 Forbidden » du proxy, qui fait chercher au mauvais endroit.
+      IMAGES: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-api
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -45,6 +116,17 @@ services:
       # Un conteneur par session (Phase 6 bis). Redondant avec le défaut du
       # code, écrit ici pour que l'opérateur le lise.
       SESSION_RUNTIME: conteneur
+      # Le CLI `docker` de l'enrobage lit cette variable tout seul : il ne sait
+      # rien du proxy, et n'a pas à le savoir.
+      DOCKER_HOST: tcp://docker-proxy:2375
+      # Les noms que le démon connaît. Compose préfixe le nom d'un volume par
+      # celui du projet (`name: eldir` en tête de ce fichier) : un `docker run`
+      # sur `eldir_workspaces` monterait un volume vide tout neuf. Une
+      # installation qui renomme le projet compose met ces quatre lignes à jour.
+      WORKSPACES_VOLUME: eldir_eldir_workspaces
+      TOOLCHAINS_VOLUME: eldir_eldir_toolchains
+      CLAUDE_HOME_VOLUME: eldir_eldir_claude_home
+      COLLECTES_VOLUME: eldir_eldir_collectes
     # Migrations avant l'app, comme en dev : le premier `up` sur une base
     # vierge crée le schéma tout seul.
     command:
@@ -57,6 +139,15 @@ services:
       # workspaces : on peut le purger pour rendre du disque sans toucher aux
       # clones ni aux worktrees.
       - eldir_toolchains:/var/eldir/toolchains
+      # Ce qui a été ramené d'un serveur avant le démarrage d'une session
+      # (cf. CollectService). Dans un volume et plus dans la couche du
+      # conteneur, parce que le démon ne peut monter dans un conteneur de
+      # session que ce qu'il voit lui-même : un chemin interne au conteneur du
+      # backend n'existe pas pour lui. Conséquence assumée : une collecte
+      # survit à un redéploiement, alors qu'elle était jetable avant. Elle est
+      # refaite à chaque création de session : jamais plus ancienne que la
+      # session qui la lit.
+      - eldir_collectes:/var/eldir/collectes
       # Transcripts du CLI Claude. Sans ce volume, chaque reconstruction de
       # l'image efface l'historique côté SDK et tout `resume` échoue.
       - eldir_claude_home:/home/eldir/.claude
@@ -65,11 +156,18 @@ services:
       # écrit ici, et surtout tes clés personnelles n'ont rien à faire dans un
       # conteneur où tournent des agents. Voir docs/acces-serveur.md.
       - eldir_ssh:/home/eldir/.ssh
+    # Le réseau par défaut (Postgres, Redis) et celui du proxy de socket : le
+    # backend est le seul service qui joint le proxy.
+    networks:
+      - default
+      - docker-api
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      docker-proxy:
+        condition: service_started
     restart: unless-stopped
 
   frontend:
@@ -107,6 +205,12 @@ services:
       - backend
       - frontend
     restart: unless-stopped
+
+networks:
+  # Le réseau du proxy de socket, rejoint par `docker-proxy` et `backend`
+  # seulement (cf. le commentaire du proxy). Le réseau par défaut du projet,
+  # lui, est créé par compose sans qu'on le déclare.
+  docker-api:
 
 volumes:
   eldir_pg_data:

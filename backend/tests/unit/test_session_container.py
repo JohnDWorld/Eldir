@@ -13,8 +13,10 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 from app.core.config import Settings, get_settings
 from app.services.session_container import (
     chemin_du_clone,
@@ -23,6 +25,40 @@ from app.services.session_container import (
 )
 
 COMPOSE_PROD = Path(__file__).parents[3] / "docker-compose.yml"
+BACKEND_DOCKERFILE = Path(__file__).parents[2] / "Dockerfile"
+SESSION_DOCKERFILE = Path(__file__).parents[2] / "docker" / "session" / "Dockerfile"
+
+
+def _compose() -> dict[str, Any]:
+    """Le compose de prod, lu par un parseur YAML.
+
+    Les tests du compose ne lisent pas son texte : une expression régulière
+    reste vraie sur un style que le fichier utilise lui-même (`networks:
+    [docker-api]`, en ligne), sur `network_mode: service:docker-proxy`, sur un
+    service au nom que l'expression ne prévoit pas, sur une valeur suivie d'un
+    commentaire. Le parseur résout tout cela, et les commentaires n'existent
+    plus pour lui. Les expressions régulières ne restent que pour le texte d'un
+    Dockerfile, qui n'a pas de parseur.
+    """
+    return dict(yaml.safe_load(COMPOSE_PROD.read_text(encoding="utf-8")))
+
+
+def _services() -> dict[str, dict[str, Any]]:
+    return dict(_compose()["services"])
+
+
+def _environnement(service: dict[str, Any]) -> dict[str, str]:
+    """L'environnement d'un service, en table (`CLE: v`) ou en liste (`- CLE=v`)."""
+    brut = service.get("environment") or {}
+    if isinstance(brut, list):
+        brut = dict(ligne.partition("=")[::2] for ligne in brut)
+    return {cle: str(valeur) for cle, valeur in brut.items()}
+
+
+def _reseaux(service: dict[str, Any]) -> set[str]:
+    """Les réseaux d'un service, en liste ou en table. Sans `networks`, le défaut."""
+    brut = service.get("networks")
+    return set(brut) if brut else {"default"}
 
 
 def test_le_mode_par_defaut_est_conteneur(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -41,11 +77,10 @@ def test_le_compose_de_prod_demande_le_mode_conteneur() -> None:
 
     Le défaut du code porte déjà `conteneur` : la ligne ne change pas le
     comportement, elle rend le choix visible. Le test la garde contre une
-    suppression silencieuse. L'ancrage compte : une ligne commentée
-    (`# SESSION_RUNTIME: conteneur`) ne doit pas passer pour la vraie.
+    suppression silencieuse. Elle est lue dans le service du backend : une ligne
+    commentée, ou posée dans un autre service, ne compte pas.
     """
-    texte = COMPOSE_PROD.read_text(encoding="utf-8")
-    assert re.search(r"^\s+SESSION_RUNTIME: conteneur$", texte, re.MULTILINE)
+    assert _environnement(_services()["backend"]).get("SESSION_RUNTIME") == "conteneur"
 
 
 def test_les_noms_de_volumes_portent_le_prefixe_du_projet_compose() -> None:
@@ -56,9 +91,9 @@ def test_les_noms_de_volumes_portent_le_prefixe_du_projet_compose() -> None:
     sur le nom non préfixé créerait un volume vide tout neuf, et la session
     démarrerait sur un worktree inexistant.
     """
-    reglages = Settings()
-    texte = COMPOSE_PROD.read_text(encoding="utf-8")
-    assert re.search(r"^name: eldir$", texte, re.MULTILINE)
+    reglages = Settings(_env_file=None)
+    compose = _compose()
+    assert compose["name"] == "eldir"
     for nom in (
         reglages.workspaces_volume,
         reglages.toolchains_volume,
@@ -67,7 +102,7 @@ def test_les_noms_de_volumes_portent_le_prefixe_du_projet_compose() -> None:
     ):
         assert nom.startswith("eldir_eldir_"), nom
         # Le volume existe bien sous son nom court dans le compose.
-        assert f"\n  {nom.removeprefix('eldir_')}:\n" in texte
+        assert nom.removeprefix("eldir_") in compose["volumes"], nom
 
 
 @pytest.fixture
@@ -138,8 +173,10 @@ def test_aucun_secret_ne_sort_dans_l_environnement_de_l_enrobage(
     nom de la clé qui la porte, et aucune clé ne porte le nom exact d'un champ
     secret, même vide.
 
-    Non couvert : `database_url` et `redis_url` ne sont pas typés secret. Un mot
-    de passe dans une DSN échappe aux deux volets, faute de champ à lister.
+    Non couvert : `database_url`, `redis_url` et `turn_webhook_url` ne sont pas
+    typés secret. Un mot de passe dans une DSN, ou le jeton que peut porter l'URL
+    du ping de fin de tour (cf. `config.py`), échappe aux deux volets, faute de
+    champ à lister.
     """
     noms_secrets = [
         nom for nom, champ in Settings.model_fields.items() if "Secret" in str(champ.annotation)
@@ -269,3 +306,101 @@ def test_une_collecte_sans_toolchain_ne_monte_que_la_collecte(
     assert env["ELDIR_COLLECTE_SUBPATH"] == "p1"
     assert "ELDIR_TOOLCHAIN_SUBPATH" not in env
     assert "ELDIR_TOOLCHAINS_VOLUME" not in env
+
+
+def test_le_proxy_de_socket_n_autorise_que_ce_qu_il_faut() -> None:
+    """L'ensemble des variables du proxy est épinglé, pas une liste d'interdits.
+
+    Une liste de noms interdits laisserait passer `BUILD`, `PLUGINS`, `SYSTEM` et
+    tous ceux auxquels on n'a pas pensé. Ajouter une permission au proxy est une
+    ligne, et la ligne ne dit pas ce qu'elle ouvre : ce test oblige à le décider
+    en relisant le commentaire du compose, qui nomme ce que chacune ouvre.
+
+    Le socket du démon n'est monté nulle part ailleurs que dans le proxy, et le
+    proxy ne publie aucun port : il n'a pas d'authentification, et seul le
+    backend le joint (cf. le test des réseaux). Aucun autre service ne cite
+    `docker.sock`, ni en montage, ni en variable, ni en commande. Le proxy n'a pas
+    d'`env_file` : il cacherait des variables à l'assertion sur l'environnement.
+    """
+    services = _services()
+    proxy = services["docker-proxy"]
+
+    assert "env_file" not in proxy
+    assert _environnement(proxy) == {"CONTAINERS": "1", "POST": "1", "IMAGES": "1"}
+    assert proxy["volumes"] == ["/var/run/docker.sock:/var/run/docker.sock:ro"]
+    assert "ports" not in proxy
+    citent_le_socket = [nom for nom, s in services.items() if "docker.sock" in yaml.safe_dump(s)]
+    assert citent_le_socket == ["docker-proxy"]
+
+
+def test_seul_le_backend_joint_le_proxy_de_socket() -> None:
+    """Créer un conteneur par le proxy équivaut à être root : qui le joint est la garde.
+
+    Le proxy n'a pas d'authentification, et le compose ne peut pas lui en donner.
+    Sur le réseau par défaut, Caddy, le frontend, Postgres et Redis le joindraient
+    tous : un seul compromis suffirait. Le proxy vit donc sur un réseau à part, et
+    le backend est le seul autre service à le rejoindre. Le backend garde le réseau
+    par défaut, sans quoi il ne joindrait plus Postgres ni Redis.
+
+    Un service sans `networks` est sur le réseau par défaut. Aucun service ne pose
+    `network_mode` : `service:docker-proxy` ou `host` contourneraient les réseaux.
+
+    Le test lit le fichier, pas le modèle que compose en tire (qui exigerait un
+    démon Docker, absent de la machine où tourne la suite). Trois écritures lui
+    échapperaient donc, et sont fermées une à une : un second réseau qui porte
+    `name: eldir_docker-api`, un `default` renommé, `extends` ou `include` qui
+    importent la configuration d'un autre fichier.
+    """
+    compose = _compose()
+    services = _services()
+
+    assert compose["networks"] == {"docker-api": None}
+    assert "include" not in compose
+    assert all("extends" not in service for service in services.values())
+    assert _reseaux(services["docker-proxy"]) == {"docker-api"}
+    assert _reseaux(services["backend"]) == {"default", "docker-api"}
+    autres = {nom: s for nom, s in services.items() if nom not in ("docker-proxy", "backend")}
+    assert [nom for nom, s in autres.items() if "docker-api" in _reseaux(s)] == []
+    assert [nom for nom, s in services.items() if "network_mode" in s] == []
+
+
+def test_le_backend_parle_au_proxy_et_pas_au_socket() -> None:
+    """Le backend joint le proxy par `DOCKER_HOST`, avec les noms que le démon connaît.
+
+    Tout est lu dans le service du backend : une ligne commentée, ou posée dans un
+    autre service, ne compte pas. La collecte est un volume parce que le démon ne
+    peut monter dans une session que ce qu'il voit lui-même.
+    """
+    backend = _services()["backend"]
+    environnement = _environnement(backend)
+    reglages = Settings(_env_file=None)
+
+    assert environnement.get("DOCKER_HOST") == "tcp://docker-proxy:2375"
+    assert environnement.get("WORKSPACES_VOLUME") == reglages.workspaces_volume
+    assert environnement.get("TOOLCHAINS_VOLUME") == reglages.toolchains_volume
+    assert environnement.get("CLAUDE_HOME_VOLUME") == reglages.claude_home_volume
+    assert environnement.get("COLLECTES_VOLUME") == reglages.collectes_volume
+    assert f"eldir_collectes:{reglages.collectes_root}" in backend["volumes"]
+    assert backend["depends_on"]["docker-proxy"] == {"condition": "service_started"}
+
+
+def test_les_variables_de_build_ne_fuient_dans_aucune_image() -> None:
+    """`CI` et les `npm_config_*` servent au build, ils ne doivent pas rester.
+
+    Posées en `ENV`, elles seraient dans l'environnement de tout ce que l'image
+    lance. `CI=true` change le comportement des outils que l'agent exécute : une
+    session du mode `processus` (dans l'image du backend) le verrait, une session
+    du mode `conteneur` (dans l'image des sessions) non. Les deux Dockerfiles les
+    déclarent donc en `ARG`, et ce test les garde alignés.
+    """
+    for dockerfile in (BACKEND_DOCKERFILE, SESSION_DOCKERFILE):
+        texte = dockerfile.read_text(encoding="utf-8")
+        for nom in (
+            "CI",
+            "npm_config_fund",
+            "npm_config_audit",
+            "npm_config_update_notifier",
+            "npm_config_progress",
+        ):
+            assert re.search(rf"^ARG {nom}=", texte, re.MULTILINE), f"{dockerfile}: ARG {nom}"
+            assert not re.search(rf"^ENV {nom}\b", texte, re.MULTILINE), f"{dockerfile}: ENV {nom}"

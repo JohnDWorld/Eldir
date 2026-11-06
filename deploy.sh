@@ -36,14 +36,24 @@ fi
 CHANGED="$(git diff --name-only "$BEFORE" "$AFTER")"
 SERVICES=()
 RECREATE_ALL=0
+SESSION_IMAGE=0
 
 if [[ "$FORCE" -eq 1 ]]; then
     SERVICES=(backend frontend caddy)
     RECREATE_ALL=1
+    SESSION_IMAGE=1
 else
     grep -q '^backend/'                 <<<"$CHANGED" && SERVICES+=(backend)
     grep -q '^frontend/'                <<<"$CHANGED" && SERVICES+=(frontend)
-    grep -qE '^docker/'                 <<<"$CHANGED" && SERVICES+=(caddy)
+    grep -qE '^docker/(caddy/|Caddyfile)' <<<"$CHANGED" && SERVICES+=(caddy)
+    # Le proxy de socket a son propre Dockerfile (délais d'inactivité) : sans
+    # cette ligne, un changement là-dedans reconstruirait caddy et laisserait
+    # tourner l'ancienne image du proxy.
+    grep -q '^docker/docker-proxy/'     <<<"$CHANGED" && SERVICES+=(docker-proxy)
+    # L'image des sessions n'est pas un service du compose : le CLI épinglé ou
+    # l'entrée qui changent ne la reconstruiraient pas, et les nouvelles sessions
+    # démarreraient sans bruit sur l'ancienne.
+    grep -q '^backend/docker/session/'  <<<"$CHANGED" && SESSION_IMAGE=1
     # Le compose décrit tous les services : un changement peut toucher
     # n'importe lequel (ports, volumes, variables).
     grep -q '^docker-compose.yml$'      <<<"$CHANGED" && RECREATE_ALL=1
@@ -59,6 +69,14 @@ bold "→ $(git log --oneline "$BEFORE".."$AFTER" | wc -l) commit(s) déployé(s
 git log --oneline "$BEFORE".."$AFTER" | sed 's/^/  /'
 
 # ── 3. build + redémarrage ───────────────────────────────────────
+# Avant le redémarrage du backend, pour qu'il lance ses sessions sur l'image
+# neuve. Même commande que scripts/install-eldir.sh, sans `-q` : un échec doit
+# montrer l'étape en cause, et arrête le déploiement.
+if [[ "$SESSION_IMAGE" -eq 1 ]]; then
+    bold "→ image des sessions (eldir-session:local)"
+    DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session
+fi
+
 if [[ "$RECREATE_ALL" -eq 1 ]]; then
     bold "→ docker compose up -d --build (toute la stack)"
     docker compose up -d --build

@@ -37,9 +37,10 @@ Ce que ça donne :
   une ligne dans `collecte.log` que l'agent est invité à lire et à remonter
   dans son compte rendu.
 
-Le dossier n'est **pas** un volume : il est reconstruit à chaque création de
-session et disparaît au redéploiement. Une donnée de prod rapatriée n'a pas à
-survivre.
+Le dossier est un volume (`eldir_collectes`), parce que le démon ne monte dans
+une session que ce qu'il voit lui-même. Il survit donc à un redéploiement, mais
+il est reconstruit à chaque création de session : une donnée de prod rapatriée
+n'est jamais plus ancienne que la session qui la lit.
 
 ## Déclarer une collecte
 

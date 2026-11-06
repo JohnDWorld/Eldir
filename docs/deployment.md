@@ -188,9 +188,11 @@ cd eldir && ./deploy.sh
 
 Il fait un `git pull --ff-only`, regarde **ce qui a changé** entre l'ancien et
 le nouveau HEAD, et ne reconstruit que les services concernés : `backend/` pour
-le backend, `frontend/` pour le frontend, `docker/` pour Caddy, et toute la
-stack si `docker-compose.yml` bouge. Une PR qui ne touche que la doc ne
-reconstruit rien.
+le backend, `frontend/` pour le frontend, `docker/caddy/` et `docker/Caddyfile`
+pour Caddy, `docker/docker-proxy/` pour le proxy de socket,
+`backend/docker/session/` pour l'image des sessions (construite avant le
+redémarrage du backend), et toute la stack si `docker-compose.yml` bouge. Une PR
+qui ne touche que la doc ne reconstruit rien.
 
 Il prévient aussi quand un `.env.example` a changé, puisque ton `.env`, lui,
 n'est pas versionné et ne se met pas à jour tout seul. Les migrations Alembic

@@ -74,9 +74,11 @@ class Settings(BaseSettings):
 
     # ── Collecte distante par projet ────────────────────────────
     # Ce que la session doit lire mais qui ne vit pas dans le repo. Hors
-    # worktree, donc incommitable, et volontairement hors volume : la
-    # collecte se refait à chaque création de session, une donnée de prod
-    # rapatriée n'a pas à survivre à un redéploiement. Cf. `CollectService`.
+    # worktree, donc incommitable. Dans un volume (`eldir_collectes`) : le
+    # démon ne monte dans une session que ce qu'il voit lui-même, et un dossier
+    # du conteneur du backend lui est invisible. Une collecte survit donc à un
+    # redéploiement, mais elle se refait à chaque création de session : elle
+    # n'est jamais plus ancienne que la session qui la lit. Cf. `CollectService`.
     collectes_root: Path = Path("/var/eldir/collectes")
     # Une commande de collecte lit un fichier ou un log, pas plus.
     collect_timeout_s: int = 60
@@ -120,10 +122,11 @@ class Settings(BaseSettings):
     # Construite par `docker build -t eldir-session:local backend/docker/session`.
     # Sans elle, une session échoue au démarrage avec le message du démon.
     session_image: str = "eldir-session:local"
-    # Réseau dédié, sans route vers le réseau interne qui porte Postgres,
-    # Redis et le proxy de socket. À créer une fois (cf. docs/deployment.md) :
-    # compose ne crée pas un réseau qu'aucun de ses services n'utilise. Sans
-    # lui, chaque session échoue au démarrage, le réseau étant introuvable.
+    # Réseau dédié, sans route vers les réseaux du compose : celui de Postgres
+    # et Redis, et celui du proxy de socket. À créer une fois (cf.
+    # docs/deployment.md) : compose ne crée pas un réseau qu'aucun de ses
+    # services n'utilise. Sans lui, chaque session échoue au démarrage, le
+    # réseau étant introuvable.
     session_network: str = "eldir-sessions"
     # Les noms DOCKER des volumes, à distinguer des `*_root` ci-dessus, qui
     # sont leurs points de montage chez le backend. `docker run` monte un
