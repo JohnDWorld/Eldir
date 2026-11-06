@@ -1,0 +1,12 @@
+#!/bin/sh
+# Entrée de l'image de session. Un seul travail : poser le PATH du toolchain
+# quand il y en a un.
+#
+# Pourquoi ici et pas dans l'enrobage : le chemin du toolchain est connu du
+# backend, mais le PATH de base est celui de cette image. Transmettre celui du
+# backend y mettrait des dossiers qui n'existent pas dans ce conteneur.
+if [ -n "${ELDIR_TOOLCHAIN:-}" ]; then
+    PATH="$ELDIR_TOOLCHAIN/bin:$PATH"
+    export PATH
+fi
+exec "$@"

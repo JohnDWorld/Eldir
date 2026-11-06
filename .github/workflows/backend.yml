@@ -49,6 +49,10 @@ jobs:
       # Les 44 "a" précédents avaient la bonne longueur mais décodaient sur
       # 33 octets : tout test touchant au chiffrement plantait en CI.
       ENCRYPTION_KEY: ZWxkaXItY2kta2V5LW5vdC1hLXJlYWwtc2VjcmV0ISE=
+      # Les tests marqués `docker` (image de session) doivent tourner ici : sans
+      # cette variable, un runner sans démon les sauterait et le job resterait
+      # vert. Avec elle, `demon_docker` échoue au lieu de sauter.
+      ELDIR_EXIGE_DOCKER: 1
 
     steps:
       - uses: actions/checkout@v4

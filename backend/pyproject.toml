@@ -128,6 +128,14 @@ testpaths = ["tests"]
 # La suite entière tient en 50 s.
 faulthandler_timeout = 120
 addopts = "-ra --strict-markers --cov=app --cov-report=term-missing"
+markers = [
+    # Tests qui ont besoin d'un démon Docker joignable, en version 25 ou plus
+    # (celle de `--mount volume-subpath`). Le saut est fait par la fixture
+    # `demon_docker` de tests/integration/test_isolement_sessions.py, pas par le
+    # marqueur. Ils ne démarrent jamais de session : le CLI Claude n'y est
+    # lancé que pour afficher sa version, donc ils ne consomment aucun crédit.
+    "docker: a besoin d'un démon Docker (Docker 25+)",
+]
 
 [tool.coverage.run]
 branch = true
