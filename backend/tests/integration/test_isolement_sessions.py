@@ -15,11 +15,14 @@ n'existe pas dans l'univers de la session ne se négocie pas. Ces tests
 cherchent donc le voisin dans tout le conteneur et exigent qu'il n'y soit pas,
 au lieu de constater qu'une lecture échoue.
 
-Les autres tests vérifient l'image elle-même (le CLI, l'uid, le `ssh`, l'entrée).
-Tous ont besoin d'un vrai démon, ce qu'un double ne prouverait pas. Ils sautent
-sans démon joignable, ou avant Docker 25. Aucun ne démarre de session : le CLI
-Claude n'est lancé que pour afficher sa version, donc ils ne consomment aucun
-crédit.
+Les autres tests vérifient l'image elle-même (le CLI, l'uid, le `ssh`, l'entrée),
+sauf le dernier : un démarrage de conteneur qui échoue ne retombe pas en mode
+`processus`. Tous ont besoin d'un vrai démon, ce qu'un double ne prouverait pas.
+Ils sautent sans démon joignable, ou avant Docker 25. Aucun ne mène une session
+jusqu'au CLI. Le dernier appelle `SessionManager.start` avec une image que le
+démon ne peut pas obtenir, donc le démarrage échoue avant qu'aucun CLI ne
+tourne ; les autres ne lancent le CLI Claude que pour afficher sa version. Aucun
+ne consomme de crédit.
 """
 
 from __future__ import annotations
@@ -31,8 +34,13 @@ import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NoReturn
+from unittest.mock import AsyncMock
 
 import pytest
+from app.core.config import get_settings
+from app.services.event_bus import EventBus
+from app.services.session_manager import SessionManager
+from claude_agent_sdk import ProcessError
 
 pytestmark = pytest.mark.docker
 
@@ -489,3 +497,68 @@ def test_une_session_ne_lit_pas_la_maison_claude_d_un_autre_projet(
     assert "j'ecris chez moi : ok" in proc.stdout
     # et le seul transcript du conteneur est le sien
     assert _trouves(proc) == ["/eldir/maison/.claude/projects/moi.jsonl"]
+
+
+@pytest.fixture
+def uid_1000(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un `id` qui répond 1000, pour que l'enrobage arrive jusqu'au `docker run`.
+
+    L'enrobage refuse un backend qui n'est pas en uid 1000 (code 2) avant de
+    contacter le démon, et un runner de CI n'est pas forcément en uid 1000. Sans
+    ce double, le test ci-dessous échouerait là où il ne prétend pas échouer.
+    """
+    binaire = tmp_path / "bin"
+    binaire.mkdir()
+    (binaire / "id").write_text("#!/bin/sh\necho 1000\n", encoding="utf-8")
+    os.chmod(binaire / "id", 0o700)
+    monkeypatch.setenv("PATH", f"{binaire}:{os.environ['PATH']}")
+
+
+async def test_un_echec_de_demarrage_ne_retombe_pas_en_mode_processus(
+    uid_1000: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le repli silencieux est exactement ce qu'un attaquant veut provoquer.
+
+    Le conteneur ne démarre pas : on attend une erreur, et surtout **pas** une
+    session vivante dans le pool, qui tournerait alors sans isolement.
+
+    L'image vient d'un registre qui refuse la connexion (`localhost:1`), donc
+    le `docker run` de l'enrobage échoue vite, sans réseau, et avant qu'aucun
+    CLI ne tourne : le test ne coûte aucun crédit. `ProcessError` est l'erreur
+    du SDK quand le processus du CLI meurt, et le code de sortie 125 est celui
+    de `docker run` lui-même. Les deux ancrent l'échec là où le test dit qu'il
+    est : un `ValueError` levé en amont n'est pas un `ProcessError`, et un
+    refus de l'enrobage (uid, code 2) est un `ProcessError` sans rapport avec
+    le démon.
+
+    Mutations qui le font tomber (mesurées) : que `start` retente sans
+    `cli_path` quand le `connect` échoue, ou qu'il ne pose jamais `cli_path`.
+    Dans les deux cas `start` rend une session et il n'y a plus d'exception.
+    Ne le fait pas tomber : que `options_de_conteneur` rende `{}` quand son
+    calcul échoue. Ici le calcul réussit, l'échec vient du `docker run`. Cette
+    moitié est tenue, dans `tests/unit/test_session_manager.py`, par :
+    `test_une_decision_de_conteneur_qui_echoue_ne_retombe_pas_en_mode_processus`.
+    """
+    worktree = tmp_path / "workspaces" / "u1" / "depot.s1"
+    (tmp_path / "workspaces" / "u1" / "depot").mkdir(parents=True)
+    worktree.mkdir()
+    monkeypatch.setenv("SESSION_RUNTIME", "conteneur")
+    monkeypatch.setenv("SESSION_IMAGE", "localhost:1/eldir-session:absente")
+    monkeypatch.setenv("WORKSPACES_ROOT", str(tmp_path / "workspaces"))
+    monkeypatch.setenv("CLAUDE_HOME_ROOT", str(tmp_path / "maisons"))
+    monkeypatch.setenv("SSH_HOME", str(tmp_path / "ssh"))
+    get_settings.cache_clear()
+    manager = SessionManager(EventBus(redis=AsyncMock()))
+    try:
+        with pytest.raises(ProcessError) as erreur:
+            await manager.start(session_id="s1", project_id="p1", user_id="u1", cwd=str(worktree))
+
+        assert erreur.value.exit_code == 125
+        assert manager.active_count == 0
+        assert not manager.is_active("s1")
+    finally:
+        # Si l'invariant tombe, `start` a rendu une session : ne pas laisser
+        # son CLI tourner derrière le test rouge.
+        for session in manager.list_active():
+            await manager.stop(session.session_id)
+        get_settings.cache_clear()

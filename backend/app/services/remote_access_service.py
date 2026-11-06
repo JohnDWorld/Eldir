@@ -21,9 +21,20 @@ Trois décisions qui structurent le reste :
   `authorized_keys` distant. Une clé qu'on sait déposer et pas retirer, c'est
   une clé oubliée sur une machine.
 
-Ce que ça ne change pas : le CLI Claude tourne dans ce conteneur, donc une
-session peut lire la clé privée. Le bouton rend l'accès facile à ouvrir, pas
-plus sûr. La protection reste le compte dédié sans sudo, côté machine.
+Ce que ça ne change pas : le bouton rend l'accès facile à ouvrir, pas plus sûr.
+Ce que la session peut lire de la clé dépend du mode d'exécution des sessions
+(`SESSION_RUNTIME`) :
+
+- en mode `processus`, le CLI Claude tourne dans le conteneur du backend, donc
+  une session peut lire toutes les clés privées et le `config` entier ;
+- en mode `conteneur` (le défaut), il tourne dans un conteneur à part, qui ne
+  voit que la copie de la clé de son propre projet, montée en lecture seule, et
+  un `config` à un seul bloc (cf. `materiel_de_session`). Les clés et les
+  machines des autres projets n'y existent pas. Cette clé-là, la session la
+  lit toujours : c'est avec elle qu'elle se connecte.
+
+Dans les deux modes, la protection de la machine reste le compte dédié sans
+sudo, côté machine.
 """
 
 from __future__ import annotations
@@ -174,7 +185,8 @@ class RemoteAccessService:
 
         Le mot de passe ne sert qu'ici, transmis par variable d'environnement
         pour ne pas apparaître dans la ligne de commande (un `ps` dans le
-        conteneur la verrait, et une session tourne dans ce conteneur).
+        conteneur la verrait, et en mode `processus` une session tourne dans
+        ce conteneur).
         """
         alias = _alias_for(slug)
         await self._ensure_key(project_id)
