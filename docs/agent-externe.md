@@ -322,6 +322,21 @@ accompagne la requête. Le préfixe nomme l'algorithme : sans lui, un abonné
 devinerait, et le jour où l'algorithme change il vérifierait encore l'ancien en
 silence.
 
+Le même ping porte aussi la signature au format
+[Standard Webhooks](https://www.standardwebhooks.com/), que des abonnés tout faits
+vérifient sans une ligne de code (Hermes, Svix) :
+
+| En-tête | Valeur |
+|---|---|
+| `webhook-id` | le `ping_id` de la charge |
+| `webhook-timestamp` | l'`horodatage` de la charge, en secondes Unix |
+| `webhook-signature` | `v1,<base64 du HMAC SHA-256 de « webhook-id.webhook-timestamp.corps »>` |
+
+L'identifiant et l'instant sont signés avec le corps : l'abonné refuse un rejeu
+trop vieux ou un doublon sans lire la charge. Le secret sert **tel quel** de clé.
+Une bibliothèque qui attend un secret `whsec_` reçoit `whsec_` suivi du secret
+encodé en base64.
+
 ### La charge
 
 ```json

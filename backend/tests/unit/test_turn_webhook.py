@@ -13,6 +13,7 @@ que la connexion a bien été refusée) et que l'échec n'est pas remonté.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -29,7 +30,7 @@ import pytest
 import structlog
 from app.core.config import Settings
 from app.core.logging import configure_logging
-from app.services.turn_webhook import prevenir, signer
+from app.services.turn_webhook import prevenir, signer, signer_standard
 
 from tests.unit.serveur_abonne import Journal, ServeurAbonne, port_ferme
 
@@ -94,6 +95,35 @@ async def test_le_ping_part_vraiment_avec_le_bon_corps_et_la_bonne_signature(
     assert journal.appels == [], "un succès ne journalise rien"
 
 
+async def test_le_ping_porte_aussi_la_signature_standard_webhooks(
+    reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
+) -> None:
+    """Le format que Hermes et Svix vérifient sans code : recalculé ici à la main, comme
+    le ferait un abonné, sur les octets reçus et sur les deux en-têtes signés avec eux."""
+    reglages(turn_webhook_url=abonne.url("/ok"), turn_webhook_secret="secret-de-test")
+
+    await prevenir(CHARGE)
+
+    requete = abonne.requetes[0]
+    corps = json.loads(requete.corps)
+    identifiant = requete.entetes["webhook-id"]
+    instant = requete.entetes["webhook-timestamp"]
+    assert identifiant == corps["ping_id"], "l'abonné dédoublonne sans lire la charge"
+    assert int(instant) == int(datetime.fromisoformat(corps["horodatage"]).timestamp())
+    contenu = f"{identifiant}.{instant}.".encode() + requete.corps
+    attendu = hmac.new(b"secret-de-test", contenu, hashlib.sha256).digest()
+    assert requete.entetes["webhook-signature"] == "v1," + base64.b64encode(attendu).decode()
+
+
+def test_la_signature_standard_lie_l_identifiant_et_l_instant() -> None:
+    """Sans eux dans le contenu signé, un ping vu passer se rejouerait sous un autre
+    identifiant, et l'abonné le prendrait pour un nouveau."""
+    a = signer_standard("p1", 1700000000, b"corps", "secret")
+    assert a != signer_standard("p2", 1700000000, b"corps", "secret"), "dépend de l'identifiant"
+    assert a != signer_standard("p1", 1700000001, b"corps", "secret"), "dépend de l'instant"
+    assert a.startswith("v1,"), "la version préfixe la signature, comme le veut le format"
+
+
 async def test_le_corps_signe_porte_l_heure_d_emission_en_utc(
     reglages: Callable[..., None], journal: Journal, abonne: ServeurAbonne
 ) -> None:
@@ -154,7 +184,9 @@ async def test_sans_secret_le_ping_part_non_signe(
     await prevenir(CHARGE)
 
     assert len(abonne.requetes) == 1
-    assert "x-eldir-signature" not in abonne.requetes[0].entetes
+    entetes = abonne.requetes[0].entetes
+    assert "x-eldir-signature" not in entetes
+    assert "webhook-signature" not in entetes, "aucun des deux formats sans secret"
     assert journal.appels == []
 
 

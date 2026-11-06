@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -28,6 +29,20 @@ def signer(corps: bytes, secret: str) -> str:
     return f"sha256={empreinte}"
 
 
+def signer_standard(identifiant: str, instant: int, corps: bytes, secret: str) -> str:
+    """La même preuve au format Standard Webhooks (standardwebhooks.com).
+
+    C'est le format que des abonnés tout faits savent déjà vérifier (Hermes, Svix) :
+    sans lui, chacun devrait apprendre `X-Eldir-Signature`. L'identifiant et l'instant
+    sont signés avec le corps, ce qui laisse l'abonné refuser un rejeu ou un doublon
+    sans lire la charge. Le secret sert tel quel de clé : une bibliothèque qui attend
+    un `whsec_` reçoit `whsec_` suivi du secret encodé en base64.
+    """
+    contenu = f"{identifiant}.{instant}.".encode() + corps
+    empreinte = hmac.new(secret.encode(), contenu, hashlib.sha256).digest()
+    return "v1," + base64.b64encode(empreinte).decode()
+
+
 async def prevenir(charge: dict[str, Any]) -> None:
     """Poste la charge si un abonné est configuré. N'échoue jamais.
 
@@ -49,7 +64,8 @@ async def prevenir(charge: dict[str, Any]) -> None:
             return
         # L'horodatage est dans le corps signé : sans lui, une charge vue passer se rejoue
         # indéfiniment, et l'abonné ne peut pas refuser ce qui est trop vieux.
-        horodatage = datetime.now(UTC).isoformat(timespec="seconds")
+        maintenant = datetime.now(UTC).replace(microsecond=0)
+        horodatage = maintenant.isoformat()
         # ASCII pur (les accents partent échappés) : aucun abonné n'a à deviner l'encodage.
         # Chaque ping a son identifiant : deux pings d'une même session dans la même seconde
         # seraient sinon identiques octet pour octet, et l'abonné ne pourrait ni dédoublonner
@@ -62,6 +78,10 @@ async def prevenir(charge: dict[str, Any]) -> None:
         cle = secret.get_secret_value() if secret else ""
         if cle:
             entetes["X-Eldir-Signature"] = signer(corps, cle)
+            instant = int(maintenant.timestamp())
+            entetes["webhook-id"] = envoi["ping_id"]
+            entetes["webhook-timestamp"] = str(instant)
+            entetes["webhook-signature"] = signer_standard(envoi["ping_id"], instant, corps, cle)
         delai = settings.turn_webhook_timeout_seconds
         # Un seul délai, sur le ping entier. Celui de httpx court par phase : un abonné qui
         # répond au compte-gouttes le remet à zéro sans cesse, et il doublonnerait celui-ci.
