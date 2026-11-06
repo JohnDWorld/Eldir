@@ -77,6 +77,9 @@ if [[ "$SESSION_IMAGE" -eq 1 ]]; then
     DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session
 fi
 
+# Compose ne crée pas ce réseau, aucun de ses services ne l'utilise : sans lui, chaque session échoue au `docker run`.
+docker network inspect eldir-sessions >/dev/null 2>&1 || docker network create eldir-sessions
+
 if [[ "$RECREATE_ALL" -eq 1 ]]; then
     bold "→ docker compose up -d --build (toute la stack)"
     docker compose up -d --build

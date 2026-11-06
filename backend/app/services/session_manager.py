@@ -113,9 +113,14 @@ _FORCE_PUSH_REASON = (
 # ── Accès serveur ───────────────────────────────────────────────
 # Un projet déployé ne tient pas dans son repo : l'agent a besoin d'aller
 # voir la machine. Il peut, vers l'alias SSH que le projet déclare, et vers
-# lui seul. Le conteneur porte la config SSH de John, donc sans cette règle
-# une session ouverte sur un projet pourrait se connecter à n'importe laquelle
-# de ses machines.
+# lui seul. En mode `processus`, le conteneur du backend porte la configuration
+# SSH complète de John : sans cette règle, une session pourrait se connecter à
+# n'importe laquelle de ses machines. En mode `conteneur`, la session n'a que la
+# clé de son projet et un `config` à un seul bloc, mais la règle reste la seule
+# garde d'une session déjà ouverte dont le projet vient de passer en « source
+# externe » : `ferme_l_acces_serveur` ne fait que vider `remote_host`, la clé
+# déjà montée dans son conteneur y reste. Ne la retire pas au motif que les
+# montages la rendraient redondante.
 #
 # C'est un garde-fou contre l'écart, pas un bac à sable : un agent décidé
 # contournerait un filtre sur une ligne de commande (script intermédiaire,
@@ -158,9 +163,7 @@ def _remote_denial(
         return None
     return (
         f"Refusé par Eldir : cette session ne peut se connecter qu'à "
-        f"`{remote_host}`, la machine déclarée par son projet. Le conteneur "
-        f"porte la configuration SSH de John, qui atteint d'autres serveurs "
-        f"n'ayant rien à voir avec ce projet."
+        f"`{remote_host}`, la machine déclarée par son projet."
     )
 
 
@@ -571,6 +574,11 @@ class SessionManager:
                 # commande et ne les transmet pas au conteneur.
                 options_kwargs["cli_path"] = conteneur["cli_path"]
                 options_kwargs["env"] = {**options_kwargs["env"], **conteneur["env"]}
+                # Le PATH du toolchain n'a rien à faire dans l'environnement de
+                # l'enrobage : `entree-session` le pose DANS le conteneur, et ici un
+                # `bin/docker` ou un `bin/id` déposé par un toolchain remplacerait ceux
+                # que l'enrobage appelle. Le SDK laisse alors hériter le PATH du backend.
+                options_kwargs["env"].pop("PATH", None)
                 # Le SDK lance `[cli_path, "-v"]` avant de se connecter, sans
                 # ces variables : les gardes `:?` de l'enrobage le font sortir
                 # en erreur, et le SDK en avale l'échec (`except Exception:
@@ -747,7 +755,8 @@ class SessionManager:
                     # marqueur de démarrage : une reprise peut écrire sa propre
                     # matière, qu'un effacement tardif détruirait. Effacée ici,
                     # la matière de la reprise est écrite après, et rien ne se
-                    # perd. Idempotent : un arrêt qui suit un crash ne lève pas.
+                    # perd, hors la fenêtre ci-dessous. Idempotent : un arrêt qui
+                    # suit un crash ne lève pas.
                     #
                     # Le conteneur encore en vie perd sa clé et son `config` à
                     # cet instant : les fichiers sont ceux du dossier monté, pas

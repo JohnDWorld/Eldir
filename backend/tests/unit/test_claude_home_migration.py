@@ -179,7 +179,9 @@ async def test_un_chemin_irreproductible_n_emporte_pas_les_autres_sessions(
 
     monkeypatch.setattr(claude_home_migration, "async_session_factory", session_factory)
     monkeypatch.setattr(
-        claude_home_migration, "get_settings", lambda: SimpleNamespace(claude_home_root=tmp_path)
+        claude_home_migration,
+        "get_settings",
+        lambda: SimpleNamespace(claude_home_root=tmp_path, session_runtime="conteneur"),
     )
 
     rapport = await migrer_les_maisons()
@@ -228,7 +230,9 @@ async def test_deux_projets_qui_se_nomment_pareil_ne_sont_rattaches_a_aucun(
 
     monkeypatch.setattr(claude_home_migration, "async_session_factory", session_factory)
     monkeypatch.setattr(
-        claude_home_migration, "get_settings", lambda: SimpleNamespace(claude_home_root=tmp_path)
+        claude_home_migration,
+        "get_settings",
+        lambda: SimpleNamespace(claude_home_root=tmp_path, session_runtime="conteneur"),
     )
 
     rapport = await migrer_les_maisons()
@@ -240,3 +244,40 @@ async def test_deux_projets_qui_se_nomment_pareil_ne_sont_rattaches_a_aucun(
         assert not (tmp_path / projet).exists()
     cible = tmp_path / "projet-c" / ".claude" / "projects" / slug_du_cwd(voisin)
     assert (cible / "2026-01-01T00-00-00-000Z.jsonl").exists()
+
+
+async def test_en_mode_processus_la_migration_ne_touche_a_rien(
+    tmp_path: Path,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """En `processus`, le CLI lit `<claude_home_root>/projects` : on n'y touche pas.
+
+    Le transcript ci-dessous SERAIT rattaché (la session est en base, son slug
+    est celui du dossier) : c'est ce qui rend le test juste. Sans la garde, le
+    boot le rangerait sous la maison de son projet, hors de portée du CLI qui
+    le relit, et le `resume` de la session ne trouverait plus rien.
+
+    Mutation qui le fait tomber (mesurée) : retirer le retour anticipé de
+    `migrer_les_maisons`.
+    """
+    chemin = "/var/eldir/workspaces/u1/eldir.s1"
+    async with session_factory() as db:
+        db.add(
+            Session(project_id="projet-a", user_id="u1", branch="claude/x", worktree_path=chemin)
+        )
+        await db.commit()
+    transcript = _transcript(tmp_path, slug_du_cwd(chemin))
+
+    monkeypatch.setattr(claude_home_migration, "async_session_factory", session_factory)
+    monkeypatch.setattr(
+        claude_home_migration,
+        "get_settings",
+        lambda: SimpleNamespace(claude_home_root=tmp_path, session_runtime="processus"),
+    )
+
+    rapport = await migrer_les_maisons()
+
+    assert rapport == Rapport(deplacees=0, laissees=())
+    assert (transcript / "2026-01-01T00-00-00-000Z.jsonl").exists()
+    assert not (tmp_path / "projet-a").exists()

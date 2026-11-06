@@ -35,6 +35,7 @@ from app.services.session_manager import (
     MESSAGE_FLUX_SANS_RESULTAT,
     ActiveSession,
     SessionManager,
+    env_pour_la_session,
     options_de_conteneur,
 )
 
@@ -403,6 +404,87 @@ async def test_start_en_mode_processus_ne_pose_pas_de_cli_path(
     await manager.start(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp")
 
     assert "cli_path" not in options_recues[0]
+
+
+@pytest.fixture
+def toolchain_et_collecte(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Un toolchain installé et une collecte faite pour `p1`, sur des racines jetables.
+
+    `env_for` des deux services ne rend quelque chose que si le fichier d'état
+    (toolchain) et `collecte.log` (collecte) existent. Rend le `bin/` du toolchain.
+    """
+    toolchain = tmp_path / "toolchains" / "p1"
+    collecte = tmp_path / "collectes" / "p1"
+    toolchain.mkdir(parents=True)
+    collecte.mkdir(parents=True)
+    (toolchain / ".eldir-state.json").write_text("{}", encoding="utf-8")
+    (collecte / "collecte.log").write_text("", encoding="utf-8")
+    monkeypatch.setenv("TOOLCHAINS_ROOT", str(tmp_path / "toolchains"))
+    monkeypatch.setenv("COLLECTES_ROOT", str(tmp_path / "collectes"))
+    get_settings.cache_clear()
+    yield toolchain / "bin"
+    get_settings.cache_clear()
+
+
+def test_l_env_de_la_session_porte_le_toolchain_et_la_collecte_par_dessus_le_masque(
+    toolchain_et_collecte: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le masque d'abord, puis les apports du projet, `PATH` du toolchain compris."""
+    monkeypatch.setenv("JWT_SECRET", "valeur-sensible-du-backend")
+    toolchain = toolchain_et_collecte.parent
+
+    env = env_pour_la_session(project_id="p1", remote_host="eldir-machine")
+
+    assert env["JWT_SECRET"] == ""
+    assert env["ELDIR_TOOLCHAIN"] == str(toolchain)
+    assert env["PATH"].startswith(f"{toolchain_et_collecte}:")
+    assert env["ELDIR_COLLECTE"] == str(toolchain.parent.parent / "collectes" / "p1")
+    assert env["ELDIR_REMOTE_HOST"] == "eldir-machine"
+
+
+async def test_en_mode_processus_le_sdk_recoit_le_path_du_toolchain(
+    manager: SessionManager,
+    fake_sdk: MagicMock,
+    options_recues: list[dict[str, object]],
+    toolchain_et_collecte: Path,
+) -> None:
+    """Le contrepoint du test suivant : en `processus`, le `PATH` du toolchain sert.
+
+    C'est le CLI lui-même qui hérite de cet environnement, et c'est par ce
+    `PATH` que l'agent trouve les outils installés.
+    """
+    await manager.start(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp")
+
+    env = options_recues[0]["env"]
+    assert isinstance(env, dict)
+    assert env["PATH"].startswith(f"{toolchain_et_collecte}:")
+
+
+async def test_en_mode_conteneur_le_path_du_toolchain_n_arrive_pas_a_l_enrobage(
+    manager: SessionManager,
+    fake_sdk: MagicMock,
+    options_recues: list[dict[str, object]],
+    mode_conteneur: Path,
+    toolchain_et_collecte: Path,
+) -> None:
+    """Le `PATH` du toolchain ne va pas à l'enrobage, qui résout `docker` et `id` par `PATH`.
+
+    Le SDK lance l'enrobage avec cet environnement. Le `bin/` d'un toolchain est
+    alimenté par les `setup_commands` du projet : un `docker` ou un `id` déposé
+    là remplacerait ceux que l'enrobage appelle.
+    `entree-session` pose le `PATH` du toolchain DANS le conteneur, donc rien ne
+    manque côté session. `ELDIR_TOOLCHAIN`, lui, reste : l'enrobage le transmet
+    (`-e ELDIR_TOOLCHAIN`) et `entree-session` s'en sert.
+
+    Mutation qui le fait tomber (mesurée) : retirer le `pop("PATH")` de `start`.
+    """
+    await manager.start(session_id="s1", project_id="p1", user_id="u1", cwd=str(mode_conteneur))
+
+    env = options_recues[0]["env"]
+    assert isinstance(env, dict)
+    assert "PATH" not in env
+    assert env["ELDIR_TOOLCHAIN"] == str(toolchain_et_collecte.parent)
+    assert env["ELDIR_COLLECTE"].endswith("/collectes/p1")
 
 
 async def test_une_decision_de_conteneur_qui_echoue_ne_retombe_pas_en_mode_processus(

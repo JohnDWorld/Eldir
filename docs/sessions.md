@@ -147,9 +147,9 @@ Détail, mesures et ce qui reste ouvert : [`securite-sessions.md`](./securite-se
 
 **L'image.** `backend/docker/session/` : Node 20, `git`, `ssh`, et le CLI Claude
 épinglé (`ARG CLAUDE_CLI_VERSION`), avec `ca-certificates` et `openssh-client`.
-Pas d'outil de projet, ils viennent du toolchain monté. **Ni python ni uv**, que
-l'image du backend porte : un projet qui comptait dessus doit les déclarer dans
-son toolchain (cf. [`templates.md`](./templates.md#toolchain-du-repo-setup_commands)).
+Pas d'outil de projet, ils viennent du toolchain monté. **Ni python, ni uv, ni `curl`**,
+que l'image du backend porte : un projet qui comptait dessus doit les déclarer
+dans son toolchain (cf. [`templates.md`](./templates.md#toolchain-du-repo-setup_commands)).
 Le conteneur tourne avec l'utilisateur d'uid 1000 que
 `node:20-bookworm-slim` fournit déjà, `node`. La spec de ce lot le nommait
 `session` : on a gardé `node`, parce qu'en créer un second sur l'uid 1000

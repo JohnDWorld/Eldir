@@ -33,6 +33,15 @@
 >   briques ont été mesurées après la spec, et d'autres restent déduites ou non
 >   mesurées ; `securite-sessions.md` et `deployment.md` marquent chaque phrase
 >   comme mesurée, déduite ou choisie.
+> - **Le critère d'acceptation nº 6 n'a tenu qu'une fois la migration sensible au
+>   mode.** « `SESSION_RUNTIME=processus` reproduit exactement le comportement
+>   actuel » était faux tant que `migrer_les_maisons` rangeait au boot, quel que
+>   soit le mode, les transcripts que le CLI lit à plat dans
+>   `<claude_home_root>/projects` en mode `processus` : le `resume` de leurs
+>   sessions ne les retrouvait plus. La fonction rend maintenant la main sans
+>   rien déplacer en `processus`. La suite ne le prouvait pas d'elle-même : le
+>   lifespan saute la migration sous `is_test`, donc aucun démarrage en mode
+>   `processus` ne la joue. Seul un test dédié épingle ce retour anticipé.
 
 ## Pourquoi
 

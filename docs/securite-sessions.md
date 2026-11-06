@@ -18,7 +18,12 @@ Phase 6 bis, le CLI de chaque session tourne dans son propre conteneur. En
 phase. Ce document dit ce qui vaut dans chacun. Le mode `processus` n'a rien
 fermé de ce qui suit, ni sur le disque ni sur le réseau : il existe pour les
 machines dont le backend n'a pas de démon Docker joignable, et ce n'est pas un
-mode sûr.
+mode sûr. Sur le compose de prod, une session en `processus` hérite en plus de
+`DOCKER_HOST` et du réseau `docker-api` du backend, donc elle peut faire créer
+par le proxy de socket un conteneur privilégié, soit root sur l'hôte (création
+mesurée, héritage et root déduits, pas essayés : cf. « Le proxy de socket ») ; si
+tu dois retomber sur `processus`, retire d'abord `DOCKER_HOST` et le
+rattachement du backend à `docker-api`.
 
 **Le mode `conteneur` isole une session du disque des autres projets, pas du
 backend.** Le backend lance git dans des dossiers que la session écrit, et git
@@ -254,7 +259,8 @@ un fichier.
 
 **En mode `processus`**, la session est dans le conteneur du backend : elle joint
 tout ce qu'il joint, Postgres, Redis et Internet, et le proxy de socket (déduit
-du compose, où le backend est sur le réseau `docker-api`).
+du compose, où le backend est sur le réseau `docker-api`) ; ce que ça vaut est
+dit en tête de ce document.
 
 ## Le proxy de socket
 

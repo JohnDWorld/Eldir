@@ -72,7 +72,7 @@ def _sans_demon(raison: str) -> NoReturn:
 
 @pytest.fixture(scope="module", autouse=True)
 def demon_docker() -> None:
-    """Saute en local sans démon, ce qui est le rôle du marqueur `docker`.
+    """Saute en local sans démon : c'est cette fixture qui saute, pas le marqueur `docker`.
 
     Échoue au lieu de sauter quand `ELDIR_EXIGE_DOCKER` est posé, comme en CI :
     un saut y serait la perte silencieuse des tests du conteneur de session,
@@ -218,7 +218,8 @@ def test_l_image_porte_le_cli_claude(image: str) -> None:
     """Le binaire est là, il répond, et c'est la version que le Dockerfile épingle.
 
     Le SDK lance bien `claude -v` avant de démarrer, mais il en avale l'échec
-    (`_check_claude_version` : `except Exception: pass`), au pire un log. Ce qui
+    (`_check_claude_version` : `except Exception: pass`, sans le moindre log ;
+    seul un contrôle réussi peut avertir, d'une version trop ancienne). Ce qui
     arrête une session, c'est un `claude` introuvable ou qui ne démarre pas : en
     mode `conteneur`, le `docker run` de l'enrobage échoue (en mode `processus`,
     c'est `_find_cli`). Ce test attrape le cas de l'image. Un `latest`, ou une

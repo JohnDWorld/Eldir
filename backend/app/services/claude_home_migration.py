@@ -1,6 +1,7 @@
 """Ranger les transcripts du CLI sous la maison `.claude` de leur projet.
 
-Appelée une fois au boot, idempotente. Avant la Phase 6 bis, tous les
+Appelée une fois au boot, idempotente, et sans effet en mode `processus` (cf.
+`migrer_les_maisons`). Avant la Phase 6 bis, tous les
 transcripts vivaient à plat dans `<claude_home_root>/projects/`, donc dans un
 volume partagé par toutes les sessions de tous les projets. La séparation par
 projet n'a d'intérêt que si l'existant la rejoint.
@@ -93,6 +94,14 @@ def ranger_les_dossiers(racine: Path, maison_par_slug: dict[str, str]) -> Rappor
 
 async def migrer_les_maisons() -> Rapport:
     """Construit le rattachement depuis la base, puis range les dossiers."""
+    if get_settings().session_runtime == "processus":
+        # En mode `processus`, le CLI tourne dans le conteneur du backend et lit
+        # `<claude_home_root>/projects` directement : ranger ces dossiers sous les
+        # maisons par projet les rendrait introuvables pour lui, et chaque boot
+        # casserait le `resume` de ses sessions. Les maisons par projet ne sont
+        # lues qu'en mode `conteneur`.
+        return Rapport(deplacees=0, laissees=())
+
     async with async_session_factory() as db:
         lignes = (
             await db.execute(

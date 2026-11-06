@@ -218,7 +218,7 @@ docker volume ls --format '{{.Name}}' | grep -E 'workspaces|toolchains|claude_ho
 | Valeur | Ce que fait le backend |
 |---|---|
 | `conteneur` (défaut) | Un conteneur par session. Il faut un démon joignable (`DOCKER_HOST`, ici le proxy), l'image, le réseau et les quatre noms de volumes. |
-| `processus` | Le CLI tourne dans le conteneur du backend. Marche sans démon Docker, et n'isole rien : ce n'est pas le mode sûr. |
+| `processus` | Le CLI tourne dans le conteneur du backend. Marche sans démon Docker, et n'isole rien : ce n'est pas le mode sûr. Sur le compose de prod, la session hérite de `DOCKER_HOST` et du réseau `docker-api` du backend, donc elle peut faire créer un conteneur privilégié, soit root sur l'hôte (création mesurée, héritage et root déduits, pas essayés) ; si tu dois retomber sur `processus`, retire d'abord `DOCKER_HOST` et le rattachement du backend à `docker-api`. |
 
 Le défaut est `conteneur`, le mode isolant : un réglage oublié coûte de la
 disponibilité (la session échoue au démarrage), jamais l'isolement. Le compose de
