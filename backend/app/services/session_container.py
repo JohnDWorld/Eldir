@@ -73,9 +73,9 @@ def env_pour_enrobage(
     `ELDIR_CLAUDE_HOME_SUBPATH` est monté sans condition, et son sous-chemin
     doit exister avant le `docker run`, sans quoi il échoue en code 127.
 
-    Un `ssh_subpath` non `None` doit déjà exister sur le disque : c'est la
-    création de ce dossier, côté appelant (tâche 6), qui le garantit. Ce module
-    ne le vérifie pas.
+    Un `ssh_subpath` non `None` doit déjà exister sur le disque : c'est
+    `RemoteAccessService.materiel_de_session`, côté appelant, qui crée ce
+    dossier et le garantit. Ce module ne le vérifie pas.
     """
     reglages = get_settings()
     # Les deux `relative_to` ci-dessous supposent worktree et clone sous
