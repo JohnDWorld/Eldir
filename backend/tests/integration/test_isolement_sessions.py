@@ -1,9 +1,25 @@
-"""L'image des sessions, vérifiée sur un vrai démon Docker.
+"""Ce qu'une session ne peut pas atteindre, et l'image qui la porte, vérifiés sur un vrai démon.
 
-Ces tests ont besoin d'un vrai démon : ils vérifient l'image elle-même (le CLI,
-l'uid, le `ssh`, l'entrée), ce qu'un double ne prouverait pas. Ils sautent sans
-démon joignable, ou avant Docker 25. Aucun ne démarre de session : le CLI Claude
-n'est lancé que pour afficher sa version, donc ils ne consomment aucun crédit.
+Les trois tests `test_une_session_ne_lit_pas_...` sont le coeur de la Phase 6 bis.
+Ils vérifient ce que le démon fait de `volume-subpath`, sur des chaînes de
+montage **recopiées à la main** de celles que l'enrobage construit : ils
+échouent si cette sémantique change, ou si l'on modifie ces chaînes ici. Une
+régression de l'enrobage lui-même, elle, est attrapée par les chaînes exactes
+de `tests/unit/test_enrobage.py`, pas par ces tests. Chacun nomme dans son
+docstring la ou les mutations qui doivent le faire tomber, pour que personne
+n'ait à deviner ce qu'il protège.
+
+Le critère n'est pas qu'un accès soit refusé mais qu'il soit **impossible** :
+une règle qui refuse se négocie par injection de prompt, un fichier qui
+n'existe pas dans l'univers de la session ne se négocie pas. Ces tests
+cherchent donc le voisin dans tout le conteneur et exigent qu'il n'y soit pas,
+au lieu de constater qu'une lecture échoue.
+
+Les autres tests vérifient l'image elle-même (le CLI, l'uid, le `ssh`, l'entrée).
+Tous ont besoin d'un vrai démon, ce qu'un double ne prouverait pas. Ils sautent
+sans démon joignable, ou avant Docker 25. Aucun ne démarre de session : le CLI
+Claude n'est lancé que pour afficher sa version, donc ils ne consomment aucun
+crédit.
 """
 
 from __future__ import annotations
@@ -23,6 +39,7 @@ pytestmark = pytest.mark.docker
 DOSSIER_IMAGE = Path(__file__).parents[2] / "docker" / "session"
 IMAGE = "eldir-session:local"
 VOLUME = "eldir-test-isolement"
+MAISONS = "eldir-test-maisons"
 WORKSPACES = "/var/eldir/workspaces"
 # Un démon qui accepte la connexion sans répondre ne doit pas figer le fichier.
 DELAI_SONDE_S = 30
@@ -127,6 +144,44 @@ def volume(image: str) -> Iterator[str]:
     )
     yield VOLUME
     _docker("volume", "rm", "-f", VOLUME, attendu=None)
+
+
+@pytest.fixture(scope="module")
+def maisons(image: str) -> Iterator[str]:
+    """Le volume des maisons tel que le backend le remplit, pour deux projets.
+
+    La maison `.claude` de chaque projet est à la racine (`<projet>`), la
+    matière SSH de chaque session à côté d'elle (`<projet>-ssh/<session>`) : le
+    projet A a deux sessions, pour qu'un dossier trop large montre aussi la
+    session voisine du même projet.
+    """
+    _docker("volume", "rm", "-f", MAISONS, attendu=None)
+    _docker("volume", "create", MAISONS)
+    # Monté sur `/eldir/maison` et pas sur un chemin absent de l'image : un
+    # volume neuf prend le propriétaire du dossier qu'il recouvre, ici l'uid
+    # 1000 de l'image. Sur un chemin inexistant sa racine serait à root, et
+    # rien ne pourrait y créer les dossiers ci-dessous.
+    _docker(
+        "run",
+        "--rm",
+        "-v",
+        f"{MAISONS}:/eldir/maison",
+        "--entrypoint",
+        "sh",
+        image,
+        "-c",
+        """set -e
+        cd /eldir/maison
+        mkdir -p projet-a/.claude/projects projet-b/.claude/projects
+        echo "conversation de projet-b" > projet-b/.claude/projects/t.jsonl
+        mkdir -p projet-a-ssh/s1 projet-a-ssh/s2 projet-b-ssh/s9
+        echo "cle de projet-a, session s1" > projet-a-ssh/s1/cle
+        echo "cle de projet-a, session s2" > projet-a-ssh/s2/cle
+        echo "cle de projet-b, session s9" > projet-b-ssh/s9/cle
+        """,
+    )
+    yield MAISONS
+    _docker("volume", "rm", "-f", MAISONS, attendu=None)
 
 
 def _version_epinglee() -> str:
@@ -290,3 +345,147 @@ def test_l_image_ne_garde_pas_les_variables_de_build(image: str) -> None:
     noms = {ligne.split("=")[0].lower() for ligne in proc.stdout.splitlines()}
     assert not noms & {"ci", "debian_frontend"}
     assert not [nom for nom in noms if nom.startswith("npm_config_")]
+
+
+def _run_session(image: str, *montages: str, commande: str) -> subprocess.CompletedProcess[str]:
+    """Un conteneur de session monté comme l'enrobage le monterait.
+
+    Les chaînes de montage ont la forme de celles que l'enrobage construit et
+    que `tests/unit/test_enrobage.py` vérifie ; elles sont recopiées ici à la
+    main, ce qui est le seul lien entre les deux. Sans réseau : une session
+    n'a pas besoin du réseau pour lire ses fichiers.
+
+    Le code de sortie est contrôlé (0, la valeur par défaut de `_docker`).
+    C'est celui de la dernière commande de chaque test, un `sed`, donc il vaut 0
+    quoi qu'ait fait un `cat` en route : un code non nul ne peut venir que de
+    `docker` (montage refusé, image absente) et remonte avec son stderr, au lieu
+    de se deviner à un stdout vide.
+    """
+    return _docker(
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        *[arg for montage in montages for arg in ("--mount", montage)],
+        "--entrypoint",
+        "sh",
+        image,
+        "-c",
+        commande,
+    )
+
+
+def _chercher_partout(nom: str) -> str:
+    """Le shell qui liste, partout dans le conteneur, les fichiers de ce nom.
+
+    Lire le voisin là où l'on croit qu'il serait ne prouve rien : un chemin
+    deviné de travers est introuvable avec ou sans isolement. Chercher par le
+    nom, dans tout l'arbre (montages compris, hors `/proc`, `/sys` et `/dev`),
+    répond à la vraie question : existe-t-il quelque part ?
+
+    C'est `find` et pas `grep -r` : `grep -s` taira un fichier qui existe mais
+    que la session n'a pas le droit de lire, et un refus passerait pour une
+    absence. `find` le liste. Limite connue : un fichier dans un dossier fermé
+    à la session resterait caché, ce que ces fixtures (tout est à l'uid 1000)
+    ne produisent pas.
+
+    Revers voulu : si l'image livre un jour un fichier de ce nom (le CLI et un
+    `*.jsonl`, par exemple), la comparaison échoue bruyamment au lieu de passer
+    à vide ; on met alors la liste attendue à jour.
+    """
+    return (
+        "find / \\( -path /proc -o -path /sys -o -path /dev \\) -prune "
+        f"-o -name '{nom}' -print | sed 's/^/trouve : /'"
+    )
+
+
+def _trouves(proc: subprocess.CompletedProcess[str]) -> list[str]:
+    """Les chemins que `_chercher_partout` a imprimés, triés."""
+    return sorted(
+        ligne.removeprefix("trouve : ")
+        for ligne in proc.stdout.splitlines()
+        if ligne.startswith("trouve : ")
+    )
+
+
+def test_une_session_ne_lit_pas_le_worktree_voisin(image: str, volume: str) -> None:
+    """Le test central de la Phase 6 bis.
+
+    Mutations qui doivent le faire tomber :
+
+    - monter la racine du volume `workspaces` (sans `volume-subpath`) au lieu du
+      sous-chemin du worktree ;
+    - celle qui laisse intact le travail de la session, donc qui ne peut tomber
+      que sur l'assertion d'absence : garder les deux montages et monter en plus
+      le volume entier ailleurs (`dst=/mnt/tout`).
+    """
+    proc = _run_session(
+        image,
+        f"type=volume,src={volume},dst={WORKSPACES}/projet-a/depot.s1,volume-subpath=projet-a/depot.s1",
+        f"type=volume,src={volume},dst={WORKSPACES}/projet-a/depot,volume-subpath=projet-a/depot",
+        commande=f"""
+        cd {WORKSPACES}/projet-a/depot.s1
+        echo "git chez moi : $(git rev-parse --abbrev-ref HEAD)"
+        echo "mon secret   : $(cat secret.txt)"
+        cat {WORKSPACES}/projet-b/depot.s1/secret.txt 2>&1
+        {_chercher_partout("secret.txt")}
+        """,
+    )
+
+    # son propre travail marche, git compris
+    assert "git chez moi : claude/t" in proc.stdout
+    assert "mon secret   : secret de projet-a" in proc.stdout
+    # et le voisin n'existe pas, sans refus de permission à négocier
+    assert "No such file or directory" in proc.stdout
+    assert "secret de projet-b" not in proc.stdout
+    # ni là où on l'attendait, ni nulle part ailleurs
+    assert _trouves(proc) == [f"{WORKSPACES}/projet-a/depot.s1/secret.txt"]
+
+
+def test_une_session_ne_lit_pas_la_cle_ssh_d_un_autre_projet(image: str, maisons: str) -> None:
+    """Mutations qui doivent le faire tomber :
+
+    - monter le volume des maisons entier, ou le dossier `projet-a-ssh` de toutes
+      les sessions du projet, au lieu du seul dossier de la session ;
+    - celle qui laisse intacte la clé de la session, donc qui ne peut tomber que
+      sur l'assertion d'absence : garder le montage et monter en plus le volume
+      entier ailleurs (`dst=/mnt/tout`).
+    """
+    proc = _run_session(
+        image,
+        f"type=volume,src={maisons},dst=/eldir/ssh,volume-subpath=projet-a-ssh/s1,readonly",
+        commande=f"""
+        echo "ma cle : $(cat /eldir/ssh/cle)"
+        {_chercher_partout("cle")}
+        """,
+    )
+
+    assert "ma cle : cle de projet-a, session s1" in proc.stdout
+    # la seule clé de tout le conteneur est la sienne : ni celle de l'autre
+    # projet, ni celle d'une autre session du même projet
+    assert _trouves(proc) == ["/eldir/ssh/cle"]
+
+
+def test_une_session_ne_lit_pas_la_maison_claude_d_un_autre_projet(
+    image: str, maisons: str
+) -> None:
+    """Les transcripts sont des conversations entières : les partager, c'est
+    partager tout ce qui a été dit dans les autres projets.
+
+    Mutation qui doit le faire tomber : monter le volume sans `volume-subpath`.
+    """
+    proc = _run_session(
+        image,
+        f"type=volume,src={maisons},dst=/eldir/maison,volume-subpath=projet-a",
+        commande=f"""
+        mkdir -p /eldir/maison/.claude/projects
+        echo ok > /eldir/maison/.claude/projects/moi.jsonl
+        echo "j'ecris chez moi : $(cat /eldir/maison/.claude/projects/moi.jsonl)"
+        {_chercher_partout("*.jsonl")}
+        """,
+    )
+
+    # sa maison marche : elle y écrit son propre transcript
+    assert "j'ecris chez moi : ok" in proc.stdout
+    # et le seul transcript du conteneur est le sien
+    assert _trouves(proc) == ["/eldir/maison/.claude/projects/moi.jsonl"]
