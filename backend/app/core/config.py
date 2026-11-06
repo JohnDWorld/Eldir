@@ -93,6 +93,15 @@ class Settings(BaseSettings):
     # net à une requête HTTP qui pend.
     ssh_connect_timeout_s: int = 15
 
+    # ── Maisons `.claude` des sessions ──────────────────────────
+    # Point de montage, chez le backend, du volume qui porte les transcripts
+    # du CLI. Une maison par projet dessous (cf. `claude_home.py`) : sans
+    # cette séparation, une session lirait les conversations de tous les
+    # autres projets. Le nom DOCKER de ce volume est `claude_home_volume`,
+    # plus bas : un point de montage et un nom de volume ne se déduisent pas
+    # l'un de l'autre.
+    claude_home_root: Path = Path("/home/eldir/.claude")
+
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"
 
