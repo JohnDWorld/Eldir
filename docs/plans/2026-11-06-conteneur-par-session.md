@@ -731,24 +731,35 @@ Créer `backend/tests/unit/test_session_container.py` :
 ```python
 """Le mode d'exécution des sessions, et les noms de volumes qu'il exige.
 
-Le défaut est `processus` et pas `conteneur` : la valeur sûre est celle qui
-marche sans démon Docker joignable, c'est-à-dire en test, en dev local, et sur
-une installation dont le backend n'a pas accès au socket. Le mode d'une
-installation servie se décide dans le compose de prod, à un seul endroit.
+Le défaut est `conteneur`, le mode isolé : sur un réglage de sécurité, un oubli
+doit coûter la disponibilité et jamais l'isolement. La spec le dit d'ailleurs
+elle-même, « le mode `processus` ne s'obtient que par le réglage », et un défaut
+`processus` l'obtiendrait par l'absence de réglage. Le mode `processus` n'est pas
+la valeur sûre, c'est la valeur opérable : il ne protège rien, et les deux
+endroits qui en ont besoin le déclarent, le conftest de la suite (qui ne doit pas
+exiger de démon Docker) et le compose de dev.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import re
 from pathlib import Path
 
+import pytest
 from app.core.config import Settings
 
 COMPOSE_PROD = Path(__file__).parents[3] / "docker-compose.yml"
 
 
-def test_le_mode_par_defaut_est_processus() -> None:
-    assert Settings().session_runtime == "processus"
+def test_le_mode_par_defaut_est_conteneur(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un oubli de réglage coûte la disponibilité, jamais l'isolement.
+
+    Hermétique par nécessité : le conftest de la suite exporte
+    `SESSION_RUNTIME=processus`, donc un `Settings()` nu lirait l'environnement
+    au lieu du défaut, et ce test affirmerait le contraire de ce qu'il croit.
+    """
+    monkeypatch.delenv("SESSION_RUNTIME", raising=False)
+    assert Settings(_env_file=None).session_runtime == "conteneur"
 
 
 def test_le_compose_de_prod_demande_le_mode_conteneur() -> None:
@@ -759,7 +770,10 @@ def test_le_compose_de_prod_demande_le_mode_conteneur() -> None:
     rouvre en silence. D'où ce test, qui lit le compose.
     """
     texte = COMPOSE_PROD.read_text(encoding="utf-8")
-    assert "SESSION_RUNTIME: conteneur" in texte
+    # Ancrée, et pas une sous-chaîne : `"SESSION_RUNTIME: conteneur" in texte`
+    # reste vrai si la ligne est commentée, c'est-à-dire précisément dans le
+    # cas que ce test prétend garder.
+    assert re.search(r"^\s+SESSION_RUNTIME: conteneur$", texte, re.MULTILINE)
 
 
 def test_les_noms_de_volumes_portent_le_prefixe_du_projet_compose() -> None:
@@ -772,7 +786,7 @@ def test_les_noms_de_volumes_portent_le_prefixe_du_projet_compose() -> None:
     """
     reglages = Settings()
     texte = COMPOSE_PROD.read_text(encoding="utf-8")
-    assert "name: eldir\n" in texte
+    assert re.search(r"^name: eldir$", texte, re.MULTILINE)
     for nom in (
         reglages.workspaces_volume,
         reglages.toolchains_volume,
@@ -799,12 +813,17 @@ Dans `backend/app/core/config.py`, après `claude_home_root` :
     #   comme avant cette phase. Elle y voit le disque de tous les projets.
     # `conteneur` : un conteneur par session, monté sur son seul worktree, sa
     #   seule clé et la seule maison `.claude` de son projet.
-    # Le défaut est `processus` parce que c'est la valeur qui marche sans démon
-    # Docker joignable (tests, dev local, installation sans socket). Une
-    # installation servie bascule dans le compose de prod, et nulle part
-    # ailleurs. Ce réglage n'est pas un drapeau à retirer plus tard : il reste,
-    # parce qu'Eldir doit pouvoir tourner là où le backend n'a pas de Docker.
-    session_runtime: Literal["processus", "conteneur"] = "processus"
+    # Le défaut est `conteneur`, le mode isolé : sur un réglage de sécurité, un
+    # oubli doit coûter la disponibilité et jamais l'isolement. Avec un défaut
+    # `processus`, une installation qui ne charge pas le compose de prod, ou qui
+    # perd sa ligne d'environnement, ferait tourner toutes ses sessions dans le
+    # processus du backend avec vue sur le disque de tous les projets, et rien
+    # n'échouerait. `processus` n'est donc pas la valeur sûre, c'est la valeur
+    # opérable, et les deux endroits qui en ont besoin la déclarent : le
+    # conftest de la suite et le compose de dev. Ce réglage n'est pas un
+    # drapeau à retirer plus tard : il reste, parce qu'Eldir doit pouvoir
+    # tourner là où le backend n'a pas de Docker joignable.
+    session_runtime: Literal["processus", "conteneur"] = "conteneur"
     # Construite par `docker build -t eldir-session:local backend/docker/session`.
     session_image: str = "eldir-session:local"
     # Réseau dédié, sans route vers le réseau interne qui porte Postgres,
@@ -830,8 +849,9 @@ Dans `backend/app/core/config.py`, après `claude_home_root` :
 Dans `docker-compose.yml`, service `backend`, bloc `environment`, ajouter :
 
 ```yaml
-      # Un conteneur par session (Phase 6 bis). Seul endroit où une
-      # installation servie bascule : le défaut du code est `processus`.
+      # Un conteneur par session (Phase 6 bis). Redondant avec le défaut du
+      # code, et gardé quand même : c'est ici qu'un opérateur lit le mode de
+      # son installation. Le test ancré de l'étape 1 garde cette ligne.
       SESSION_RUNTIME: conteneur
 ```
 
@@ -841,9 +861,32 @@ et, dans la section `volumes:` de fin de fichier, ajouter le volume des collecte
   eldir_collectes:
 ```
 
+- [ ] **Step 4 bis: Déclarer le mode faible là où il est nécessaire**
+
+Le défaut étant `conteneur`, les deux endroits qui ne peuvent pas isoler le
+déclarent, au lieu de compter sur un défaut faible.
+
+Dans `backend/tests/conftest.py`, avant tout ce qui peut lire les réglages
+(`get_settings` est `lru_cache`, un export tardif ne changerait rien) :
+
+```python
+# La suite ne doit pas exiger de démon Docker, et le mode isolé est le défaut
+# du code à dessein : la suite nomme donc l'exception au lieu de s'appuyer sur
+# un défaut faible. Posé avant tout import qui lirait les réglages.
+os.environ["SESSION_RUNTIME"] = "processus"
+```
+
+Dans `docker-compose.dev.yml`, service `backend`, bloc `environment` :
+
+```yaml
+      # Le dev n'a ni proxy de socket ni image de session : le CLI tourne dans
+      # le conteneur du backend, comme avant cette phase.
+      SESSION_RUNTIME: processus
+```
+
 - [ ] **Step 5: Lancer le test pour le voir passer**
 
-Run: `cd backend && uv run pytest tests/unit/test_session_container.py -v`
+Run: `cd backend && uv run pytest tests/unit/test_session_container.py -v --no-cov`
 Expected: PASS, 3 tests
 
 - [ ] **Step 6: Portes de qualité et commit**
@@ -2236,10 +2279,11 @@ Ajouter à `backend/tests/unit/test_session_manager.py` :
 def test_en_mode_processus_rien_ne_change(monkeypatch: pytest.MonkeyPatch) -> None:
     """L'invariant que la suite entière prouve déjà, nommé une fois.
 
-    La suite tourne en mode `processus`, donc elle prouve ce comportement à
-    chaque exécution. Ce test le nomme pour que personne ne l'abîme sans le
-    voir : en mode `processus`, aucune option de conteneur n'est posée, et le
-    CLI reste celui que le SDK trouve tout seul.
+    La suite tourne en mode `processus` parce que son conftest l'exporte (le
+    défaut du code, lui, est `conteneur` : cf. tâche 4). Elle prouve donc ce
+    comportement à chaque exécution, et ce test le nomme pour que personne ne
+    l'abîme sans le voir : en mode `processus`, aucune option de conteneur
+    n'est posée, et le CLI reste celui que le SDK trouve tout seul.
     """
     from app.core.config import get_settings
     from app.services.session_manager import options_de_conteneur
@@ -2652,6 +2696,15 @@ Documenter, dans l'ordre d'une mise en production :
 4. Les quatre variables de noms de volumes, à ajuster si le projet compose est renommé, avec `docker volume ls` comme façon de lire les vrais noms.
 5. `SESSION_RUNTIME`, ses deux valeurs, et le fait qu'un échec ne retombe jamais en mode `processus`.
 6. Le proxy de socket, et ce qu'il n'autorise pas.
+
+- [ ] **Step 5 bis: Nommer la variable là où la doc lance le backend à la main**
+
+`AGENTS.md` et `backend/README.md` donnent la commande de lancement local
+(`uvicorn app.main:app --reload`) sans `SESSION_RUNTIME`. Le défaut étant
+`conteneur`, un démarrage de session échouera sur une machine sans démon
+joignable. Ajouter la variable à ces deux commandes, avec une demi-phrase qui
+dit pourquoi : le mode isolé est le défaut, et un poste de dev le desserre
+explicitement.
 
 - [ ] **Step 6: Mettre `ROADMAP.md` à jour**
 
