@@ -180,16 +180,41 @@ def _matches(pattern: re.Pattern[str], tool_name: str | None, tool_input: Any) -
     return isinstance(command, str) and bool(pattern.search(command))
 
 
+def env_pour_la_session(*, project_id: str | None, remote_host: str | None) -> dict[str, str]:
+    """L'environnement d'une session : le masque du backend, puis les apports du projet.
+
+    Trois apports du projet, groupés ici plutôt que chez chaque appelant pour
+    que création, resume et sessions système en héritent pareil :
+
+    - `$ELDIR_TOOLCHAIN` et `$ELDIR_TOOLCHAIN/bin` en tête du PATH, pour que
+      l'agent trouve les outils installés (SDK Flutter, JDK, Go…) ;
+    - `$ELDIR_COLLECTE`, où atterrit ce qui a été ramené d'un serveur avant le
+      démarrage (cf. `CollectService`) ;
+    - `$ELDIR_REMOTE_HOST`, l'alias SSH de la machine où tourne le projet,
+      seule destination que le hook laisse atteindre.
+
+    L'ordre n'est pas décoratif : le masque d'abord, les apports du projet
+    ensuite. Le masque vide nommément les secrets d'Eldir que le SDK
+    transmettrait sinon (il passe l'environnement du backend en entier, cf.
+    `env_a_masquer_pour_cli`), et aucun apport du projet ne porte le nom d'un
+    champ de `Settings`, donc rien ne se démasque par cette fusion.
+    """
+    env = dict(env_a_masquer_pour_cli())
+    env.update(toolchain_service.env_for(project_id))
+    env.update(collect_service.env_for(project_id))
+    if remote_host:
+        env["ELDIR_REMOTE_HOST"] = remote_host
+    return env
+
+
 def _optional_options(
     *,
-    project_id: str | None,
     system_prompt: str | None,
     model: str | None,
     resume_sdk_id: str | None,
     allowed_tools: list[str] | None,
     disallowed_tools: list[str] | None,
     mcp_servers: dict[str, Any] | None,
-    remote_host: str | None,
 ) -> dict[str, Any]:
     """Options SDK qu'on ne pose que si elles ont une valeur."""
     kwargs: dict[str, Any] = {}
@@ -216,21 +241,6 @@ def _optional_options(
         # charger en plus les serveurs MCP éventuels de la machine hôte.
         kwargs["mcp_servers"] = mcp_servers
         kwargs["strict_mcp_config"] = True
-    # Deux apports du projet à l'environnement de l'agent, groupés ici plutôt
-    # que chez chaque appelant pour que création, resume et sessions système
-    # en héritent pareil :
-    # - `$ELDIR_TOOLCHAIN/bin` en tête du PATH, pour que l'agent trouve les
-    #   outils installés (SDK Flutter, JDK, Go…) ;
-    # - `$ELDIR_COLLECTE`, où atterrit ce qui a été ramené d'un serveur avant
-    #   le démarrage (cf. CollectService).
-    # - `$ELDIR_REMOTE_HOST`, l'alias SSH de la machine où tourne le projet,
-    #   seule destination que le hook laisse atteindre.
-    # Les trois sont vides tant que le projet ne déclare rien.
-    env = {**toolchain_service.env_for(project_id), **collect_service.env_for(project_id)}
-    if remote_host:
-        env["ELDIR_REMOTE_HOST"] = remote_host
-    if env:
-        kwargs["env"] = env
     return kwargs
 
 
@@ -442,11 +452,12 @@ class SessionManager:
             "cwd": cwd,
             "stderr": _on_cli_stderr,
             # Le SDK transmet l'environnement du backend en entier : ce masque
-            # retire les secrets d'Eldir de ce que la session peut lire. Cf.
-            # `env_a_masquer_pour_cli` - sans lui, `JWT_SECRET` suffit à une
-            # session pour se forger un jeton de connexion et s'autoriser la
-            # publication sans passer par le hook.
-            "env": env_a_masquer_pour_cli(),
+            # retire les secrets d'Eldir de ce que la session peut lire, et
+            # `env_pour_la_session` garantit qu'il survit aux variables du
+            # projet. Cf. `env_a_masquer_pour_cli` - sans lui, `JWT_SECRET`
+            # suffit à une session pour se forger un jeton de connexion et
+            # s'autoriser la publication sans passer par le hook.
+            "env": env_pour_la_session(project_id=project_id, remote_host=remote_host),
             # Pas de TTY côté serveur → le mode "default" bloque toute action
             # qui demande approbation. Chaque session vit dans son worktree
             # isolé et l'UI Eldir streame chaque tool_use en temps réel, donc
@@ -460,14 +471,12 @@ class SessionManager:
         }
         options_kwargs.update(
             _optional_options(
-                project_id=project_id,
                 system_prompt=system_prompt,
                 model=model,
                 resume_sdk_id=resume_sdk_id,
                 allowed_tools=allowed_tools,
                 disallowed_tools=disallowed_tools,
                 mcp_servers=mcp_servers,
-                remote_host=remote_host,
             )
         )
 

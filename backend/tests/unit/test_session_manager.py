@@ -97,6 +97,39 @@ async def test_start_enforces_concurrent_limit(
         )
 
 
+async def test_start_donne_au_sdk_un_env_masque_et_complete(
+    manager: SessionManager, fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le masque arrive jusqu'au SDK, même quand le projet apporte des variables.
+
+    `env_pour_la_session` est testée seule dans `test_env_sessions.py` ; ce
+    test-ci garde le branchement, là où `update()` écrasait la clé `env`.
+    """
+    recus: list[dict[str, object]] = []
+    options_d_origine = fake_sdk.ClaudeAgentOptions
+
+    class OptionsEspion(options_d_origine):  # type: ignore[valid-type,misc]
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            recus.append(kwargs)
+
+    monkeypatch.setattr(fake_sdk, "ClaudeAgentOptions", OptionsEspion)
+    monkeypatch.setenv("JWT_SECRET", "valeur-sensible-du-backend")
+
+    await manager.start(
+        session_id="s1",
+        project_id="p1",
+        user_id="u1",
+        cwd="/tmp",
+        remote_host="eldir-machine",
+    )
+
+    env = recus[0]["env"]
+    assert isinstance(env, dict)
+    assert env["ELDIR_REMOTE_HOST"] == "eldir-machine"
+    assert env["JWT_SECRET"] == ""
+
+
 async def test_deux_demarrages_concurrents_ne_montent_qu_un_client(
     manager: SessionManager, fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
