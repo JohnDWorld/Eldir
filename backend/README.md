@@ -12,7 +12,8 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 uv sync
 uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --port 8000
+# SESSION_RUNTIME=processus : le défaut `conteneur` (isolé) exige un démon Docker, un poste de dev le desserre
+SESSION_RUNTIME=processus uv run uvicorn app.main:app --reload --port 8000
 ```
 
 ## Qualité (avant tout commit)

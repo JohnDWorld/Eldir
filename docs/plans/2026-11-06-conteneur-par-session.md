@@ -6,7 +6,7 @@
 
 **Architecture:** le SDK Claude reste dans le processus du backend. On lui passe `ClaudeAgentOptions(cli_path=<enrobage>)`, un script shell qui se remplace par `docker run -i` : le protocole de contrôle traverse le tube stdio sans adaptation, et les hooks `PreToolUse`/`PostToolUse` continuent de s'exécuter côté backend, donc la porte de publication et la garde d'accès distant restent hors du périmètre qu'elles contraignent. Un service Python calcule les montages, l'enrobage les applique, et rien d'autre n'entre dans le conteneur que ce que l'enrobage nomme.
 
-**Tech Stack:** Python 3.12, FastAPI, `claude-agent-sdk`, Docker 25+ (`--mount volume-subpath`), `tecnativa/docker-socket-proxy`, pytest, shell POSIX.
+**Tech Stack:** Python 3.12, FastAPI, `claude-agent-sdk`, Docker 26+ (`--mount volume-subpath`), `tecnativa/docker-socket-proxy`, pytest, shell POSIX.
 
 **Spec:** [`docs/specs/2026-11-03-conteneur-par-session.md`](../specs/2026-11-03-conteneur-par-session.md)
 
@@ -21,7 +21,7 @@
 - **Les hooks restent côté backend.** Aucune tâche ne déplace `_publish_denial` ni `_remote_denial` dans le conteneur, ni ne les contourne. C'est la raison d'être de l'approche par enrobage.
 - **`volume-subpath` exige un sous-chemin existant.** Un sous-chemin absent fait échouer `docker run` avec le code 127. Tout montage dont le sous-chemin peut ne pas exister est conditionnel, et le backend crée ce qu'il doit créer avant de lancer.
 - **Les chemins des montages n'ont pas d'espace.** `sh` n'a pas de tableaux, les montages optionnels de l'enrobage passent par un découpage de mots. `slugify` et les UUID n'en produisent jamais ; l'enrobage refuse explicitement un chemin qui en contiendrait.
-- **Docker 25 minimum** sur l'hôte, pour `--mount ...,volume-subpath=...`. Mesuré sur 29.9.2.
+- **Docker 26 minimum** sur l'hôte, pour `--mount ...,volume-subpath=...`. Mesuré sur 29.9.2 seulement ; le minimum est celui de la documentation de Docker (`volume-subpath` : API 1.45, Docker 26.0), pas une mesure.
 - **Les tests marqués `docker` ne lancent jamais le CLI Claude.** Ils ne consomment aucun credit.
 
 ---
@@ -43,6 +43,8 @@ Et un défaut vivant sur `main`, trouvé en lisant l'assemblage des options du S
 > `options_kwargs["env"] = env_a_masquer_pour_cli()` est **écrasé** par `options_kwargs.update(_optional_options(...))` dès que le projet apporte une variable (un toolchain installé, une collecte, un hôte distant). Vérifié : avec `remote_host`, l'environnement passé au SDK est `{'ELDIR_REMOTE_HOST': ...}` seul, et `JWT_SECRET` n'est plus masqué. C'est la tâche 1, et elle passe en premier parce qu'elle protège les installations en mode `processus`, c'est-à-dire tout le monde jusqu'à la bascule.
 
 Le reste de la spec est appliqué tel quel : granularité de la maison `.claude` par projet, proxy de socket, pas de repli, sortant complet, et le réseau sortant restreint laissé au second lot.
+
+> **Écarts constatés après coup** (2026-11-06). Ce plan est gardé tel qu'il a été exécuté ; ce qui suit corrige deux de ses prémisses, que les tâches 10 et 11 ont mises en défaut. (1) Le proxy de socket ne sépare pas le backend de root : il filtre les chemins et pas les corps de requêtes, et `POST /containers/create` avec `Privileged` et `Binds: ["/:/hote"]` répond 201 (tâche 10 et ci-dessous). (2) Le clone canonique monté en écriture n'est « le même domaine de confiance » qu'entre sessions d'un même projet : vis-à-vis du backend, c'est un chemin d'exécution (risque nº 3). Détail et mesures : `docs/securite-sessions.md`.
 
 ---
 
@@ -731,24 +733,35 @@ Créer `backend/tests/unit/test_session_container.py` :
 ```python
 """Le mode d'exécution des sessions, et les noms de volumes qu'il exige.
 
-Le défaut est `processus` et pas `conteneur` : la valeur sûre est celle qui
-marche sans démon Docker joignable, c'est-à-dire en test, en dev local, et sur
-une installation dont le backend n'a pas accès au socket. Le mode d'une
-installation servie se décide dans le compose de prod, à un seul endroit.
+Le défaut est `conteneur`, le mode isolé : sur un réglage de sécurité, un oubli
+doit coûter la disponibilité et jamais l'isolement. La spec le dit d'ailleurs
+elle-même, « le mode `processus` ne s'obtient que par le réglage », et un défaut
+`processus` l'obtiendrait par l'absence de réglage. Le mode `processus` n'est pas
+la valeur sûre, c'est la valeur opérable : il ne protège rien, et les deux
+endroits qui en ont besoin le déclarent, le conftest de la suite (qui ne doit pas
+exiger de démon Docker) et le compose de dev.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import re
 from pathlib import Path
 
+import pytest
 from app.core.config import Settings
 
 COMPOSE_PROD = Path(__file__).parents[3] / "docker-compose.yml"
 
 
-def test_le_mode_par_defaut_est_processus() -> None:
-    assert Settings().session_runtime == "processus"
+def test_le_mode_par_defaut_est_conteneur(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un oubli de réglage coûte la disponibilité, jamais l'isolement.
+
+    Hermétique par nécessité : le conftest de la suite exporte
+    `SESSION_RUNTIME=processus`, donc un `Settings()` nu lirait l'environnement
+    au lieu du défaut, et ce test affirmerait le contraire de ce qu'il croit.
+    """
+    monkeypatch.delenv("SESSION_RUNTIME", raising=False)
+    assert Settings(_env_file=None).session_runtime == "conteneur"
 
 
 def test_le_compose_de_prod_demande_le_mode_conteneur() -> None:
@@ -759,7 +772,10 @@ def test_le_compose_de_prod_demande_le_mode_conteneur() -> None:
     rouvre en silence. D'où ce test, qui lit le compose.
     """
     texte = COMPOSE_PROD.read_text(encoding="utf-8")
-    assert "SESSION_RUNTIME: conteneur" in texte
+    # Ancrée, et pas une sous-chaîne : `"SESSION_RUNTIME: conteneur" in texte`
+    # reste vrai si la ligne est commentée, c'est-à-dire précisément dans le
+    # cas que ce test prétend garder.
+    assert re.search(r"^\s+SESSION_RUNTIME: conteneur$", texte, re.MULTILINE)
 
 
 def test_les_noms_de_volumes_portent_le_prefixe_du_projet_compose() -> None:
@@ -772,7 +788,7 @@ def test_les_noms_de_volumes_portent_le_prefixe_du_projet_compose() -> None:
     """
     reglages = Settings()
     texte = COMPOSE_PROD.read_text(encoding="utf-8")
-    assert "name: eldir\n" in texte
+    assert re.search(r"^name: eldir$", texte, re.MULTILINE)
     for nom in (
         reglages.workspaces_volume,
         reglages.toolchains_volume,
@@ -799,13 +815,18 @@ Dans `backend/app/core/config.py`, après `claude_home_root` :
     #   comme avant cette phase. Elle y voit le disque de tous les projets.
     # `conteneur` : un conteneur par session, monté sur son seul worktree, sa
     #   seule clé et la seule maison `.claude` de son projet.
-    # Le défaut est `processus` parce que c'est la valeur qui marche sans démon
-    # Docker joignable (tests, dev local, installation sans socket). Une
-    # installation servie bascule dans le compose de prod, et nulle part
-    # ailleurs. Ce réglage n'est pas un drapeau à retirer plus tard : il reste,
-    # parce qu'Eldir doit pouvoir tourner là où le backend n'a pas de Docker.
-    session_runtime: Literal["processus", "conteneur"] = "processus"
-    # Construite par `docker build -t eldir-session:local backend/docker/session`.
+    # Le défaut est `conteneur`, le mode isolé : sur un réglage de sécurité, un
+    # oubli doit coûter la disponibilité et jamais l'isolement. Avec un défaut
+    # `processus`, une installation qui ne charge pas le compose de prod, ou qui
+    # perd sa ligne d'environnement, ferait tourner toutes ses sessions dans le
+    # processus du backend avec vue sur le disque de tous les projets, et rien
+    # n'échouerait. `processus` n'est donc pas la valeur sûre, c'est la valeur
+    # opérable, et les deux endroits qui en ont besoin la déclarent : le
+    # conftest de la suite et le compose de dev. Ce réglage n'est pas un
+    # drapeau à retirer plus tard : il reste, parce qu'Eldir doit pouvoir
+    # tourner là où le backend n'a pas de Docker joignable.
+    session_runtime: Literal["processus", "conteneur"] = "conteneur"
+    # Construite par `DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session`.
     session_image: str = "eldir-session:local"
     # Réseau dédié, sans route vers le réseau interne qui porte Postgres,
     # Redis et le proxy de socket. À créer une fois (cf. docs/deployment.md) :
@@ -830,8 +851,9 @@ Dans `backend/app/core/config.py`, après `claude_home_root` :
 Dans `docker-compose.yml`, service `backend`, bloc `environment`, ajouter :
 
 ```yaml
-      # Un conteneur par session (Phase 6 bis). Seul endroit où une
-      # installation servie bascule : le défaut du code est `processus`.
+      # Un conteneur par session (Phase 6 bis). Redondant avec le défaut du
+      # code, et gardé quand même : c'est ici qu'un opérateur lit le mode de
+      # son installation. Le test ancré de l'étape 1 garde cette ligne.
       SESSION_RUNTIME: conteneur
 ```
 
@@ -841,9 +863,32 @@ et, dans la section `volumes:` de fin de fichier, ajouter le volume des collecte
   eldir_collectes:
 ```
 
+- [ ] **Step 4 bis: Déclarer le mode faible là où il est nécessaire**
+
+Le défaut étant `conteneur`, les deux endroits qui ne peuvent pas isoler le
+déclarent, au lieu de compter sur un défaut faible.
+
+Dans `backend/tests/conftest.py`, avant tout ce qui peut lire les réglages
+(`get_settings` est `lru_cache`, un export tardif ne changerait rien) :
+
+```python
+# La suite ne doit pas exiger de démon Docker, et le mode isolé est le défaut
+# du code à dessein : la suite nomme donc l'exception au lieu de s'appuyer sur
+# un défaut faible. Posé avant tout import qui lirait les réglages.
+os.environ["SESSION_RUNTIME"] = "processus"
+```
+
+Dans `docker-compose.dev.yml`, service `backend`, bloc `environment` :
+
+```yaml
+      # Le dev n'a ni proxy de socket ni image de session : le CLI tourne dans
+      # le conteneur du backend, comme avant cette phase.
+      SESSION_RUNTIME: processus
+```
+
 - [ ] **Step 5: Lancer le test pour le voir passer**
 
-Run: `cd backend && uv run pytest tests/unit/test_session_container.py -v`
+Run: `cd backend && uv run pytest tests/unit/test_session_container.py -v --no-cov`
 Expected: PASS, 3 tests
 
 - [ ] **Step 6: Portes de qualité et commit**
@@ -1470,9 +1515,9 @@ Une seule image pour toutes les sessions : Node 20, `git`, `openssh-client`, et 
 ```toml
 markers = [
     # Tests qui ont besoin d'un démon Docker joignable et de
-    # `--mount volume-subpath` (Docker 25+). Sautés sinon. Ils ne lancent
+    # `--mount volume-subpath` (Docker 26+). Sautés sinon. Ils ne lancent
     # jamais le CLI Claude, donc ils ne consomment aucun credit.
-    "docker: a besoin d'un demon Docker (Docker 25+)",
+    "docker: a besoin d'un demon Docker (Docker 26+)",
 ]
 ```
 
@@ -1532,8 +1577,8 @@ def demon_docker() -> None:
         check=False,
     ).stdout.strip()
     majeure = int(version.split(".")[0]) if version[:1].isdigit() else 0
-    if majeure < 25:
-        pytest.skip(f"volume-subpath exige Docker 25+, vu {version!r}")
+    if majeure < 26:
+        pytest.skip(f"volume-subpath exige Docker 26+, vu {version!r}")
 
 
 @pytest.fixture(scope="module")
@@ -1657,7 +1702,7 @@ Créer `backend/docker/session/Dockerfile` :
 # image par projet serait une image à reconstruire à chaque ajout d'outil,
 # pour un gain nul.
 #
-# Construite par `docker build -t eldir-session:local backend/docker/session`
+# Construite par `DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session`
 # (cf. scripts/install-eldir.sh et docs/deployment.md).
 FROM node:20-bookworm-slim
 
@@ -2236,10 +2281,11 @@ Ajouter à `backend/tests/unit/test_session_manager.py` :
 def test_en_mode_processus_rien_ne_change(monkeypatch: pytest.MonkeyPatch) -> None:
     """L'invariant que la suite entière prouve déjà, nommé une fois.
 
-    La suite tourne en mode `processus`, donc elle prouve ce comportement à
-    chaque exécution. Ce test le nomme pour que personne ne l'abîme sans le
-    voir : en mode `processus`, aucune option de conteneur n'est posée, et le
-    CLI reste celui que le SDK trouve tout seul.
+    La suite tourne en mode `processus` parce que son conftest l'exporte (le
+    défaut du code, lui, est `conteneur` : cf. tâche 4). Elle prouve donc ce
+    comportement à chaque exécution, et ce test le nomme pour que personne ne
+    l'abîme sans le voir : en mode `processus`, aucune option de conteneur
+    n'est posée, et le CLI reste celui que le SDK trouve tout seul.
     """
     from app.core.config import get_settings
     from app.services.session_manager import options_de_conteneur
@@ -2430,6 +2476,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 Le backend doit pouvoir créer des conteneurs. Lui monter `/var/run/docker.sock` suffirait, et n'affaiblirait pas l'objectif de la phase, mais une faille de l'API Eldir passerait alors de « toutes les données d'Eldir » à « root sur le VPS ». On interpose un proxy qui n'autorise que ce qu'il faut.
 
+> **Écart constaté après coup.** La prémisse de ce paragraphe est fausse : le proxy filtre les chemins et pas les corps de requêtes, donc il ne sépare pas le backend de root (`Privileged` plus `Binds: ["/:/hote"]` répond 201, mesuré). Il retire `exec`, le réseau et `info` (403, mesuré) et le swarm (refusé par la configuration de l'image : lu, pas mesuré), et garde le socket hors du backend. Le commentaire du compose, tel que livré, dit la même chose. Les deux autres endroits du plan qui reprennent cette prémisse (le commentaire du compose plus bas et le message de commit) sont corrigés par cette note, pas réécrits.
+
 **Files:**
 - Modify: `docker-compose.yml`, `backend/Dockerfile`, `scripts/install-eldir.sh`
 - Test: `backend/tests/unit/test_session_container.py` (deux tests de plus)
@@ -2583,7 +2631,7 @@ fi
 
 # L'image des sessions. Reconstruite à chaque install : elle épingle la
 # version du CLI Claude, qui doit suivre celle du backend.
-docker build -q -t eldir-session:local "$(dirname "$0")/../backend/docker/session" >/dev/null
+DOCKER_BUILDKIT=1 docker build -q -t eldir-session:local "$(dirname "$0")/../backend/docker/session" >/dev/null
 ok "image eldir-session:local construite"
 ```
 
@@ -2617,7 +2665,7 @@ La spec laisse une mesure à faire : « le coût mémoire d'un conteneur par ses
 
 ```bash
 cd backend
-docker build -q -t eldir-session:local ../backend/docker/session
+DOCKER_BUILDKIT=1 docker build -q -t eldir-session:local ../backend/docker/session
 # un conteneur au repos, sans CLI lance : le cout de structure
 docker run -d --name eldir-mesure --entrypoint sleep eldir-session:local 600 >/dev/null
 sleep 2
@@ -2636,7 +2684,7 @@ Dans `backend/app/core/config.py`, compléter le commentaire de `max_concurrent_
 Le risque nº 2 (« pas d'isolement inter-projets ») n'est plus structurel. Réécrire son entrée avec :
 - ce qui est fermé : worktrees, toolchains, maisons `.claude`, clés SSH et `config` des autres projets ;
 - comment : un conteneur par session, montages par sous-chemin de volume, et le fait qu'un voisin **n'existe pas** au lieu d'être refusé ;
-- ce qui reste ouvert, nommément : le sortant complet vers Internet (second lot de la Phase 6 bis), le credential Claude lisible par la session (risque nº 1, inchangé), et le clone canonique du projet accessible en écriture aux sessions de ce projet (même domaine de confiance, et c'était déjà le cas) ;
+- ce qui reste ouvert, nommément : le sortant complet vers Internet (second lot de la Phase 6 bis), le credential Claude lisible par la session (risque nº 1, inchangé), et le clone canonique du projet accessible en écriture aux sessions de ce projet (même domaine de confiance entre elles, et c'était déjà le cas ; **vis-à-vis du backend c'est faux**, cf. la note en tête de ce plan et le risque nº 3 de `securite-sessions.md`) ;
 - le fait que le mode `processus` existe toujours et que, dans ce mode, rien de tout ça n'est fermé.
 
 - [ ] **Step 4: Mettre `docs/sessions.md` à jour**
@@ -2646,12 +2694,21 @@ Ajouter une section « Ce qu'une session voit de son disque », avec la table de
 - [ ] **Step 5: Mettre `docs/deployment.md` à jour**
 
 Documenter, dans l'ordre d'une mise en production :
-1. Docker 25 minimum sur l'hôte (`--mount volume-subpath`).
+1. Docker 26 minimum sur l'hôte (`--mount volume-subpath`).
 2. `docker network create eldir-sessions`, et pourquoi compose ne le fait pas.
-3. `docker build -t eldir-session:local backend/docker/session`, à refaire à chaque mise à jour du CLI.
+3. `DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session`, à refaire à chaque mise à jour du CLI.
 4. Les quatre variables de noms de volumes, à ajuster si le projet compose est renommé, avec `docker volume ls` comme façon de lire les vrais noms.
 5. `SESSION_RUNTIME`, ses deux valeurs, et le fait qu'un échec ne retombe jamais en mode `processus`.
 6. Le proxy de socket, et ce qu'il n'autorise pas.
+
+- [ ] **Step 5 bis: Nommer la variable là où la doc lance le backend à la main**
+
+`AGENTS.md` et `backend/README.md` donnent la commande de lancement local
+(`uvicorn app.main:app --reload`) sans `SESSION_RUNTIME`. Le défaut étant
+`conteneur`, un démarrage de session échouera sur une machine sans démon
+joignable. Ajouter la variable à ces deux commandes, avec une demi-phrase qui
+dit pourquoi : le mode isolé est le défaut, et un poste de dev le desserre
+explicitement.
 
 - [ ] **Step 6: Mettre `ROADMAP.md` à jour**
 

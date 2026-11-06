@@ -21,9 +21,20 @@ Trois décisions qui structurent le reste :
   `authorized_keys` distant. Une clé qu'on sait déposer et pas retirer, c'est
   une clé oubliée sur une machine.
 
-Ce que ça ne change pas : le CLI Claude tourne dans ce conteneur, donc une
-session peut lire la clé privée. Le bouton rend l'accès facile à ouvrir, pas
-plus sûr. La protection reste le compte dédié sans sudo, côté machine.
+Ce que ça ne change pas : le bouton rend l'accès facile à ouvrir, pas plus sûr.
+Ce que la session peut lire de la clé dépend du mode d'exécution des sessions
+(`SESSION_RUNTIME`) :
+
+- en mode `processus`, le CLI Claude tourne dans le conteneur du backend, donc
+  une session peut lire toutes les clés privées et le `config` entier ;
+- en mode `conteneur` (le défaut), il tourne dans un conteneur à part, qui ne
+  voit que la copie de la clé de son propre projet, montée en lecture seule, et
+  un `config` à un seul bloc (cf. `materiel_de_session`). Les clés et les
+  machines des autres projets n'y existent pas. Cette clé-là, la session la
+  lit toujours : c'est avec elle qu'elle se connecte.
+
+Dans les deux modes, la protection de la machine reste le compte dédié sans
+sudo, côté machine.
 """
 
 from __future__ import annotations
@@ -32,6 +43,7 @@ import asyncio
 import os
 import re
 import shlex
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,6 +59,18 @@ _KEYS_DIRNAME = "projects"
 # ne sont jamais touchés : on ne réécrit que ce qui est entre ces marqueurs.
 _DEBUT = "# >>> eldir:{project_id}"
 _FIN = "# <<< eldir:{project_id}"
+
+# Où la session voit sa matière SSH, côté conteneur. L'image y branche son
+# `Include` (cf. backend/docker/session/Dockerfile) ; l'enrobage y monte le dossier en
+# lecture seule. Le dossier (0700) et la clé (0600) appartiennent à l'uid du
+# backend : le montage n'est lisible que parce que le conteneur tourne avec ce
+# même uid, sans quoi la session aurait une erreur de permission sans
+# explication.
+CLE_DANS_LE_CONTENEUR = Path("/eldir/ssh/cle")
+CONFIG_DANS_LE_CONTENEUR = Path("/eldir/ssh/config")
+# Dans la maison, donc en écriture et persistant par projet : `accept-new`
+# doit pouvoir figer l'empreinte vue à la première connexion.
+KNOWN_HOSTS_DANS_LE_CONTENEUR = Path("/eldir/maison/known_hosts")
 
 
 @dataclass(slots=True, frozen=True)
@@ -74,6 +98,41 @@ def _alias_for(slug: str) -> str:
     """Alias SSH d'un projet. Préfixé pour ne pas écraser un Host à John."""
     propre = re.sub(r"[^a-z0-9-]+", "-", slug.lower()).strip("-") or "projet"
     return f"eldir-{propre}"
+
+
+def bloc_ssh(
+    *,
+    project_id: str,
+    alias: str,
+    host: str,
+    user: str,
+    port: int,
+    identity_file: Path,
+    known_hosts: Path,
+) -> str:
+    """Un bloc `Host` de config SSH, délimité par les marqueurs du projet.
+
+    Pure, et partagée par les deux usages : le `config` unique du backend, qui
+    porte un bloc par projet, et le `config` à un seul bloc monté dans le
+    conteneur d'une session. Les chemins diffèrent entre les deux (la clé est
+    à `/eldir/ssh/cle` dans le conteneur), donc ils sont des paramètres et pas
+    des dérivations.
+    """
+    return (
+        f"{_DEBUT.format(project_id=project_id)}\n"
+        f"Host {alias}\n"
+        f"    HostName {host}\n"
+        f"    User {user}\n"
+        f"    Port {port}\n"
+        f"    IdentityFile {identity_file}\n"
+        f"    IdentitiesOnly yes\n"
+        # Première connexion : on fait confiance à l'empreinte vue, puis on
+        # la fige. Si elle change ensuite, la connexion échoue au lieu de
+        # passer en silence.
+        f"    StrictHostKeyChecking accept-new\n"
+        f"    UserKnownHostsFile {known_hosts}\n"
+        f"{_FIN.format(project_id=project_id)}\n"
+    )
 
 
 class RemoteAccessService:
@@ -126,7 +185,8 @@ class RemoteAccessService:
 
         Le mot de passe ne sert qu'ici, transmis par variable d'environnement
         pour ne pas apparaître dans la ligne de commande (un `ps` dans le
-        conteneur la verrait, et une session tourne dans ce conteneur).
+        conteneur la verrait, et en mode `processus` une session tourne dans
+        ce conteneur).
         """
         alias = _alias_for(slug)
         await self._ensure_key(project_id)
@@ -193,22 +253,121 @@ class RemoteAccessService:
         await asyncio.to_thread(_proteger, cle)
 
     def _write_block(self, project_id: str, alias: str, host: str, user: str, port: int) -> None:
-        bloc = (
-            f"{_DEBUT.format(project_id=project_id)}\n"
-            f"Host {alias}\n"
-            f"    HostName {host}\n"
-            f"    User {user}\n"
-            f"    Port {port}\n"
-            f"    IdentityFile {self.key_path(project_id)}\n"
-            f"    IdentitiesOnly yes\n"
-            # Première connexion : on fait confiance à l'empreinte vue, puis on
-            # la fige. Si elle change ensuite, la connexion échoue au lieu de
-            # passer en silence.
-            f"    StrictHostKeyChecking accept-new\n"
-            f"    UserKnownHostsFile {self._home() / 'known_hosts'}\n"
-            f"{_FIN.format(project_id=project_id)}\n"
+        self._replace_block(
+            project_id,
+            bloc_ssh(
+                project_id=project_id,
+                alias=alias,
+                host=host,
+                user=user,
+                port=port,
+                identity_file=self.key_path(project_id),
+                known_hosts=self._home() / "known_hosts",
+            ),
         )
-        self._replace_block(project_id, bloc)
+
+    # ── matière SSH d'une session en conteneur ───────────────────
+    def _dossier_de_session(self, project_id: str, session_id: str) -> Path:
+        """Frère de la maison du projet, et pas dedans.
+
+        La maison est montée en écriture (le CLI y écrit son transcript) :
+        tout ce qui est dedans est réécrivable par la session, et un `config`
+        réécrivable n'est plus une garde. Le sous-chemin est donc voisin.
+        """
+        # `supprimer_materiel_de_session` fait un `rmtree` sur ce chemin. Un
+        # composant vide le ferait remonter d'un niveau et emporterait la
+        # matière de toutes les sessions du projet. Les deux composants
+        # viennent d'UUID générés par le serveur, donc le cas n'arrive pas :
+        # la garde est ici précisément parce que la seule chose qui l'empêche
+        # aujourd'hui est une convention, et qu'une convention ne survit pas à
+        # un appelant distrait.
+        for composant in (project_id, session_id):
+            if not composant or "/" in composant or composant in (".", ".."):
+                raise EldirError(
+                    f"Identifiant inutilisable dans un chemin de session : {composant!r}"
+                )
+        return get_settings().claude_home_root / f"{project_id}-ssh" / session_id
+
+    def materiel_de_session(self, project_id: str, session_id: str) -> str | None:
+        """Écrit la clé et le `config` à un seul bloc, rend le sous-chemin à monter.
+
+        Rend `None` quand le projet n'a pas d'accès distant : la session n'a
+        alors aucune clé, pas même la sienne.
+
+        La clé est recopiée, pas montée depuis `ssh_home` : le `src` d'un bind
+        mount est résolu par le démon sur l'hôte, où le chemin du conteneur
+        backend n'existe pas, et `volume-subpath` ne monte pas un fichier
+        seul. La copie est refaite à chaque démarrage, donc jamais périmée.
+        """
+        etat = self.status(project_id)
+        if not etat.configured or not etat.alias:
+            return None
+        source = self.key_path(project_id)
+        if not source.exists():
+            # Le projet a un accès configuré mais sa clé a disparu : la session
+            # démarrera sans SSH, et « Connecter au serveur » cessera de marcher
+            # sans autre signe. Ce module est le seul à le savoir, donc il le dit.
+            logger.warning("remote.materiel.cle_absente", project_id=project_id, chemin=str(source))
+            return None
+
+        dossier = self._dossier_de_session(project_id, session_id)
+        _preparer_dossier(dossier)
+        cible = dossier / CLE_DANS_LE_CONTENEUR.name
+        # Pas de `shutil.copyfile` : il ne copie pas les droits, donc le mode de
+        # la copie dépendrait du umask ambiant. On demande 0600 à la création :
+        # l'umask ne peut que retirer des bits, jamais en ajouter.
+        donnees = source.read_bytes()
+        descripteur = os.open(cible, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        # Le mode passé à `os.open` est masqué par l'umask, et `O_CREAT` sans
+        # `O_EXCL` garde celui d'un fichier qui existe déjà : on le fixe donc
+        # sur le descripteur, où il vaut exactement 600 quel que soit l'umask
+        # et l'état précédent du fichier, sans chemin à courir derrière. Une
+        # copie préexistante plus large le reste entre `O_TRUNC` et `fchmod`,
+        # mais elle est alors vide : aucun octet de clé n'est écrit avant le
+        # `fchmod`. Il est dans le `with` pour que le descripteur soit fermé même
+        # s'il lève. Pas de garde autour de `os.fdopen` : s'il échoue, le
+        # processus manque de descripteurs ou de mémoire, et un démarrage de
+        # session qui échoue bruyamment est alors le bon résultat.
+        with os.fdopen(descripteur, "wb") as fichier:
+            os.fchmod(fichier.fileno(), 0o600)
+            fichier.write(donnees)
+        (dossier / CONFIG_DANS_LE_CONTENEUR.name).write_text(
+            bloc_ssh(
+                project_id=project_id,
+                alias=etat.alias,
+                host=etat.host or "",
+                user=etat.user or "",
+                port=etat.port or 22,
+                identity_file=CLE_DANS_LE_CONTENEUR,
+                known_hosts=KNOWN_HOSTS_DANS_LE_CONTENEUR,
+            ),
+            encoding="utf-8",
+        )
+        racine = get_settings().claude_home_root
+        return str(dossier.relative_to(racine))
+
+    def supprimer_materiel_de_session(self, project_id: str, session_id: str) -> None:
+        """Efface la copie de clé et le `config` d'une session arrêtée.
+
+        Idempotent : un arrêt qui suit un crash ne doit pas lever.
+        """
+        dossier = self._dossier_de_session(project_id, session_id)
+        try:
+            shutil.rmtree(dossier)
+        except FileNotFoundError:
+            # Un arrêt qui suit un crash : il n'y a rien à supprimer, et ce
+            # n'est pas une anomalie.
+            pass
+        except OSError:
+            # Une copie de clé privée qu'on n'a pas pu effacer ne doit pas
+            # faire échouer l'arrêt de la session, mais elle ne doit pas
+            # disparaître des logs non plus.
+            logger.warning(
+                "remote.materiel.suppression_impossible",
+                project_id=project_id,
+                dossier=str(dossier),
+                exc_info=True,
+            )
 
     def _replace_block(self, project_id: str, bloc: str) -> None:
         path = self._config_path()

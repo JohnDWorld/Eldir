@@ -68,6 +68,84 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 ok "docker, docker compose, curl, python3 OK"
 
+# ── 0 bis. le réseau et l'image des sessions ─────────────────────
+# Un conteneur par session (Phase 6 bis). Le réseau est dédié et n'a pas de
+# route vers les réseaux du compose, celui de Postgres et Redis comme celui du
+# proxy de socket : une session ne peut donc pas joindre la base, même si un
+# credential lui échappait. Compose ne le crée pas tout seul, puisqu'aucun de
+# ses services ne l'utilise. Sans lui, chaque session échoue au `docker run`
+# avec le message du démon.
+if ! docker network inspect eldir-sessions >/dev/null 2>&1; then
+    docker network create eldir-sessions >/dev/null
+    ok "réseau eldir-sessions créé"
+else
+    ok "réseau eldir-sessions déjà là"
+fi
+
+# Le mode des sessions : celui du backend qui tourne déjà, sinon celui du compose
+# qu'on va lancer. En prod la stack est lancée avant ce script, avec le compose de
+# prod, alors que `$COMPOSE_FILE` vaut ici celui de dev (cf. docs/deployment.md) :
+# le compose seul se tromperait de mode. `--type container` : sans lui, une
+# image, un réseau ou un volume qui porterait le nom du backend ferait réponse.
+session_runtime() {
+    if docker inspect --type container "$BACKEND_CONTAINER" >/dev/null 2>&1; then
+        docker inspect --type container -f '{{range .Config.Env}}{{println .}}{{end}}' "$BACKEND_CONTAINER" \
+            | sed -n 's/^SESSION_RUNTIME=//p'
+    else
+        docker compose -f "$COMPOSE_FILE" config 2>/dev/null \
+            | sed -n 's/^ *SESSION_RUNTIME: *//p'
+    fi
+}
+
+# Docker 26 minimum pour les sessions en conteneur : `volume-subpath` est apparu
+# avec la 26.0 (API 1.45) d'après la documentation de Docker, et seule la 29.9.2 a
+# été essayée. Un démon plus ancien refuserait l'option, ou l'ignorerait et
+# monterait le volume entier, ce qui retirerait l'isolement sans un message : non
+# mesuré, d'où le refus. Fatal en mode conteneur, avertissement en `processus`,
+# qui n'emploie pas l'option. Une version illisible n'arrête rien.
+VERSION_DEMON="$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
+MAJEURE_DEMON="${VERSION_DEMON%%.*}"
+if [[ "$MAJEURE_DEMON" =~ ^[0-9]+$ ]]; then
+    if (( MAJEURE_DEMON < 26 )); then
+        if [[ "$(session_runtime || true)" == "processus" ]]; then
+            warn "Docker $VERSION_DEMON : les sessions en conteneur exigent la 26 au moins (volume-subpath). Sans conséquence en mode processus."
+        else
+            fail "Docker $VERSION_DEMON : les sessions en conteneur exigent la 26 au moins (volume-subpath), et un démon plus ancien peut monter le volume entier au lieu du sous-dossier. Mets Docker à jour (docs/deployment.md, section 5 bis), ou règle SESSION_RUNTIME=processus (sans isolement)."
+        fi
+    else
+        ok "Docker $VERSION_DEMON (26 minimum pour volume-subpath)"
+    fi
+else
+    warn "Version du démon Docker illisible : la 26 est requise pour les sessions en conteneur (volume-subpath)."
+fi
+
+# L'image des sessions. Reconstruite à chaque install, pour suivre le
+# Dockerfile récupéré : il épingle la version du CLI Claude, que l'on remonte
+# avec celle du SDK du backend. Le cache de construction rend la reconstruction
+# rapide quand rien n'a changé.
+#
+# BuildKit est requis (`COPY --chmod` dans ce Dockerfile) : `DOCKER_BUILDKIT=1`
+# le demande aux Docker d'avant la 23, dont le constructeur historique refuse
+# sinon l'option. À la main, la même commande sans `-q`, qui cache la sortie de
+# l'étape en échec :
+#   DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session
+#
+# Un échec est fatal quand les sessions tournent en conteneur (sans image,
+# aucune ne démarre), et un simple avertissement en `processus` (le compose de
+# dev), qui n'utilise jamais cette image. Un mode introuvable compte comme
+# `conteneur`, le défaut du code.
+if DOCKER_BUILDKIT=1 docker build -q -t eldir-session:local \
+        "$(dirname "$0")/../backend/docker/session" >/dev/null; then
+    ok "image eldir-session:local construite"
+else
+    A_LA_MAIN="DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session"
+    if [[ "$(session_runtime || true)" == "processus" ]]; then
+        warn "L'image eldir-session:local n'a pas été construite, sans conséquence en mode processus. Pour voir pourquoi, depuis la racine du dépôt : $A_LA_MAIN"
+    else
+        fail "L'image eldir-session:local n'a pas pu être construite, et sans elle aucune session ne démarre. Pour voir pourquoi, depuis la racine du dépôt : $A_LA_MAIN"
+    fi
+fi
+
 # ── 1. démarrer la stack (sauf si elle tourne déjà) ──────────────
 # En prod, la stack est lancée par `docker compose up -d` avec le compose
 # de prod. Relancer ici avec le compose de dev ferait échouer l'install sur

@@ -38,6 +38,9 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swap.conf
 ```
 
+Docker doit être en version 26 au moins : les sessions en conteneur montent des
+sous-dossiers de volumes. Les raisons et la vérification sont en section 5 bis.
+
 ## 2. Le VPN
 
 ```bash
@@ -120,7 +123,167 @@ docker compose logs -f backend        # relève ELDIR_BOOTSTRAP_TOKEN
 
 Les migrations Alembic sont jouées automatiquement au démarrage du backend.
 
-## 5 bis. Versionner ses secrets (optionnel, SOPS + age)
+## 5 bis. Les sessions en conteneur
+
+Depuis la Phase 6 bis, le CLI de chaque session tourne par défaut dans son propre
+conteneur (`SESSION_RUNTIME=conteneur`), et non plus dans celui du backend. Ce que
+ça ferme et ce que ça laisse ouvert est dans
+[`securite-sessions.md`](./securite-sessions.md). Ce qui suit est ce que le serveur
+doit avoir pour que ça démarre, dans l'ordre où on le rencontre.
+`./scripts/install-eldir.sh` (section 6) crée le réseau et construit l'image à ta
+place ; les commandes sont données pour qui ne l'utilise pas.
+
+**Ce que ça ne sépare pas** : le conteneur isole une session du disque des autres
+projets, pas du backend. Le backend lance git dans des dossiers que la session
+écrit, et git exécute ce qu'il y trouve (risque nº 3) ; et le proxy de socket ne
+sépare pas le backend de root sur l'hôte (section 6). N'héberge donc pas sur la
+même instance un projet sensible et un projet alimenté par des tickets publics.
+
+### 1. Docker 26 minimum sur l'hôte
+
+Une session monte des sous-dossiers de volumes nommés (`--mount
+type=volume,...,volume-subpath=...`). Les notes de version de Docker placent cette
+option dans la 26.0 (API 1.45) ; la 25 s'arrête à l'API 1.44. **Mesuré
+uniquement sur la 29.9.2** : aucune version plus ancienne n'a été essayée, et le
+minimum est celui de la documentation de Docker, pas une mesure. Vérifie avec
+`docker version --format '{{.Server.Version}}'`.
+
+Ce qu'un démon plus ancien ferait n'est pas mesuré non plus, et le pire cas
+compte : il peut refuser l'option, ce qui est net, ou **ignorer le champ
+`Subpath` qu'il ne connaît pas et monter le volume entier**, ce qui retirerait
+l'isolement sans un message. Le script d'install refuse donc de continuer sous la
+26 quand les sessions tournent en conteneur, et se contente d'un avertissement en
+mode `processus`, qui n'emploie pas l'option.
+
+### 2. BuildKit, et l'image des sessions
+
+```bash
+DOCKER_BUILDKIT=1 docker build -t eldir-session:local backend/docker/session
+```
+
+BuildKit est requis (`COPY --chmod` dans le Dockerfile). Il est le constructeur par
+défaut depuis Docker 23 ; `DOCKER_BUILDKIT=1` le demande aux versions d'avant,
+dont le constructeur historique refuse l'option.
+
+L'image porte Node, git, ssh et le CLI Claude, dont la version est épinglée
+(`ARG CLAUDE_CLI_VERSION`) : un `docker build` refait dans six mois donne le même
+CLI. On la remonte à la main, avec `claude-agent-sdk` (`backend/uv.lock`), puis on
+vérifie avec une vraie session. `deploy.sh` reconstruit l'image dès que
+`backend/docker/session/` change. Sans cette image, une session échoue au
+démarrage avec le message du démon (« pull access denied for eldir-session »).
+
+### 3. Le réseau `eldir-sessions`
+
+```bash
+docker network create eldir-sessions
+```
+
+Le script d'install le crée s'il manque. Compose ne peut pas le faire : il ne crée
+pas un réseau qu'aucun de ses services n'utilise, et aucun service ne peut utiliser
+celui-ci par construction, puisque tout son sens est qu'une session n'ait de route
+ni vers Postgres et Redis ni vers le proxy de socket. Un réseau manquant fait
+échouer chaque session au `docker run`, bruyamment : « network ... not found »
+(mesuré avec un autre nom de réseau, code de sortie 125).
+
+### 4. Les noms des volumes
+
+Quatre variables du backend, posées dans `docker-compose.yml` (section
+`environment` du service `backend`) :
+
+| Variable | Valeur du compose de prod |
+|---|---|
+| `WORKSPACES_VOLUME` | `eldir_eldir_workspaces` |
+| `TOOLCHAINS_VOLUME` | `eldir_eldir_toolchains` |
+| `CLAUDE_HOME_VOLUME` | `eldir_eldir_claude_home` |
+| `COLLECTES_VOLUME` | `eldir_eldir_collectes` |
+
+Le préfixe est doublé parce que compose préfixe le nom d'un volume par celui du
+projet : le volume `eldir_workspaces` du fichier, dans le projet `eldir` (`name:
+eldir` en tête), s'appelle `eldir_eldir_workspaces` pour le démon. Un `docker run`
+sur `eldir_workspaces` pointerait vers un volume vide créé à la volée, où le
+sous-chemin du worktree n'existe pas, et `docker run` échouerait en code 127
+(mesuré, pour un sous-chemin absent).
+
+Si tu renommes le projet compose (`-p`, `COMPOSE_PROJECT_NAME` ou `name:`), ces
+quatre noms changent, et un `COMPOSE_PROJECT_NAME` exporté les renomme d'un coup.
+Lis les vrais noms sur l'hôte (le proxy refuse la liste des volumes, mesuré, donc
+pas depuis le backend) :
+
+```bash
+docker volume ls --format '{{.Name}}' | grep -E 'workspaces|toolchains|claude_home|collectes'
+```
+
+### 5. `SESSION_RUNTIME`
+
+| Valeur | Ce que fait le backend |
+|---|---|
+| `conteneur` (défaut) | Un conteneur par session. Il faut un démon joignable (`DOCKER_HOST`, ici le proxy), l'image, le réseau et les quatre noms de volumes. |
+| `processus` | Le CLI tourne dans le conteneur du backend. Marche sans démon Docker, et n'isole rien : ce n'est pas le mode sûr. Sur le compose de prod, la session hérite de `DOCKER_HOST` et du réseau `docker-api` du backend, donc elle peut faire créer un conteneur privilégié, soit root sur l'hôte (création mesurée, héritage et root déduits, pas essayés) ; si tu dois retomber sur `processus`, retire d'abord `DOCKER_HOST` et le rattachement du backend à `docker-api`. |
+
+Le défaut est `conteneur`, le mode isolant : un réglage oublié coûte de la
+disponibilité (la session échoue au démarrage), jamais l'isolement. Le compose de
+prod le pose quand même, pour que tu le lises. La suite de tests
+(`backend/tests/conftest.py`) et le compose de dev posent `processus`
+explicitement ; pour lancer le backend à la main sur un poste sans démon, c'est la
+même variable.
+
+**Un démarrage de conteneur qui échoue ne retombe jamais en mode `processus`.** La
+session échoue, avec le message du démon. Un repli silencieux donnerait une
+session non isolée à quelqu'un qui croit l'être. Un test l'épingle.
+
+**Avant de basculer un projet en `conteneur`, vérifie qu'il déclare le toolchain
+dont il a besoin** (`setup_commands`, cf. [`templates.md`](./templates.md#toolchain-du-repo-setup_commands)).
+L'image des sessions est `node:20-bookworm-slim` plus `git`, `ca-certificates` et
+`openssh-client` (et le CLI Claude) : **elle n'a ni python, ni uv, ni `curl`**, que
+l'image du backend porte (lu dans `backend/Dockerfile`). Vérifié dans l'image des
+sessions : `python3`, `python`, `pip`, `uv`, `curl`, `make` et `gcc` y sont
+absents. Un projet qui comptait sur le python 3.12, l'uv ou le `curl` du backend
+les perd s'il ne les installe pas lui-même, et beaucoup de workflows d'agent
+passent par `curl`.
+
+**Le CLI qui exécute une session dépend du mode**, et trois versions peuvent
+diverger sans que rien ne les aligne. Lis ceci avant de choisir un mode :
+
+- en `conteneur`, c'est le CLI épinglé de l'image des sessions ;
+- en `processus`, c'est le CLI embarqué dans le SDK Python (`claude-agent-sdk`,
+  `backend/uv.lock`), et pas le `claude` du backend ;
+- le `claude` installé en `@latest` dans l'image du backend (`backend/Dockerfile`)
+  ne lance pas de session : il sert à la sonde de credential, et de repli au SDK.
+
+### 6. Le proxy de socket
+
+Le backend ne monte pas le socket du démon : `docker-proxy` le monte et ne
+transmet que les chemins d'API que `docker-compose.yml` ouvre (`CONTAINERS`,
+`POST`, `IMAGES`). Lis le commentaire du service avant d'y ajouter une ligne :
+chacune ouvre quelque chose.
+
+**Il ne sépare pas le backend de root sur l'hôte.** Il filtre les chemins de
+l'API, pas le contenu des requêtes : `POST /containers/create` avec `Privileged`
+et `Binds: ["/:/hote"]` répond 201 (mesuré contre le vrai démon). Ce qu'il
+apporte, et c'est tout : pas d'`exec` dans un conteneur, pas de swarm, pas de
+manipulation du réseau, pas d'`info`, et le socket du démon n'est jamais dans le
+système de fichiers du backend. Le détail, mesures comprises, est dans
+[`securite-sessions.md`](./securite-sessions.md#le-proxy-de-socket).
+
+Créer un conteneur par lui équivaut à être root sur la machine (la création est
+mesurée, 201 ; root une fois le conteneur démarré est déduit, pas essayé), et il
+n'a pas d'authentification : la vraie garde est l'ensemble des conteneurs qui le
+joignent.
+Seuls `docker-proxy` et `backend` sont sur le réseau `docker-api`. Ne branche rien
+d'autre dessus, et ne publie jamais son port (2375).
+
+**Son image est dérivée de celle de l'amont**
+([`docker/docker-proxy/Dockerfile`](../docker/docker-proxy/Dockerfile)), pour un
+seul réglage : le délai d'inactivité. L'image de l'amont coupe toute connexion
+muette à 10 minutes. Mesuré : un `docker run -i` muet sort à 600 s pile, en code
+125 (« error waiting for container: unexpected EOF »). Une session qui n'a rien dit
+pendant dix minutes, en attente de toi ou sur une commande longue, aurait été
+tuée. L'image dérivée relève ce délai à **7 jours**, et c'est un choix, pas une
+mesure : la valeur n'a été essayée qu'à 24 h (un `docker run -i` muet a tenu 11
+minutes et fini en code 0). Au-delà de 7 jours muets, la coupure reviendrait
+(déduit de l'observation à 10 minutes).
+
+## 5 ter. Versionner ses secrets (optionnel, SOPS + age)
 
 Recopier des `.env` à la main entre sa machine et son serveur finit toujours par
 produire un fichier perdu ou divergent. Eldir prévoit de les versionner
@@ -177,7 +340,7 @@ Deux précautions :
   `sops updatekeys *.enc.env`. Si une valeur a fuité, la seule vraie correction
   est de la régénérer, pas de supprimer le fichier.
 
-## 5 ter. Les mises à jour suivantes
+## 5 quater. Les mises à jour suivantes
 
 Une fois la stack en place, tout passe par le script à la racine :
 
@@ -187,10 +350,32 @@ cd eldir && ./deploy.sh
 ```
 
 Il fait un `git pull --ff-only`, regarde **ce qui a changé** entre l'ancien et
-le nouveau HEAD, et ne reconstruit que les services concernés : `backend/` pour
-le backend, `frontend/` pour le frontend, `docker/` pour Caddy, et toute la
-stack si `docker-compose.yml` bouge. Une PR qui ne touche que la doc ne
-reconstruit rien.
+le nouveau HEAD, et ne reconstruit que ce qui est concerné :
+
+| Ce qui change | Ce que `deploy.sh` reconstruit |
+|---|---|
+| `backend/` | le service `backend` |
+| `backend/docker/session/` | l'image des sessions `eldir-session:local`, construite **avant** le redémarrage du backend pour qu'il lance ses sessions sur l'image neuve. Et aussi le `backend`, puisque ce dossier est sous `backend/` |
+| `docker/docker-proxy/` | le service `docker-proxy` |
+| `frontend/` | le service `frontend` |
+| `docker/caddy/`, `docker/Caddyfile` | le service `caddy` |
+| `docker-compose.yml` | toute la stack |
+
+Une PR qui ne touche que la doc ne reconstruit rien. L'image des sessions n'est
+pas un service du compose : sans sa règle, un CLI épinglé qui change ne la
+reconstruirait pas, et les nouvelles sessions démarreraient sans bruit sur
+l'ancienne. Les sessions déjà ouvertes gardent l'image qu'elles ont.
+
+**Pas mesuré : un déploiement qui recrée `docker-proxy` coupe probablement les flux
+`attach` des sessions vivantes**, puisque le `docker run -i` de chacune passe par
+lui. Évite de le déclencher pendant qu'une session travaille.
+
+**Pas mesuré non plus : rien ne retire le conteneur d'une session si son CLI
+ignore à la fois la fin de stdin et SIGTERM.** À l'arrêt, le SDK ferme stdin,
+attend, envoie SIGTERM, attend, puis SIGKILL (lu dans `subprocess_cli.py`). Ce
+SIGKILL ne touche que le client `docker run`, qui ne le relaie pas : le conteneur
+resterait vivant. Pour voir s'il en traîne : `docker ps --filter
+ancestor=eldir-session:local`.
 
 Il prévient aussi quand un `.env.example` a changé, puisque ton `.env`, lui,
 n'est pas versionné et ne se met pas à jour tout seul. Les migrations Alembic
@@ -255,6 +440,18 @@ dernier retire le préfixe, alors que le backend écoute bien sur `/api/v1/…` 
 **Une session Claude meurt en pleine tâche.** C'est l'OOM killer :
 `dmesg | grep -i oom`. Baisse `MAX_CONCURRENT_SESSIONS`, ou stoppe une session
 depuis le dashboard (elle reste reprenable).
+
+**Une session échoue au démarrage (mode `conteneur`).** Le message est celui du
+démon. Trois causes mesurées : `network ... not found` (créer `eldir-sessions`,
+section 5 bis), `pull access denied for eldir-session` (construire l'image), et un
+code de sortie 127 (un sous-chemin de volume absent : relis les noms de volumes,
+section 5 bis). Il n'y a pas de repli en mode `processus`, c'est voulu.
+
+**Après un échec de démarrage, la session repart de zéro et ne reprend plus.**
+`resume` traite n'importe quel échec de démarrage comme un transcript perdu : il
+efface `sdk_session_id` avant de réessayer. Un `docker run` qui échoue un instant
+suffit, sans rapport avec le transcript. Connu, non corrigé (cf.
+[`sessions.md`](./sessions.md#reprendre-une-session-après-redémarrage-eldir)).
 
 **Le build du frontend échoue sans message clair.** Manque de RAM pendant
 `vite build`. Vérifie le swap de l'étape 1, ou construis l'image ailleurs et

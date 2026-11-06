@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.exceptions import EldirError
 from app.core.logging import configure_logging, get_logger
 from app.mcp_http import construire_app_mcp
+from app.services.claude_home_migration import migrer_les_maisons
 from app.services.singletons import init_singletons, shutdown_singletons
 from app.ws import ws_router
 
@@ -33,6 +34,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await init_singletons()
         except Exception:
             logger.exception("singletons.init.error")
+        try:
+            # Idempotente, et jamais fatale : une migration qui échoue coûte
+            # des `resume`, pas le démarrage du backend.
+            await migrer_les_maisons()
+        except Exception:
+            logger.exception("maisons.migration.error")
     try:
         # L'app MCP montée a son propre lifespan, que FastAPI ne joue pas pour
         # une sous-app : son gestionnaire de sessions doit tourner ici, sinon

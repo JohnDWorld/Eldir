@@ -53,6 +53,30 @@ class Settings(BaseSettings):
     # Chaque session active = un process `claude` (Node) résident, soit
     # 150 à 450 Mo selon la taille de la conversation. Le superviseur compte
     # comme une session. Sur un serveur à 4 Go : 4.
+    #
+    # Le conteneur par session (Phase 6 bis) ajoute une enveloppe autour de ce
+    # process. Mesuré le 2026-11-06 (Docker 29.9.2, cgroup v2, image
+    # `eldir-session:local`), sans lancer le CLI : son coût à lui existait déjà,
+    # dans le conteneur du backend, et n'a pas été remesuré.
+    #   - le conteneur au repos : 0,4 à 0,6 Mo (`docker stats`, 3 mesures sans
+    #     `--init`, 4 avec `-i --rm --init` comme l'enrobage) ;
+    #   - son shim containerd (`containerd-shim-runc-v2`), côté hôte, donc hors
+    #     du cgroup du conteneur : 11 Mo de RSS dont 3,7 Mo anonymes (4 mesures) ;
+    #   - le client `docker run -i`, dans le conteneur du backend : 32,5 Mo de
+    #     RSS dont 11 Mo anonymes, le reste étant le binaire, partagé entre les
+    #     clients (4 mesures). Le client mesuré est celui de l'hôte, en 29.9.2,
+    #     pas celui de l'image du backend.
+    #   Les chiffres du shim et du client se relisent dans `/proc/<pid>/status`
+    #   (champs `VmRSS`, RSS complet, et `RssAnon`, anonyme) ; celui du
+    #   conteneur dans `docker stats --no-stream` ou le `memory.current` de son
+    #   cgroup.
+    # Soit de 15 Mo (anonyme seulement) à 45 Mo (RSS complet) par session, de
+    # 3 % à 30 % de ce que coûte le process `claude`. C'est moins que l'écart
+    # de 300 Mo qui sépare les deux bornes de son estimation : le plafond ne
+    # bouge pas. À 4 sessions l'enveloppe ajoute au plus 180 Mo, et la valeur
+    # recommandée pour 4 Go reste 4. Aucune limite mémoire n'est posée aux
+    # conteneurs (l'enrobage ne passe pas `--memory`) : ce plafond reste la
+    # seule borne.
     max_concurrent_sessions: int = 8
 
     # ── Workspaces ──────────────────────────────────────────────
@@ -74,9 +98,11 @@ class Settings(BaseSettings):
 
     # ── Collecte distante par projet ────────────────────────────
     # Ce que la session doit lire mais qui ne vit pas dans le repo. Hors
-    # worktree, donc incommitable, et volontairement hors volume : la
-    # collecte se refait à chaque création de session, une donnée de prod
-    # rapatriée n'a pas à survivre à un redéploiement. Cf. `CollectService`.
+    # worktree, donc incommitable. Dans un volume (`eldir_collectes`) : le
+    # démon ne monte dans une session que ce qu'il voit lui-même, et un dossier
+    # du conteneur du backend lui est invisible. Une collecte survit donc à un
+    # redéploiement, mais elle se refait à chaque création de session : elle
+    # n'est jamais plus ancienne que la session qui la lit. Cf. `CollectService`.
     collectes_root: Path = Path("/var/eldir/collectes")
     # Une commande de collecte lit un fichier ou un log, pas plus.
     collect_timeout_s: int = 60
@@ -92,6 +118,56 @@ class Settings(BaseSettings):
     # Au-delà, la machine est considérée injoignable : on préfère un échec
     # net à une requête HTTP qui pend.
     ssh_connect_timeout_s: int = 15
+
+    # ── Maisons `.claude` des sessions ──────────────────────────
+    # Point de montage, chez le backend, du volume qui porte les transcripts
+    # du CLI. Une maison par projet dessous (cf. `claude_home.py`) : sans
+    # cette séparation, une session lirait les conversations de tous les
+    # autres projets. Le nom DOCKER de ce volume est `claude_home_volume`,
+    # plus bas : un point de montage et un nom de volume ne se déduisent pas
+    # l'un de l'autre.
+    claude_home_root: Path = Path("/home/eldir/.claude")
+
+    # ── Isolement des sessions (Phase 6 bis) ────────────────────
+    # `conteneur` : un conteneur par session, monté sur son seul worktree, sa
+    #   seule clé et la seule maison `.claude` de son projet.
+    # `processus` : le CLI de la session tourne dans le conteneur du backend,
+    #   qui voit le disque de tous les projets. C'est le mode qui marche sans
+    #   démon Docker joignable, pas le mode sûr.
+    # Le défaut est `conteneur` : un réglage oublié doit coûter de la
+    # disponibilité (la session échoue au démarrage), jamais l'isolement.
+    # Une installation dont le backend n'a pas de démon joignable règle
+    # `SESSION_RUNTIME=processus` explicitement. Le font les tests (cf.
+    # `backend/tests/conftest.py`) et le compose de dev (`docker-compose.dev.yml`).
+    # Le réglage existe parce qu'Eldir doit pouvoir tourner là où le backend
+    # n'a pas de Docker.
+    session_runtime: Literal["processus", "conteneur"] = "conteneur"
+    # Image de la session : le CLI Claude, git et Node, rien d'autre.
+    # Construite par `DOCKER_BUILDKIT=1 docker build -t eldir-session:local
+    # backend/docker/session` (BuildKit est requis : `COPY --chmod`).
+    # Sans elle, une session échoue au démarrage avec le message du démon.
+    session_image: str = "eldir-session:local"
+    # Réseau dédié, sans route vers les réseaux du compose : celui de Postgres
+    # et Redis, et celui du proxy de socket. À créer une fois (cf.
+    # docs/deployment.md) : compose ne crée pas un réseau qu'aucun de ses
+    # services n'utilise. Sans lui, chaque session échoue au démarrage, le
+    # réseau étant introuvable.
+    session_network: str = "eldir-sessions"
+    # Les noms DOCKER des volumes, à distinguer des `*_root` ci-dessus, qui
+    # sont leurs points de montage chez le backend. `docker run` monte un
+    # volume par son nom, et compose préfixe ce nom par le nom effectif du
+    # projet compose, y compris si `COMPOSE_PROJECT_NAME` le change (ordre :
+    # `-p`, puis `COMPOSE_PROJECT_NAME`, puis `name:`). Le volume
+    # `eldir_workspaces` du compose de prod (`name: eldir`) s'appelle donc
+    # `eldir_eldir_workspaces` pour le démon, et une variable
+    # `COMPOSE_PROJECT_NAME` exportée renommerait les quatre volumes d'un coup.
+    # Les deux informations ne se déduisent pas l'une de l'autre, donc elles se
+    # déclarent toutes les deux. Une installation dont le projet compose porte
+    # un autre nom renseigne ces quatre variables (cf. docs/deployment.md).
+    workspaces_volume: str = "eldir_eldir_workspaces"
+    toolchains_volume: str = "eldir_eldir_toolchains"
+    claude_home_volume: str = "eldir_eldir_claude_home"
+    collectes_volume: str = "eldir_eldir_collectes"
 
     # ── Frontend (pour redirections OAuth) ──────────────────────
     frontend_base_url: str = "http://localhost:5173"

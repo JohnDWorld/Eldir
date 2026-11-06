@@ -41,6 +41,7 @@ dev = [
     "asgi-lifespan>=2.1.0",
     "aiosqlite>=0.20.0",
     "types-passlib>=1.7.7",
+    "pyyaml>=6.0",
 ]
 
 [tool.uv]
@@ -128,6 +129,17 @@ testpaths = ["tests"]
 # La suite entière tient en 50 s.
 faulthandler_timeout = 120
 addopts = "-ra --strict-markers --cov=app --cov-report=term-missing"
+markers = [
+    # Tests qui ont besoin d'un démon Docker joignable, en version 26 ou plus
+    # (celle de `--mount volume-subpath`). Le saut est fait par la fixture
+    # `demon_docker` de tests/integration/test_isolement_sessions.py, pas par le
+    # marqueur. Aucun ne mène une session jusqu'au CLI : le CLI Claude n'y est
+    # lancé que pour afficher sa version, et le seul qui appelle
+    # `SessionManager.start` le fait avec une image introuvable, donc le
+    # démarrage échoue avant qu'aucun CLI ne tourne. Ils ne consomment aucun
+    # crédit.
+    "docker: a besoin d'un démon Docker (Docker 26+)",
+]
 
 [tool.coverage.run]
 branch = true

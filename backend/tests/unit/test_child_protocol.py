@@ -81,7 +81,8 @@ def test_push_force_refuse_meme_autorise() -> None:
 
 # ── Accès serveur ───────────────────────────────────────────────
 def test_sans_machine_declaree_aucune_connexion_sortante() -> None:
-    """Le conteneur porte la config SSH de John : par défaut, on ne sort pas."""
+    """Sans machine déclarée, on ne sort pas : le conteneur du backend (mode `processus`)
+    porte toute la config SSH de John, et une session `conteneur` déjà ouverte garde sa clé."""
     for command in (
         "ssh mon-serveur ls /opt",
         "ssh -o BatchMode=yes autre-machine 'cat /etc/passwd'",

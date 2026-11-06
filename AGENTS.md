@@ -15,7 +15,8 @@ Eldir est un dashboard web open-source self-hosted pour orchestrer plusieurs ses
 cd backend
 uv sync                       # Install deps
 uv run alembic upgrade head   # Run DB migrations
-uv run uvicorn app.main:app --reload --port 8000
+# SESSION_RUNTIME=processus : le défaut `conteneur` (isolé) exige un démon Docker, un poste de dev le desserre
+SESSION_RUNTIME=processus uv run uvicorn app.main:app --reload --port 8000
 
 # Frontend
 cd frontend

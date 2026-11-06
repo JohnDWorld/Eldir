@@ -1,8 +1,54 @@
 # Un conteneur par session
 
-> Conception validée le 2026-11-03. Statut : à implémenter.
+> Conception validée le 2026-11-03. Statut : premier lot implémenté (2026-11-06),
+> avec les écarts ci-dessous.
 > Phase 6 bis du ROADMAP, premier des deux lots. Le réseau sortant restreint
 > reste hors de cette spec, et aura la sienne.
+
+> **Écarts constatés à l'implémentation.** Cette spec reste lisible telle
+> qu'elle a été validée ; ce qui suit corrige ce que l'implémentation a montré
+> faux. Le détail et les mesures sont dans
+> [`securite-sessions.md`](../securite-sessions.md).
+>
+> - **Le proxy de socket ne sépare pas le backend de root sur l'hôte.** La
+>   section « Le proxy de socket » plus bas dit qu'une faille de l'API passerait
+>   « de toutes les données d'Eldir à root sur le VPS » sans lui, « d'où le
+>   proxy ». Mesuré : le proxy filtre les chemins et pas les corps de requêtes,
+>   et `POST /containers/create` avec `Privileged` et `Binds: ["/:/hote"]`
+>   répond 201. Il retire `exec`, le réseau et `info` (403, mesuré) et le swarm
+>   (refusé par la configuration de l'image : lu, pas mesuré), et garde le socket
+>   hors du système de fichiers du backend ; il ne retire pas root. La vraie garde est
+>   l'ensemble des conteneurs qui le joignent. Cf. « Le proxy de socket ».
+> - **Cette spec ne ferme pas le risque nº 2 en entier.** « Cette spec le
+>   ferme » vaut pour ce qu'une session voit de **disque** : les trois tests
+>   d'isolement le prouvent. Elle ne sépare pas la session du **backend**, qui
+>   lance git dans des dossiers que la session écrit, et git exécute ce qu'il y
+>   trouve (risque nº 3, mesuré). Cf. « Risque connu nº 3 ».
+> - **Le clone canonique est monté en écriture, et ce n'est pas « le même
+>   domaine de confiance » vis-à-vis du backend.** Un worktree git en a besoin
+>   (mesuré), ce qui n'est pas dans cette spec. Entre sessions d'un même projet,
+>   c'est le même domaine de confiance. Vers le backend, c'est le chemin du
+>   risque nº 3.
+> - **« Rien n'est déduit dans cette conception » est faux à l'arrivée.** Des
+>   briques ont été mesurées après la spec, et d'autres restent déduites ou non
+>   mesurées ; `securite-sessions.md` et `deployment.md` marquent chaque phrase
+>   comme mesurée, déduite ou choisie.
+> - **Le critère d'acceptation nº 6 n'a tenu qu'une fois la migration sensible au
+>   mode.** « `SESSION_RUNTIME=processus` reproduit exactement le comportement
+>   actuel » était faux tant que `migrer_les_maisons` rangeait au boot, quel que
+>   soit le mode, les transcripts que le CLI lit à plat dans
+>   `<claude_home_root>/projects` en mode `processus` : le `resume` de leurs
+>   sessions ne les retrouvait plus. La fonction rend maintenant la main sans
+>   rien déplacer en `processus`. La suite ne le prouvait pas d'elle-même : le
+>   lifespan saute la migration sous `is_test`, donc aucun démarrage en mode
+>   `processus` ne la joue. Seul un test dédié épingle ce retour anticipé.
+>   **Et le critère reste faux sur un autre point, lui non corrigé** : sur le
+>   compose de production, une session en mode `processus` hérite désormais de
+>   `DOCKER_HOST`, du réseau `docker-api` et du client `docker` de l'image du
+>   backend, qu'elle n'avait pas avant ce lot. Elle ne reproduit donc pas le
+>   comportement d'avant : elle est plus exposée, cf. la ligne `processus` de
+>   `deployment.md`. Déduit de la lecture du compose, de l'image et de la fusion
+>   d'environnement du SDK, pas essayé.
 
 ## Pourquoi
 
@@ -207,6 +253,10 @@ parce que Docker crée les dossiers parents en root.
 Une seule image pour toutes les sessions : Node 20, `git`, et
 `@anthropic-ai/claude-code` épinglé à la version que le backend attend. Un
 utilisateur non root `session` d'uid 1000.
+
+> **Écart constaté à l'implémentation.** L'image garde l'utilisateur `node`
+> d'uid 1000 que `node:20-bookworm-slim` fournit déjà, au lieu d'un utilisateur
+> `session` : en créer un second sur l'uid 1000 échouerait.
 
 Le toolchain du projet n'est **pas** dans l'image : il est monté en lecture seule
 depuis le volume existant. Une image par projet serait une image à reconstruire

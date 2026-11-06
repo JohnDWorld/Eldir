@@ -20,6 +20,7 @@ import re
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from app.core.child_report import extract_cr, state_after_turn
@@ -48,14 +49,25 @@ from app.core.exceptions import (
     SessionStartTimeoutError,
 )
 from app.core.logging import get_logger
+from app.services import session_container
 from app.services.collect_service import collect_service
 from app.services.event_bus import EventBus
+from app.services.remote_access_service import remote_access_service
 from app.services.toolchain_service import toolchain_service
 
 if TYPE_CHECKING:
     from claude_agent_sdk import ClaudeSDKClient
 
 logger = get_logger(__name__)
+
+# L'enrobage vit sous `backend/` et pas à la racine du dépôt, parce que le SDK
+# le lance depuis le processus du backend : il doit donc être DANS l'image du
+# backend, dont le contexte de build est `./backend`. Chemin résolu depuis ce
+# fichier : `app/services/session_manager.py` -> `backend/` en dev comme `/app`
+# dans le conteneur.
+CHEMIN_ENROBAGE = (
+    Path(__file__).resolve().parents[2] / "docker" / "session" / "claude-dans-un-conteneur"
+)
 
 # Ce que l'UI et les abonnés lisent quand le flux du CLI se ferme sans résultat.
 MESSAGE_FLUX_SANS_RESULTAT = (
@@ -101,9 +113,14 @@ _FORCE_PUSH_REASON = (
 # ── Accès serveur ───────────────────────────────────────────────
 # Un projet déployé ne tient pas dans son repo : l'agent a besoin d'aller
 # voir la machine. Il peut, vers l'alias SSH que le projet déclare, et vers
-# lui seul. Le conteneur porte la config SSH de John, donc sans cette règle
-# une session ouverte sur un projet pourrait se connecter à n'importe laquelle
-# de ses machines.
+# lui seul. En mode `processus`, le conteneur du backend porte la configuration
+# SSH complète de John : sans cette règle, une session pourrait se connecter à
+# n'importe laquelle de ses machines. En mode `conteneur`, la session n'a que la
+# clé de son projet et un `config` à un seul bloc, mais la règle reste la seule
+# garde d'une session déjà ouverte dont le projet vient de passer en « source
+# externe » : `ferme_l_acces_serveur` ne fait que vider `remote_host`, la clé
+# déjà montée dans son conteneur y reste. Ne la retire pas au motif que les
+# montages la rendraient redondante.
 #
 # C'est un garde-fou contre l'écart, pas un bac à sable : un agent décidé
 # contournerait un filtre sur une ligne de commande (script intermédiaire,
@@ -146,9 +163,7 @@ def _remote_denial(
         return None
     return (
         f"Refusé par Eldir : cette session ne peut se connecter qu'à "
-        f"`{remote_host}`, la machine déclarée par son projet. Le conteneur "
-        f"porte la configuration SSH de John, qui atteint d'autres serveurs "
-        f"n'ayant rien à voir avec ce projet."
+        f"`{remote_host}`, la machine déclarée par son projet."
     )
 
 
@@ -180,16 +195,41 @@ def _matches(pattern: re.Pattern[str], tool_name: str | None, tool_input: Any) -
     return isinstance(command, str) and bool(pattern.search(command))
 
 
+def env_pour_la_session(*, project_id: str | None, remote_host: str | None) -> dict[str, str]:
+    """L'environnement d'une session : le masque du backend, puis les apports du projet.
+
+    Trois apports du projet, groupés ici plutôt que chez chaque appelant pour
+    que création, resume et sessions système en héritent pareil :
+
+    - `$ELDIR_TOOLCHAIN` et `$ELDIR_TOOLCHAIN/bin` en tête du PATH, pour que
+      l'agent trouve les outils installés (SDK Flutter, JDK, Go…) ;
+    - `$ELDIR_COLLECTE`, où atterrit ce qui a été ramené d'un serveur avant le
+      démarrage (cf. `CollectService`) ;
+    - `$ELDIR_REMOTE_HOST`, l'alias SSH de la machine où tourne le projet,
+      seule destination que le hook laisse atteindre.
+
+    L'ordre n'est pas décoratif : le masque d'abord, les apports du projet
+    ensuite. Le masque vide nommément les secrets d'Eldir que le SDK
+    transmettrait sinon (il passe l'environnement du backend en entier, cf.
+    `env_a_masquer_pour_cli`), et aucun apport du projet ne porte le nom d'un
+    champ de `Settings`, donc rien ne se démasque par cette fusion.
+    """
+    env = dict(env_a_masquer_pour_cli())
+    env.update(toolchain_service.env_for(project_id))
+    env.update(collect_service.env_for(project_id))
+    if remote_host:
+        env["ELDIR_REMOTE_HOST"] = remote_host
+    return env
+
+
 def _optional_options(
     *,
-    project_id: str | None,
     system_prompt: str | None,
     model: str | None,
     resume_sdk_id: str | None,
     allowed_tools: list[str] | None,
     disallowed_tools: list[str] | None,
     mcp_servers: dict[str, Any] | None,
-    remote_host: str | None,
 ) -> dict[str, Any]:
     """Options SDK qu'on ne pose que si elles ont une valeur."""
     kwargs: dict[str, Any] = {}
@@ -216,22 +256,57 @@ def _optional_options(
         # charger en plus les serveurs MCP éventuels de la machine hôte.
         kwargs["mcp_servers"] = mcp_servers
         kwargs["strict_mcp_config"] = True
-    # Deux apports du projet à l'environnement de l'agent, groupés ici plutôt
-    # que chez chaque appelant pour que création, resume et sessions système
-    # en héritent pareil :
-    # - `$ELDIR_TOOLCHAIN/bin` en tête du PATH, pour que l'agent trouve les
-    #   outils installés (SDK Flutter, JDK, Go…) ;
-    # - `$ELDIR_COLLECTE`, où atterrit ce qui a été ramené d'un serveur avant
-    #   le démarrage (cf. CollectService).
-    # - `$ELDIR_REMOTE_HOST`, l'alias SSH de la machine où tourne le projet,
-    #   seule destination que le hook laisse atteindre.
-    # Les trois sont vides tant que le projet ne déclare rien.
-    env = {**toolchain_service.env_for(project_id), **collect_service.env_for(project_id)}
-    if remote_host:
-        env["ELDIR_REMOTE_HOST"] = remote_host
-    if env:
-        kwargs["env"] = env
     return kwargs
+
+
+async def options_de_conteneur(
+    *, project_id: str | None, session_id: str, cwd: str
+) -> dict[str, Any]:
+    """Les options SDK qui mettent le CLI de cette session dans un conteneur.
+
+    Vide en mode `processus` : le CLI tourne alors dans le conteneur du
+    backend, comme avant la Phase 6 bis, et le masque d'environnement reste sa
+    seule garde.
+
+    En mode `conteneur`, le SDK lance l'enrobage à la place du CLI. Il reçoit
+    son environnement, donc les variables calculées ici, et ne transmet au
+    conteneur que ce qu'il nomme lui-même.
+
+    Asynchrone pour une seule raison : `materiel_de_session` copie une clé et
+    écrit un fichier, des E/S bloquantes qu'on envoie dans un thread plutôt que
+    de figer la boucle (même choix que `RemoteAccessService.connect`). La
+    décision du mode reste ici, en un seul endroit.
+
+    Ne rattrape rien : une erreur ici arrête le démarrage de la session. Un
+    repli vers le mode `processus` serait un repli silencieux vers le mode non
+    isolé, exactement ce qu'un attaquant cherche à provoquer.
+    """
+    # `== "processus"` plutôt que `!= "conteneur"` : une valeur inattendue doit
+    # tomber dans la branche isolée, pas dans l'ouverte. Le `Literal` de
+    # `Settings` la rend inatteignable aujourd'hui, ce qui est précisément le
+    # moment où l'écrire du bon côté ne coûte rien.
+    if get_settings().session_runtime == "processus":
+        return {}
+
+    # `preparer_la_maison` avant `env_pour_enrobage`, le contrat de leurs
+    # docstrings : la maison doit exister avant le `docker run`. Un simple
+    # `mkdir`, appelé sur place comme les lectures de disque de
+    # `env_pour_la_session` ; `materiel_de_session`, qui copie et écrit, va dans
+    # un thread.
+    session_container.preparer_la_maison(project_id)
+    ssh_subpath = (
+        await asyncio.to_thread(remote_access_service.materiel_de_session, project_id, session_id)
+        if project_id
+        else None
+    )
+    return {
+        "cli_path": str(CHEMIN_ENROBAGE),
+        "env": session_container.env_pour_enrobage(
+            project_id=project_id,
+            worktree_abs=Path(cwd),
+            ssh_subpath=ssh_subpath,
+        ),
+    }
 
 
 @dataclass(slots=True)
@@ -442,11 +517,12 @@ class SessionManager:
             "cwd": cwd,
             "stderr": _on_cli_stderr,
             # Le SDK transmet l'environnement du backend en entier : ce masque
-            # retire les secrets d'Eldir de ce que la session peut lire. Cf.
-            # `env_a_masquer_pour_cli` - sans lui, `JWT_SECRET` suffit à une
-            # session pour se forger un jeton de connexion et s'autoriser la
-            # publication sans passer par le hook.
-            "env": env_a_masquer_pour_cli(),
+            # retire les secrets d'Eldir de ce que la session peut lire, et
+            # `env_pour_la_session` garantit qu'il survit aux variables du
+            # projet. Cf. `env_a_masquer_pour_cli` - sans lui, `JWT_SECRET`
+            # suffit à une session pour se forger un jeton de connexion et
+            # s'autoriser la publication sans passer par le hook.
+            "env": env_pour_la_session(project_id=project_id, remote_host=remote_host),
             # Pas de TTY côté serveur → le mode "default" bloque toute action
             # qui demande approbation. Chaque session vit dans son worktree
             # isolé et l'UI Eldir streame chaque tool_use en temps réel, donc
@@ -460,59 +536,91 @@ class SessionManager:
         }
         options_kwargs.update(
             _optional_options(
-                project_id=project_id,
                 system_prompt=system_prompt,
                 model=model,
                 resume_sdk_id=resume_sdk_id,
                 allowed_tools=allowed_tools,
                 disallowed_tools=disallowed_tools,
                 mcp_servers=mcp_servers,
-                remote_host=remote_host,
             )
         )
 
-        # Garde de ré-entrée. Tout ce qui précède est synchrone : le `connect`
-        # ci-dessous est le seul `await` avant que la session entre dans le
-        # pool, donc c'est là que deux démarrages concurrents se croisent. Sans
-        # cette garde ils montent deux clients, `self._sessions` n'en garde
-        # qu'un, et il reste un processus orphelin, un compteur de sessions
-        # actives faux et deux tours concurrents dans le même arbre de travail.
+        # Garde de ré-entrée. Tout ce qui précède est synchrone : les `await`
+        # ci-dessous (les options de conteneur, puis le `connect`) sont les
+        # seuls avant que la session entre dans le pool, donc c'est là que deux
+        # démarrages concurrents se croisent. Sans cette garde ils montent deux
+        # clients, `self._sessions` n'en garde qu'un, et il reste un processus
+        # orphelin, un compteur de sessions actives faux et deux tours
+        # concurrents dans le même arbre de travail.
         if session_id in self._sessions or session_id in self._en_demarrage:
             raise SessionAlreadyStartingError(
                 f"La session {session_id} démarre déjà ou tourne déjà. "
                 "Attends la fin de son démarrage avant de lui parler."
             )
         self._en_demarrage.add(session_id)
+        demarree = False
         try:
+            # Le mode conteneur, s'il est demandé. Après la garde et dans le
+            # `try` : en mode `conteneur` cet `await` rend la main, donc un
+            # second démarrage de la même session doit déjà trouver le
+            # marqueur, et une erreur ici doit le rendre. Elle remonte telle
+            # quelle : pas de repli vers le mode `processus`.
+            conteneur = await options_de_conteneur(
+                project_id=project_id, session_id=session_id, cwd=cwd
+            )
+            if conteneur:
+                # Les variables de l'enrobage s'ajoutent à l'environnement de
+                # la session : l'enrobage les lit pour construire sa ligne de
+                # commande et ne les transmet pas au conteneur.
+                options_kwargs["cli_path"] = conteneur["cli_path"]
+                options_kwargs["env"] = {**options_kwargs["env"], **conteneur["env"]}
+                # Le PATH du toolchain n'a rien à faire dans l'environnement de
+                # l'enrobage : `entree-session` le pose DANS le conteneur, et ici un
+                # `bin/docker` ou un `bin/id` déposé par un toolchain remplacerait ceux
+                # que l'enrobage appelle. Le SDK laisse alors hériter le PATH du backend.
+                options_kwargs["env"].pop("PATH", None)
+                # Le SDK lance `[cli_path, "-v"]` avant de se connecter, sans
+                # ces variables : les gardes `:?` de l'enrobage le font sortir
+                # en erreur, et le SDK en avale l'échec (`except Exception:
+                # pass`). Son contrôle de version minimale ne tourne donc
+                # jamais en mode conteneur. C'est accepté, pas un bogue : la
+                # version du CLI de l'image est épinglée (`ARG
+                # CLAUDE_CLI_VERSION`), et `test_l_image_porte_le_cli_claude`
+                # épingle l'épingle.
             options = ClaudeAgentOptions(**options_kwargs)
             client = ClaudeSDKClient(options=options)
-            await asyncio.wait_for(client.connect(), timeout=SESSION_CONNECT_TIMEOUT_S)
-        except TimeoutError as exc:
-            # Vu en production : le CLI démarre, reste en attente, et la
-            # requête HTTP ne rend jamais la main. Mieux vaut une erreur
-            # explicite qu'un silence de plusieurs minutes.
-            with suppress(Exception):
-                await client.disconnect()
-            await self._publish(
-                session_id,
-                EVENT_TYPE_ERROR,
-                {
-                    "message": (
-                        f"Le CLI Claude n'a pas répondu en "
-                        f"{SESSION_CONNECT_TIMEOUT_S}s au démarrage de la session."
-                    ),
-                    "type": "ConnectTimeout",
-                },
-            )
-            raise SessionStartTimeoutError(
-                f"Démarrage de session interrompu après "
-                f"{SESSION_CONNECT_TIMEOUT_S}s (voir les logs `session.cli.stderr`)."
-            ) from exc
+            # Imbriqué pour que seul le `connect` soit lu comme un délai
+            # dépassé : `TimeoutError` est aussi la forme d'un `OSError`
+            # `ETIMEDOUT`, et une erreur de disque au calcul des options ne doit
+            # pas se faire passer pour un CLI qui ne répond pas.
+            try:
+                await asyncio.wait_for(client.connect(), timeout=SESSION_CONNECT_TIMEOUT_S)
+            except TimeoutError as exc:
+                # Vu en production : le CLI démarre, reste en attente, et la
+                # requête HTTP ne rend jamais la main. Mieux vaut une erreur
+                # explicite qu'un silence de plusieurs minutes.
+                with suppress(Exception):
+                    await client.disconnect()
+                await self._publish(
+                    session_id,
+                    EVENT_TYPE_ERROR,
+                    {
+                        "message": (
+                            f"Le CLI Claude n'a pas répondu en "
+                            f"{SESSION_CONNECT_TIMEOUT_S}s au démarrage de la session."
+                        ),
+                        "type": "ConnectTimeout",
+                    },
+                )
+                raise SessionStartTimeoutError(
+                    f"Démarrage de session interrompu après "
+                    f"{SESSION_CONNECT_TIMEOUT_S}s (voir les logs `session.cli.stderr`)."
+                ) from exc
+            demarree = True
         finally:
-            # Retiré quoi qu'il arrive : un marqueur qui fuit sur un démarrage
-            # tombé interdirait toute reprise de cette session jusqu'au
-            # redémarrage. Aucun `await` entre ici et l'inscription au pool.
-            self._en_demarrage.discard(session_id)
+            # Sur le chemin réussi, cet appel ne suspend rien : aucune
+            # suspension entre ici et l'inscription au pool.
+            await self._fin_de_demarrage(session_id, project_id, demarree=demarree)
         active.client = client
 
         self._sessions[session_id] = active
@@ -525,6 +633,32 @@ class SessionManager:
         )
         await self._publish_state(session_id, SESSION_STATE_IDLE)
         return active
+
+    async def _fin_de_demarrage(
+        self, session_id: str, project_id: str | None, *, demarree: bool
+    ) -> None:
+        """Clôt un démarrage : efface la matière d'un démarrage tombé, rend le marqueur.
+
+        Un démarrage qui échoue n'entre jamais dans le pool, donc `stop` ne
+        passera pas : sans cette suppression, la copie de clé et le `config`
+        écrits par `options_de_conteneur` resteraient sur le disque, et rien ne
+        les balaie. Idempotent, comme à l'arrêt.
+
+        La suppression précède le `discard` : le marqueur tient un réessai à
+        l'écart pendant qu'elle tourne, sinon la matière toute neuve de ce
+        réessai serait effacée par le `rmtree`. Le `discard` est dans un
+        `finally`, quoi qu'il arrive : un marqueur qui fuit sur un démarrage
+        tombé interdirait toute reprise de cette session jusqu'au redémarrage.
+        """
+        try:
+            if project_id and not demarree:
+                await asyncio.to_thread(
+                    remote_access_service.supprimer_materiel_de_session,
+                    project_id,
+                    session_id,
+                )
+        finally:
+            self._en_demarrage.discard(session_id)
 
     def reserver_place_file(self, session_id: str) -> None:
         """Prend une place dans la file de la session, ou lève.
@@ -611,17 +745,59 @@ class SessionManager:
         try:
             if active.reader_task is not None:
                 active.reader_task.cancel()
-            if active.client is not None:
-                # Un CLI bloqué faisait traîner `disconnect()` indéfiniment,
-                # et avec lui la requête d'arrêt ou de suppression. La
-                # session est de toute façon déjà sortie du pool.
-                try:
-                    await asyncio.wait_for(
-                        active.client.disconnect(),
-                        timeout=SESSION_DISCONNECT_TIMEOUT_S,
+            try:
+                if active.project_id:
+                    # La copie de clé et le `config` à un seul bloc de cette
+                    # session, effacés tout de suite après la sortie du pool et
+                    # AVANT d'attendre le `disconnect`, qui peut durer
+                    # `SESSION_DISCONNECT_TIMEOUT_S` secondes. Pendant cette
+                    # attente l'identifiant n'est ni dans le pool ni dans le
+                    # marqueur de démarrage : une reprise peut écrire sa propre
+                    # matière, qu'un effacement tardif détruirait. Effacée ici,
+                    # la matière de la reprise est écrite après, et rien ne se
+                    # perd, hors la fenêtre ci-dessous. Idempotent : un arrêt qui
+                    # suit un crash ne lève pas.
+                    #
+                    # Le conteneur encore en vie perd sa clé et son `config` à
+                    # cet instant : les fichiers sont ceux du dossier monté, pas
+                    # une copie (mesuré par `mv` depuis un second conteneur :
+                    # `cat` lisait la clé, puis « No such file or directory »
+                    # dès le déplacement). Le `disconnect` qui suit ferme
+                    # l'entrée standard du CLI, et le SDK attend 5 s, envoie
+                    # TERM, attend 5 s, envoie KILL : le conteneur vit donc une
+                    # dizaine de secondes au plus sans sa clé, alors qu'il est
+                    # déjà en cours d'arrêt. Un `ssh` lancé dans cet intervalle
+                    # échoue, un `ssh` en vol est coupé un peu plus tôt qu'il
+                    # ne l'aurait été.
+                    #
+                    # Reste une fenêtre d'ordonnancement : `to_thread` est un
+                    # `await`, donc une reprise peut s'intercaler entre la sortie
+                    # du pool et l'effacement effectif. On l'accepte plutôt que
+                    # de tenir le marqueur pendant tout l'arrêt : la reprise
+                    # (`SessionService.resume`) prendrait le refus pour un
+                    # transcript perdu, effacerait `sdk_session_id` et le
+                    # commiterait, soit une perte permanente pour une panne SSH
+                    # étroite.
+                    await asyncio.to_thread(
+                        remote_access_service.supprimer_materiel_de_session,
+                        active.project_id,
+                        session_id,
                     )
-                except TimeoutError:
-                    logger.warning("session.disconnect.timeout", session_id=session_id)
+            finally:
+                # Quoi que fasse l'effacement, le CLI se déconnecte : un
+                # effacement qui lèverait ne doit pas laisser un conteneur
+                # ouvert derrière une session déjà sortie du pool.
+                if active.client is not None:
+                    # Un CLI bloqué faisait traîner `disconnect()` indéfiniment,
+                    # et avec lui la requête d'arrêt ou de suppression. La
+                    # session est de toute façon déjà sortie du pool.
+                    try:
+                        await asyncio.wait_for(
+                            active.client.disconnect(),
+                            timeout=SESSION_DISCONNECT_TIMEOUT_S,
+                        )
+                    except TimeoutError:
+                        logger.warning("session.disconnect.timeout", session_id=session_id)
         finally:
             await self._publish(session_id, EVENT_TYPE_STOP, {})
             logger.info("session.stopped", session_id=session_id)

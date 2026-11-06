@@ -6,15 +6,21 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV UV_LINK_MODE=copy
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
-ENV CI=true
-ENV npm_config_fund=false
-ENV npm_config_audit=false
-ENV npm_config_update_notifier=false
-ENV npm_config_progress=false
 # DEBIAN_FRONTEND est défini en ARG (build-time uniquement) pour éviter
 # qu'il fuite dans le container final et déclenche des comportements
 # inattendus sur les apt-get exécutés à l'exécution.
 ARG DEBIAN_FRONTEND=noninteractive
+# Pour le build seulement, d'où des ARG et pas des ENV : elles servent à faire
+# taire `npm install -g`. En ENV, elles passeraient dans l'environnement de tout
+# ce que ce conteneur lance, donc dans celui d'une session du mode `processus`,
+# où `CI=true` changerait le comportement des outils que l'agent lance.
+# L'image des sessions (backend/docker/session/Dockerfile) porte la même
+# correction : sur ce point, les deux modes voient le même environnement.
+ARG CI=true
+ARG npm_config_fund=false
+ARG npm_config_audit=false
+ARG npm_config_update_notifier=false
+ARG npm_config_progress=false
 
 # uv (package manager imposé par AGENTS.md)
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
@@ -38,6 +44,20 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/* \
  && node --version && npm --version
+
+# `docker-ce-cli` sert à l'enrobage des sessions : le backend lance le CLI
+# Claude dans un conteneur par session (cf. backend/docker/session/). Le client
+# seulement, pas le démon : il parle au proxy de socket par `DOCKER_HOST`.
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && curl -fsSL https://download.docker.com/linux/debian/gpg \
+      -o /etc/apt/keyrings/docker.asc \
+ && chmod a+r /etc/apt/keyrings/docker.asc \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+      > /etc/apt/sources.list.d/docker.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends docker-ce-cli \
+ && rm -rf /var/lib/apt/lists/* \
+ && docker --version
 
 # CLI officiel @anthropic-ai/claude-code - disponible pour debug et override
 # du binaire bundlé par le SDK Python (cf. docs/installation.md).

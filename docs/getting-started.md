@@ -4,7 +4,7 @@
 
 ## 0. Prérequis
 
-- **Docker 24+** et **docker compose v2** installés
+- **Docker 24+** et **docker compose v2** installés (un serveur de production exige la 26 au moins : [`deployment.md`](./deployment.md#1-docker-26-minimum-sur-lhôte))
 - Un compte **Claude Pro** ou **Max** (recommandé) OU une clé API Anthropic Console
 - Un compte **GitHub** OU un PAT d'une instance **Forgejo / Codeberg**
 

@@ -31,7 +31,7 @@ Tables Postgres : `mission_templates`, `template_skills`, `template_sub_agents`,
 
 ## Toolchain du repo (`setup_commands`)
 
-Le conteneur backend n'embarque que **git, node 20, npm, python 3.12, uv et le CLI Claude**. Un agent sur un repo Flutter ne peut donc pas lancer `flutter analyze` : il le signale dans son `RESTE:` et son travail reste non vérifié.
+Ce qu'une session embarque dépend du mode (`SESSION_RUNTIME`, cf. [`sessions.md`](./sessions.md)). En mode `processus`, c'est le conteneur du backend : **git, node 20, npm, python 3.12, uv, `curl` et le CLI Claude**. En mode `conteneur`, le défaut, c'est l'image des sessions : **git, node 20, npm, `ssh` et le CLI Claude, sans python, uv ni `curl`** (vérifié). **Un projet qui comptait sur le python 3.12, l'uv ou le `curl` du backend les perd en passant en `conteneur`, à moins que ses `setup_commands` ne les installent**, comme n'importe quel autre outil, et beaucoup de workflows d'agent passent par `curl`. Un agent sur un repo Flutter ne peut de même pas lancer `flutter analyze` sans toolchain : il le signale dans son `RESTE:` et son travail reste non vérifié.
 
 Tout mettre dans l'image donnerait une image de 15 Go reconstruite à chaque déploiement, avec Flutter installé pour les projets Python. À la place, chaque projet **déclare** ses commandes d'installation, et Eldir les exécute **à la demande** :
 

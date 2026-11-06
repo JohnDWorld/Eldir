@@ -128,3 +128,26 @@ def test_le_masque_suit_la_casse_reelle_de_lenvironnement(
     monkeypatch.setenv("jwt_secret", "secret-en-minuscules")
 
     assert env_vu_par_la_session(monkeypatch)["jwt_secret"] == ""
+
+
+def test_le_masque_survit_aux_variables_du_projet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le masque et les apports du projet se fusionnent, ils ne se remplacent pas.
+
+    Le défaut qui a motivé ce test : l'assemblage posait le masque dans
+    `options_kwargs["env"]`, puis `update()` y écrasait la clé `env` entière
+    dès que le projet apportait une variable. Un projet avec un toolchain
+    installé, une collecte ou un hôte distant - donc tout projet un peu
+    équipé - rendait le masque inopérant, et une session lisait `JWT_SECRET`.
+
+    Le test passe par la fonction d'assemblage et pas par les deux morceaux
+    pris séparément : c'est la fusion qui était fausse, pas les morceaux.
+    """
+    from app.services.session_manager import env_pour_la_session
+
+    monkeypatch.setenv("JWT_SECRET", "valeur-sensible-du-backend")
+    env = env_pour_la_session(project_id="p1", remote_host="eldir-machine")
+
+    assert env["ELDIR_REMOTE_HOST"] == "eldir-machine"
+    assert env["JWT_SECRET"] == ""

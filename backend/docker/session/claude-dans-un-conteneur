@@ -1,0 +1,138 @@
+#!/bin/sh
+# Passé à `ClaudeAgentOptions(cli_path=...)` : le SDK nous lance à la place du
+# CLI `claude`, avec le cwd du worktree et son environnement, puis parle au
+# processus par stdin/stdout. On remplace ce processus par un `docker run -i`,
+# et le protocole de contrôle traverse le tube sans adaptation (mesuré).
+#
+# Le SDK reste dans le processus du backend : les hooks `PreToolUse` et
+# `PostToolUse` continuent donc de s'exécuter côté backend, en Python. La
+# porte de publication et la garde d'accès distant restent hors du périmètre
+# qu'elles contraignent, et c'est tout l'intérêt de cette approche.
+#
+# Deuxième intérêt : le conteneur ne reçoit QUE ce que ce script nomme.
+# `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY` et le reste n'existent pas
+# dedans, qu'Eldir y ait pensé ou non. Le masque d'environnement du backend
+# redevient un filet au lieu d'être la seule garde.
+#
+# Ce que ce script lit est calculé par `app/services/session_container.py`.
+set -e
+
+# Pas de globbing : l'expansion non quotée de `$montages` plus bas découpe aux
+# blancs, ce que le garde-fou ci-dessous couvre, mais elle développe aussi `*`,
+# `?` et `[`, qu'un nom de volume ou une racine mal saisie pourrait porter. Ce
+# script n'a besoin du globbing nulle part.
+set -f
+
+: "${ELDIR_IMAGE:?manque pour lancer la session}"
+: "${ELDIR_NETWORK:?manque pour lancer la session}"
+: "${ELDIR_WORKSPACES_VOLUME:?manque pour lancer la session}"
+: "${ELDIR_WORKTREE_ABS:?manque pour lancer la session}"
+: "${ELDIR_WORKTREE_SUBPATH:?manque pour lancer la session}"
+: "${ELDIR_CLAUDE_HOME_VOLUME:?manque pour lancer la session}"
+: "${ELDIR_CLAUDE_HOME_SUBPATH:?manque pour lancer la session}"
+
+# L'image de session n'a qu'un seul utilisateur, d'uid 1000 (cf.
+# backend/docker/session/Dockerfile), et le `-u` plus bas passe l'uid de ce
+# processus. Un autre uid n'aurait pas d'entrée dans le `passwd` de l'image, et
+# `ssh` mourrait alors sur « No user exists for uid 1001 » (code 255) plutôt que
+# sur le vrai problème. Mesuré. Le refus est ici parce que
+# `backend/Dockerfile` accepte un autre `UID` à la construction.
+if [ "$(id -u)" != "1000" ]; then
+    echo "enrobage: le backend tourne en uid $(id -u), l'image de session n'a que l'uid 1000. Reconstruis l'image du backend avec --build-arg UID=1000, ou passe SESSION_RUNTIME=processus (sans isolement)." >&2
+    exit 2
+fi
+
+# `sh` n'a pas de tableaux : les montages optionnels ci-dessous s'accumulent
+# dans une chaîne que `exec` développe sans guillemets, donc découpée aux blancs.
+# Une valeur qui en contient couperait un montage en deux, et le morceau suivant
+# serait lu par `docker` comme un autre argument, jusqu'au nom de l'image. Les
+# deux montages fixes, eux, sont entre guillemets et tolèrent les blancs : on ne
+# vérifie donc que les variables des montages optionnels et les deux noms de
+# volume qui les alimentent.
+#
+# Ce n'est pas un cas d'école : les sous-chemins viennent de `slugify` et
+# d'UUID, mais les `*_ABS` viennent de `WORKSPACES_ROOT`, `TOOLCHAINS_ROOT` et
+# `COLLECTES_ROOT`, que l'opérateur règle. Un refus nommé vaut mieux qu'un
+# `docker run` lancé avec des arguments faux.
+for nom in ELDIR_WORKSPACES_VOLUME ELDIR_CLAUDE_HOME_VOLUME \
+    ELDIR_CLONE_ABS ELDIR_CLONE_SUBPATH \
+    ELDIR_TOOLCHAINS_VOLUME ELDIR_TOOLCHAIN_ABS ELDIR_TOOLCHAIN_SUBPATH \
+    ELDIR_COLLECTES_VOLUME ELDIR_COLLECTE_ABS ELDIR_COLLECTE_SUBPATH \
+    ELDIR_SSH_SUBPATH; do
+    # `eval` ne voit que les noms écrits ci-dessus, jamais une valeur.
+    eval "valeur=\${$nom:-}"
+    case "$valeur" in
+    *[[:space:]]*)
+        echo "enrobage: $nom contient un blanc (espace, tabulation ou retour à la ligne), refusé" >&2
+        exit 2
+        ;;
+    esac
+done
+
+montages=""
+
+# Le clone canonique du projet, en écriture. Pas un confort : le `.git` d'un
+# worktree est un fichier qui pointe vers `<clone>/.git/worktrees/<nom>`, et
+# `git commit` depuis un worktree écrit ses objets dans le dépôt partagé.
+# Monté sans lui, git répond « fatal: not a git repository ». Mesuré.
+if [ -n "${ELDIR_CLONE_SUBPATH:-}" ]; then
+    : "${ELDIR_CLONE_ABS:?manque pour monter le clone du projet}"
+    montages="$montages --mount type=volume,src=$ELDIR_WORKSPACES_VOLUME,dst=$ELDIR_CLONE_ABS,volume-subpath=$ELDIR_CLONE_SUBPATH"
+fi
+
+# Le toolchain du projet, en lecture seule : la session l'exécute, elle n'a pas
+# à l'écrire. Monté au même chemin absolu que chez le backend, pour que
+# `$ELDIR_TOOLCHAIN` et les chemins inscrits dans les outils installés restent
+# vrais. Conditionnel : un projet sans toolchain n'a pas de sous-chemin, et un
+# `volume-subpath` absent fait échouer `docker run` (code 127).
+if [ -n "${ELDIR_TOOLCHAIN_SUBPATH:-}" ]; then
+    : "${ELDIR_TOOLCHAINS_VOLUME:?manque pour monter le toolchain}"
+    : "${ELDIR_TOOLCHAIN_ABS:?manque pour monter le toolchain}"
+    montages="$montages --mount type=volume,src=$ELDIR_TOOLCHAINS_VOLUME,dst=$ELDIR_TOOLCHAIN_ABS,volume-subpath=$ELDIR_TOOLCHAIN_SUBPATH,readonly"
+fi
+
+# Ce qui a été ramené d'un serveur avant le démarrage (cf. `CollectService`),
+# en lecture seule et au même chemin absolu, pour la même raison.
+if [ -n "${ELDIR_COLLECTE_SUBPATH:-}" ]; then
+    : "${ELDIR_COLLECTES_VOLUME:?manque pour monter la collecte}"
+    : "${ELDIR_COLLECTE_ABS:?manque pour monter la collecte}"
+    montages="$montages --mount type=volume,src=$ELDIR_COLLECTES_VOLUME,dst=$ELDIR_COLLECTE_ABS,volume-subpath=$ELDIR_COLLECTE_SUBPATH,readonly"
+fi
+
+# La clé SSH du projet et un `config` à un seul bloc, en lecture seule. Le
+# `config` partagé du backend porte les machines de tous les projets : le
+# monter entier ferait fuiter leur inventaire.
+if [ -n "${ELDIR_SSH_SUBPATH:-}" ]; then
+    montages="$montages --mount type=volume,src=$ELDIR_CLAUDE_HOME_VOLUME,dst=/eldir/ssh,volume-subpath=$ELDIR_SSH_SUBPATH,readonly"
+fi
+
+# `-w "$PWD"` : le SDK règle le cwd du processus sur le worktree, donc notre
+# `$PWD` EST le worktree. Le worktree est monté au même chemin absolu que sur
+# l'hôte, sinon les chemins que la session manipule, que les hooks inspectent
+# et que le diff viewer affiche désigneraient des fichiers que le backend ne
+# connaît pas.
+#
+# `CLAUDE_CODE_TMPDIR` est explicite : le CLI se calcule sinon un temporaire
+# `/tmp/claude-<uid>` et refuse de démarrer s'il le trouve possédé par un
+# autre utilisateur. Docker crée les parents de montage en root, donc un
+# montage dont le chemin passe par `/tmp` suffit à déclencher ça.
+#
+# Les `-e` sans valeur transmettent la variable du backend si elle existe, et
+# rien sinon : le credential Claude (sous celui des deux noms qui est
+# présent), le marqueur d'entrée du SDK, et les trois variables du projet.
+exec docker run -i --rm --init \
+    --network "$ELDIR_NETWORK" \
+    -u "$(id -u):$(id -g)" \
+    --mount "type=volume,src=$ELDIR_WORKSPACES_VOLUME,dst=$ELDIR_WORKTREE_ABS,volume-subpath=$ELDIR_WORKTREE_SUBPATH" \
+    --mount "type=volume,src=$ELDIR_CLAUDE_HOME_VOLUME,dst=/eldir/maison,volume-subpath=$ELDIR_CLAUDE_HOME_SUBPATH" \
+    $montages \
+    -e HOME=/eldir/maison \
+    -e CLAUDE_CODE_TMPDIR=/eldir/maison/tmp \
+    -e ANTHROPIC_API_KEY \
+    -e CLAUDE_CODE_OAUTH_TOKEN \
+    -e CLAUDE_CODE_ENTRYPOINT \
+    -e ELDIR_TOOLCHAIN \
+    -e ELDIR_COLLECTE \
+    -e ELDIR_REMOTE_HOST \
+    -w "$PWD" \
+    "$ELDIR_IMAGE" claude "$@"
