@@ -42,6 +42,13 @@
 >   rien déplacer en `processus`. La suite ne le prouvait pas d'elle-même : le
 >   lifespan saute la migration sous `is_test`, donc aucun démarrage en mode
 >   `processus` ne la joue. Seul un test dédié épingle ce retour anticipé.
+>   **Et le critère reste faux sur un autre point, lui non corrigé** : sur le
+>   compose de production, une session en mode `processus` hérite désormais de
+>   `DOCKER_HOST`, du réseau `docker-api` et du client `docker` de l'image du
+>   backend, qu'elle n'avait pas avant ce lot. Elle ne reproduit donc pas le
+>   comportement d'avant : elle est plus exposée, cf. la ligne `processus` de
+>   `deployment.md`. Déduit de la lecture du compose, de l'image et de la fusion
+>   d'environnement du SDK, pas essayé.
 
 ## Pourquoi
 
