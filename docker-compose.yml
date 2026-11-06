@@ -40,17 +40,18 @@ services:
   #
   # Ce qu'il retire (mesuré, réponse 403) : démarrer un `exec` dans un
   # conteneur, construire une image, modifier les réseaux, lister les volumes,
-  # lire `info`. Le reste de l'API (swarm, secrets...) est refusé de la même
-  # façon par la configuration de l'image. Et le socket du démon n'est jamais
-  # dans le système de fichiers du backend. Ce qu'il ne retire pas : écrire un
-  # fichier dans un conteneur puis le redémarrer (cf. CONTAINERS). Et il filtre
+  # lire `info`. Le reste de l'API (swarm, secrets...) est refusé par la
+  # configuration de l'image : lu, pas mesuré un par un. Et le socket du démon
+  # n'est jamais dans le système de fichiers du backend. Ce qu'il ne retire pas :
+  # écrire un fichier dans un conteneur puis le redémarrer (cf. CONTAINERS). Et il filtre
   # les chemins, jamais le contenu d'une requête : créer un conteneur étant
   # permis, la requête peut en demander un privilégié qui monte la racine de la
   # machine, ou qui rejoint n'importe quel réseau (mesuré : réponse 201). Le
   # proxy réduit donc ce qu'un backend compromis ou maladroit peut tenter, il ne
   # le sépare pas de root sur la machine.
   #
-  # Créer un conteneur par ce proxy équivaut donc à être root sur la machine :
+  # Créer un conteneur par ce proxy équivaut donc à être root sur la machine
+  # (déduit : la création est mesurée, le démarrage ne l'est pas) :
   # la vraie garde est l'ensemble des conteneurs qui peuvent le joindre, et il
   # n'en contient qu'un, le backend. D'où le réseau `docker-api`, déclaré en bas
   # de ce fichier et rejoint par `docker-proxy` et `backend` seulement. Caddy, le

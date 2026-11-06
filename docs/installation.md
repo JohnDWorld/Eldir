@@ -7,7 +7,7 @@
 
 ## Prérequis
 
-- Docker 24+ et docker compose v2
+- Docker 24+ et docker compose v2 (un serveur de production en exige la 26 au moins pour les sessions en conteneur : [`deployment.md`](./deployment.md#1-docker-26-minimum-sur-lhôte))
 - `curl`, `python3` (≥ 3.10) - utilisés par le script d'install
 - Node.js ≥ 18 (pour `npx`) **si tu veux le mode "génération automatique du token Pro/Max"**
 - Un compte Claude **Pro** ou **Max** (recommandé) **ou** une clé API Anthropic Console

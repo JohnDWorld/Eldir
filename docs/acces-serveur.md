@@ -93,8 +93,8 @@ l'adresse, l'utilisateur, le port. Eldir :
 5. revérifie en clé seule et affiche l'état.
 
 Eldir est propriétaire de `/home/eldir/.ssh` (volume `eldir_ssh`). **Ne monte
-pas ton `~/.ssh` personnel dans ce conteneur** : des agents y tournent, et tes
-clés personnelles n'ont rien à y faire.
+pas ton `~/.ssh` personnel dans ce conteneur** : en mode `processus`, des agents
+y tournent, et dans les deux modes tes clés personnelles n'ont rien à y faire.
 
 Une clé par projet, avec l'id du projet en commentaire. Conséquence directe :
 supprimer le projet dans Eldir retire cette ligne du `authorized_keys`
@@ -107,10 +107,12 @@ passer en silence.
 
 ### 2. Côté machine distante : choisir le régime
 
-Le CLI Claude tourne **dans le conteneur backend**. Tout ce qui y est monté
-est donc lisible par une session, qui tourne en `bypassPermissions`. Ce que la
-clé permet là-bas, l'agent peut le faire. La restriction se pose donc côté
-machine distante, pas côté Eldir.
+Le CLI Claude tourne **dans un conteneur par session** (mode `conteneur`, le
+défaut), qui monte la clé de son projet en lecture seule et un `config` à un
+seul bloc. En mode `processus`, il tourne dans le conteneur du backend, où tout
+ce qui est monté est lisible. Dans les deux modes la session utilise la clé de
+son projet, en `bypassPermissions` : ce que la clé permet là-bas, l'agent peut
+le faire. La restriction se pose donc côté machine distante, pas côté Eldir.
 
 Deux régimes, selon ce que tu veux :
 
@@ -182,9 +184,11 @@ autorises. Trois conséquences à accepter avant d'activer :
 ### Ce qu'Eldir garantit quand même
 
 Le hook `PreToolUse` refuse toute connexion sortante qui ne vise pas l'alias
-déclaré par le projet : le conteneur porte ta configuration SSH complète, donc
-sans ça une session ouverte sur un projet pourrait atteindre tes autres
-machines. Une session sans alias déclaré ne sort pas du tout.
+déclaré par le projet. En mode `processus`, le conteneur du backend porte ta
+configuration SSH complète, donc sans ça une session ouverte sur un projet
+pourrait atteindre tes autres machines. En mode `conteneur`, la session ne reçoit
+que la clé de son projet et un `config` à un seul bloc ; le hook reste en place
+dans les deux modes. Une session sans alias déclaré ne sort pas du tout.
 
 L'alias est **figé à la création de la session** : le modifier dans le
 template ne change rien pour les sessions déjà lancées, et un `resume` repart

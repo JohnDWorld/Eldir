@@ -97,6 +97,28 @@ session_runtime() {
     fi
 }
 
+# Docker 26 minimum pour les sessions en conteneur : `volume-subpath` est apparu
+# avec la 26.0 (API 1.45) d'après la documentation de Docker, et seule la 29.9.2 a
+# été essayée. Un démon plus ancien refuserait l'option, ou l'ignorerait et
+# monterait le volume entier, ce qui retirerait l'isolement sans un message : non
+# mesuré, d'où le refus. Fatal en mode conteneur, avertissement en `processus`,
+# qui n'emploie pas l'option. Une version illisible n'arrête rien.
+VERSION_DEMON="$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
+MAJEURE_DEMON="${VERSION_DEMON%%.*}"
+if [[ "$MAJEURE_DEMON" =~ ^[0-9]+$ ]]; then
+    if (( MAJEURE_DEMON < 26 )); then
+        if [[ "$(session_runtime || true)" == "processus" ]]; then
+            warn "Docker $VERSION_DEMON : les sessions en conteneur exigent la 26 au moins (volume-subpath). Sans conséquence en mode processus."
+        else
+            fail "Docker $VERSION_DEMON : les sessions en conteneur exigent la 26 au moins (volume-subpath), et un démon plus ancien peut monter le volume entier au lieu du sous-dossier. Mets Docker à jour (docs/deployment.md, section 5 bis), ou règle SESSION_RUNTIME=processus (sans isolement)."
+        fi
+    else
+        ok "Docker $VERSION_DEMON (26 minimum pour volume-subpath)"
+    fi
+else
+    warn "Version du démon Docker illisible : la 26 est requise pour les sessions en conteneur (volume-subpath)."
+fi
+
 # L'image des sessions. Reconstruite à chaque install, pour suivre le
 # Dockerfile récupéré : il épingle la version du CLI Claude, que l'on remonte
 # avec celle du SDK du backend. Le cache de construction rend la reconstruction

@@ -130,7 +130,7 @@ testpaths = ["tests"]
 faulthandler_timeout = 120
 addopts = "-ra --strict-markers --cov=app --cov-report=term-missing"
 markers = [
-    # Tests qui ont besoin d'un démon Docker joignable, en version 25 ou plus
+    # Tests qui ont besoin d'un démon Docker joignable, en version 26 ou plus
     # (celle de `--mount volume-subpath`). Le saut est fait par la fixture
     # `demon_docker` de tests/integration/test_isolement_sessions.py, pas par le
     # marqueur. Aucun ne mène une session jusqu'au CLI : le CLI Claude n'y est
@@ -138,7 +138,7 @@ markers = [
     # `SessionManager.start` le fait avec une image introuvable, donc le
     # démarrage échoue avant qu'aucun CLI ne tourne. Ils ne consomment aucun
     # crédit.
-    "docker: a besoin d'un démon Docker (Docker 25+)",
+    "docker: a besoin d'un démon Docker (Docker 26+)",
 ]
 
 [tool.coverage.run]

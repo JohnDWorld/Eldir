@@ -53,6 +53,30 @@ class Settings(BaseSettings):
     # Chaque session active = un process `claude` (Node) résident, soit
     # 150 à 450 Mo selon la taille de la conversation. Le superviseur compte
     # comme une session. Sur un serveur à 4 Go : 4.
+    #
+    # Le conteneur par session (Phase 6 bis) ajoute une enveloppe autour de ce
+    # process. Mesuré le 2026-11-06 (Docker 29.9.2, cgroup v2, image
+    # `eldir-session:local`), sans lancer le CLI : son coût à lui existait déjà,
+    # dans le conteneur du backend, et n'a pas été remesuré.
+    #   - le conteneur au repos : 0,4 à 0,6 Mo (`docker stats`, 3 mesures sans
+    #     `--init`, 4 avec `-i --rm --init` comme l'enrobage) ;
+    #   - son shim containerd (`containerd-shim-runc-v2`), côté hôte, donc hors
+    #     du cgroup du conteneur : 11 Mo de RSS dont 3,7 Mo anonymes (4 mesures) ;
+    #   - le client `docker run -i`, dans le conteneur du backend : 32,5 Mo de
+    #     RSS dont 11 Mo anonymes, le reste étant le binaire, partagé entre les
+    #     clients (4 mesures). Le client mesuré est celui de l'hôte, en 29.9.2,
+    #     pas celui de l'image du backend.
+    #   Les chiffres du shim et du client se relisent dans `/proc/<pid>/status`
+    #   (champs `VmRSS`, RSS complet, et `RssAnon`, anonyme) ; celui du
+    #   conteneur dans `docker stats --no-stream` ou le `memory.current` de son
+    #   cgroup.
+    # Soit de 15 Mo (anonyme seulement) à 45 Mo (RSS complet) par session, de
+    # 3 % à 30 % de ce que coûte le process `claude`. C'est moins que l'écart
+    # de 300 Mo qui sépare les deux bornes de son estimation : le plafond ne
+    # bouge pas. À 4 sessions l'enveloppe ajoute au plus 180 Mo, et la valeur
+    # recommandée pour 4 Go reste 4. Aucune limite mémoire n'est posée aux
+    # conteneurs (l'enrobage ne passe pas `--memory`) : ce plafond reste la
+    # seule borne.
     max_concurrent_sessions: int = 8
 
     # ── Workspaces ──────────────────────────────────────────────
@@ -119,7 +143,8 @@ class Settings(BaseSettings):
     # n'a pas de Docker.
     session_runtime: Literal["processus", "conteneur"] = "conteneur"
     # Image de la session : le CLI Claude, git et Node, rien d'autre.
-    # Construite par `docker build -t eldir-session:local backend/docker/session`.
+    # Construite par `DOCKER_BUILDKIT=1 docker build -t eldir-session:local
+    # backend/docker/session` (BuildKit est requis : `COPY --chmod`).
     # Sans elle, une session échoue au démarrage avec le message du démon.
     session_image: str = "eldir-session:local"
     # Réseau dédié, sans route vers les réseaux du compose : celui de Postgres

@@ -6,7 +6,9 @@
 # image par projet serait une image à reconstruire à chaque ajout d'outil,
 # pour un gain nul.
 #
-# Construite par `docker build -t eldir-session:local backend/docker/session`.
+# Construite par `DOCKER_BUILDKIT=1 docker build -t eldir-session:local
+# backend/docker/session`. BuildKit est requis (`COPY --chmod` plus bas) :
+# `DOCKER_BUILDKIT=1` le demande aux Docker d'avant la 23.
 FROM node:20-bookworm-slim
 
 # Épinglée, et pas `latest` : un `docker build` refait dans six mois ne doit pas

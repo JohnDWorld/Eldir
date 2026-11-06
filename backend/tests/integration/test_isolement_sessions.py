@@ -18,7 +18,7 @@ au lieu de constater qu'une lecture échoue.
 Les autres tests vérifient l'image elle-même (le CLI, l'uid, le `ssh`, l'entrée),
 sauf le dernier : un démarrage de conteneur qui échoue ne retombe pas en mode
 `processus`. Tous ont besoin d'un vrai démon, ce qu'un double ne prouverait pas.
-Ils sautent sans démon joignable, ou avant Docker 25. Aucun ne mène une session
+Ils sautent sans démon joignable, ou avant Docker 26. Aucun ne mène une session
 jusqu'au CLI. Le dernier appelle `SessionManager.start` avec une image que le
 démon ne peut pas obtenir, donc le démarrage échoue avant qu'aucun CLI ne
 tourne ; les autres ne lancent le CLI Claude que pour afficher sa version. Aucun
@@ -77,6 +77,20 @@ def demon_docker() -> None:
     Échoue au lieu de sauter quand `ELDIR_EXIGE_DOCKER` est posé, comme en CI :
     un saut y serait la perte silencieuse des tests du conteneur de session,
     sous un voyant vert.
+
+    Le seuil est 26, minimum documenté par Docker (`volume-subpath` est apparu
+    avec la 26.0, API 1.45), pas une mesure : seule la 29.9.2 a été essayée. Ce
+    qu'un démon plus ancien ferait d'un `Subpath` qu'il ne connaît pas est
+    inconnu, et le pire cas est qu'il l'ignore et monte le volume entier. C'est
+    exactement ce que les trois tests `test_une_session_ne_lit_pas_...`
+    attrapent, parce qu'ils exigent l'absence du voisin et non une erreur. Mais
+    ils ne protègent que le démon sur lequel ils tournent, une machine de dev ou
+    le runner de la CI, pas un hôte de production, et au seuil 26 ils sautent
+    justement sur les démons à risque. Pour savoir ce que fait un démon plus
+    ancien, baisse ce seuil et lance ces trois tests : ils échouent s'il monte
+    tout. Pour une installation passée par le script, le garde-fou est le contrôle
+    de version de `scripts/install-eldir.sh` ; le backend ne vérifie pas lui-même
+    la version du démon.
     """
     if shutil.which("docker") is None:
         _sans_demon("docker absent")
@@ -96,8 +110,8 @@ def demon_docker() -> None:
     if info.returncode:
         _sans_demon("démon docker injoignable")
     majeure = int(version.split(".")[0]) if version[:1].isdigit() else 0
-    if majeure < 25:
-        _sans_demon(f"volume-subpath exige Docker 25+, vu {version!r}")
+    if majeure < 26:
+        _sans_demon(f"volume-subpath exige Docker 26+, vu {version!r}")
 
 
 @pytest.fixture(scope="module")

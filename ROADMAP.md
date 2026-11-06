@@ -304,28 +304,55 @@ Volontairement **hors périmètre**, et ce sont des choix, pas des oublis :
 
 Les points de durcissement livrés le 2026-10-30 (masque d'environnement, porte de
 publication réservée à un geste humain, jeton Git hors de portée, drapeau « source
-externe ») réduisent ce qu'une session peut atteindre. Ils ne changent pas le fait
-qu'elle **tourne dans le conteneur du backend**, sous le même utilisateur : elle voit
-le disque entier, donc les clones des autres projets, leurs transcripts et les clés
-SSH de leurs machines. L'inventaire complet est dans
-[`docs/securite-sessions.md`](./docs/securite-sessions.md).
+externe ») réduisent ce qu'une session peut atteindre. Ils ne changeaient pas le fait
+qu'elle **tournait dans le conteneur du backend**, sous le même utilisateur : elle
+voyait le disque entier, donc les clones des autres projets, leurs transcripts et les
+clés SSH de leurs machines. C'est toujours le cas en mode `processus`. L'inventaire
+complet est dans [`docs/securite-sessions.md`](./docs/securite-sessions.md).
 
-C'est structurel, et c'est la seule réponse complète. Tant qu'elle n'est pas là,
-n'héberge pas sur la même instance un projet sensible et un projet alimenté par des
-tickets publics.
+C'est structurel, et c'est la seule réponse complète. Elle se livre en deux lots.
+Le premier est fait (2026-11-06, mode `conteneur` par défaut) ; le second, le réseau
+sortant, a sa propre spec.
 
-- [ ] **Un conteneur par session**, monté sur son seul worktree, son seul toolchain et
-      sa seule collecte. Les autres projets cessent d'être lisibles.
-- [ ] **Aucun accès à la base ni à Redis** depuis ce conteneur : la session parle au
-      backend, le backend parle à la base. Le masque d'environnement devient un filet,
-      plus la seule garde.
+- [x] **Un conteneur par session**, monté sur son seul worktree, et sur le clone, le
+      toolchain, la collecte et la maison `.claude` de son seul projet. Les autres
+      projets cessent d'être lisibles par la session. Le clone est monté parce qu'un
+      worktree git en a besoin (mesuré).
+- [x] **Aucun accès à la base ni à Redis** depuis ce conteneur : la session est sur un
+      réseau dédié sans route vers ceux du compose (mesuré). Le masque d'environnement
+      devient un filet, plus la seule garde.
 - [ ] **Réseau sortant restreint** : l'API Anthropic, le provider Git du projet, et ce
-      que son toolchain réclame. Aujourd'hui une session joint n'importe quoi, et c'est
-      ce qui rend l'exfiltration plus grave que la publication.
-- [ ] **Les clés SSH des projets sortent du conteneur des sessions** : seul le backend
-      les monte, et il exécute la collecte pour elles.
-- [ ] Revoir le plafond de sessions concurrentes : un conteneur par session coûte plus
-      qu'un process.
+      que son toolchain réclame. Aujourd'hui une session joint n'importe quoi (mesuré),
+      et c'est ce qui rend l'exfiltration plus grave que la publication. **Second lot
+      de la Phase 6 bis**, avec sa propre spec.
+- [x] **Les clés SSH des autres projets sortent du conteneur des sessions** : une
+      session ne reçoit que la copie, en lecture seule, de la clé de son propre
+      projet, avec un `config` à un seul bloc. Le texte d'origine disait « seul le
+      backend les monte » ; ce n'est pas ce qui est livré, la session garde sa propre
+      clé pour atteindre la machine de son projet. La collecte, elle, reste exécutée
+      par le backend.
+- [x] **Plafond de sessions concurrentes revu sur une mesure** (2026-11-06) : un
+      conteneur par session ajoute de 15 à 45 Mo (conteneur au repos 0,5 Mo, shim
+      containerd 11 Mo, client `docker run` 32,5 Mo de RSS dont 11 Mo anonymes),
+      contre 150 à 450 Mo pour le process `claude`, dont le coût n'a pas changé. Moins
+      que l'écart de l'estimation elle-même : valeur inchangée. Méthode et réserves
+      dans le commentaire de `max_concurrent_sessions` (`backend/app/core/config.py`).
+- [ ] **Le backend lance git dans des dossiers qu'une session écrit**, et git exécute
+      la configuration et les hooks du dépôt (`core.fsmonitor`, `.git/hooks`) : une
+      session peut faire exécuter une commande au backend. Mesuré le 2026-11-06,
+      constaté à la fin du premier lot, non traité. Le conteneur par session ne le
+      sépare pas, et une liste noire de clés de configuration ne le ferme pas :
+      la réponse est d'architecture (ne pas lancer git dans un arbre qu'une
+      session écrit, ou le lancer dans un bac à sable). Cf.
+      [`docs/securite-sessions.md`](./docs/securite-sessions.md), risque nº 3.
+
+Ce que le premier lot laisse ouvert, nommément : le sortant complet (point 3), le
+credential Claude lisible par la session (risque nº 1, inchangé), le proxy de socket
+qui ne sépare pas le backend de root sur l'hôte (il filtre les chemins, pas les
+corps de requêtes : créer un conteneur privilégié qui monte `/` répond 201), et le
+dernier point ci-dessus. **Tant que ce dernier est ouvert, le conseil ne change pas :
+n'héberge pas sur la même instance un projet sensible et un projet alimenté par des
+tickets publics.**
 
 ### Phase 7 - Souveraineté complète (V2/V3)
 
