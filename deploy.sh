@@ -7,7 +7,17 @@
 # À lancer sur le serveur, depuis le clone (`~/eldir`). Les migrations
 # Alembic sont jouées au démarrage du backend, il n'y a rien à faire de plus.
 set -euo pipefail
+
+# Tout le corps vit dans une fonction, appelée à la dernière ligne, pour que
+# bash ait lu ce fichier en entier avant d'exécuter la moindre commande. Sans
+# cela, le `git pull` plus bas remplace le fichier que bash est en train de
+# lire par morceaux, et la suite est coupée ou décalée : le 2026-11-09, le
+# script s'est arrêté juste après le pull, en silence, avec un code 0.
+main() {
 cd "$(dirname "${BASH_SOURCE[0]}")"
+# Chemin absolu de ce script : il se relance lui-même plus bas, et un chemin
+# relatif ne désignerait plus rien après le `cd`.
+MOI="$PWD/$(basename "${BASH_SOURCE[0]}")"
 
 FORCE=0
 [[ "${1:-}" == "--force" || "${1:-}" == "-f" ]] && FORCE=1
@@ -21,15 +31,36 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
     warn "des modifications locales non commitées existent, elles seront conservées"
 fi
 
-BEFORE="$(git rev-parse HEAD)"
-bold "→ git pull"
-git pull --ff-only
-AFTER="$(git rev-parse HEAD)"
+# Deuxième passage : le pull est déjà fait, et le point de départ vient de la
+# première exécution (cf. la reprise juste en dessous).
+if [[ -n "${ELDIR_DEPLOY_BEFORE:-}" ]]; then
+    BEFORE="$ELDIR_DEPLOY_BEFORE"
+    AFTER="$(git rev-parse HEAD)"
+    info "reprise par la nouvelle version du script, depuis ${BEFORE:0:7}"
+else
+    BEFORE="$(git rev-parse HEAD)"
+    bold "→ git pull"
+    git pull --ff-only
+    AFTER="$(git rev-parse HEAD)"
+fi
 
 if [[ "$BEFORE" == "$AFTER" && "$FORCE" -eq 0 ]]; then
     info "déjà à jour sur $(git log --oneline -1)"
     info "rien à reconstruire (--force pour forcer)"
     exit 0
+fi
+
+# Bash lit ce fichier par morceaux pendant qu'il l'exécute. Si le pull vient de
+# le remplacer, la suite est coupée ou décalée, et les étapes que le commit
+# déployé ajoute ici ne tournent jamais. Le 2026-11-09, l'image des sessions et
+# leur réseau n'ont pas été créés et le script a quand même affiché un succès,
+# ce qui a laissé l'instance incapable de démarrer une session. On repasse donc
+# la main à la nouvelle version, en lui transmettant le point de départ : sans
+# lui, elle verrait « déjà à jour » et ne reconstruirait rien.
+if [[ -z "${ELDIR_DEPLOY_BEFORE:-}" ]] && git diff --name-only "$BEFORE" "$AFTER" | grep -qx 'deploy.sh'; then
+    bold "→ deploy.sh a changé, sa nouvelle version prend la suite"
+    export ELDIR_DEPLOY_BEFORE="$BEFORE"
+    exec "$MOI" "$@"
 fi
 
 # ── 2. qui doit être reconstruit ? ───────────────────────────────
@@ -109,3 +140,6 @@ done
 
 docker compose ps --format '  {{.Name}}  {{.Status}}'
 bold "✓ déployé sur $(git log --oneline -1)"
+}
+
+main "$@"

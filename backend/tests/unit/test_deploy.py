@@ -154,8 +154,12 @@ def test_sans_changement_de_deploy_le_script_va_au_bout_lui_meme(chantier: Path)
 
 def test_la_reprise_ne_tire_pas_une_seconde_fois_et_ne_boucle_pas(chantier: Path) -> None:
     """Le deuxième passage ne doit ni refaire le `pull` (il est déjà fait) ni se
-    relancer encore : une boucle de `exec` ne s'arrêterait jamais."""
-    (chantier / "changed").write_text("deploy.sh\n", encoding="utf-8")
+    relancer encore : une boucle de `exec` ne s'arrêterait jamais.
+
+    Le changement backend n'est pas décoratif : `deploy.sh` seul ne donne aucun
+    service à reconstruire, et le script sortirait avant le `compose up`.
+    """
+    (chantier / "changed").write_text("deploy.sh\nbackend/app/main.py\n", encoding="utf-8")
     (chantier / "sha").write_text(APRES, encoding="utf-8")
 
     proc = lancer(chantier, ELDIR_DEPLOY_BEFORE=AVANT)
