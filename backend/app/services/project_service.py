@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import SUPPORTED_PROVIDERS
 from app.core.exceptions import (
-    AuthenticationError,
     ConflictError,
     GitProviderError,
     NotFoundError,
@@ -20,7 +19,6 @@ from app.core.logging import get_logger
 from app.db.models import MissionTemplate, Project
 from app.services.collect_service import collect_service
 from app.services.git_credential_service import git_credential_service
-from app.services.git_providers import make_provider
 from app.services.remote_access_service import remote_access_service
 from app.services.toolchain_service import toolchain_service
 from app.services.worktree_service import worktree_service
@@ -91,13 +89,9 @@ class ProjectService:
         if provider not in SUPPORTED_PROVIDERS:
             raise GitProviderError(f"Provider non supporté : {provider}")
 
-        token = await git_credential_service.get_active_token(db, user_id, provider)
-        if not token:
-            raise AuthenticationError(
-                f"Aucun credential {provider} configuré. Va dans Settings > Git."
-            )
-
-        provider_client = make_provider(provider, token=token)
+        token, provider_client = await git_credential_service.get_active_client(
+            db, user_id, provider
+        )
         try:
             repo_ref = await provider_client.get_repo(repo_full_name)
         except GitProviderError:

@@ -9,9 +9,11 @@ import pytest
 from app.core.exceptions import AuthenticationError, ConflictError
 from app.db.models import User
 from app.schemas.git_credential import GitCredentialCreate
+from app.services import git_credential_service as cred_module
 from app.services import project_service as project_service_module
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers.base import RepoRef
+from app.services.git_providers.forgejo import ForgejoProvider
 from app.services.project_service import project_service
 from app.services.worktree_service import CloneResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,13 +52,8 @@ class _FakeGitHubProvider:
 
 
 @pytest.fixture
-def patch_provider_and_clone(monkeypatch, tmp_path: Path):  # type: ignore[no-untyped-def]
-    """Patch make_provider et worktree_service.clone_repo pour les tests."""
-    monkeypatch.setattr(
-        project_service_module,
-        "make_provider",
-        lambda *args, **kwargs: _FakeGitHubProvider(),
-    )
+def patch_clone(monkeypatch, tmp_path: Path):  # type: ignore[no-untyped-def]
+    """Un clone qui ne touche pas au reseau, sans toucher au reste."""
 
     async def _fake_clone(*, user_id: str, repo_full_name: str, **_: Any) -> CloneResult:
         slug = repo_full_name.rsplit("/", maxsplit=1)[-1].lower()
@@ -65,6 +62,16 @@ def patch_provider_and_clone(monkeypatch, tmp_path: Path):  # type: ignore[no-un
         return CloneResult(path=path, default_branch="main", repo_slug=slug)
 
     monkeypatch.setattr(project_service_module.worktree_service, "clone_repo", _fake_clone)
+
+
+@pytest.fixture
+def patch_provider_and_clone(monkeypatch, patch_clone: None):  # type: ignore[no-untyped-def]
+    """Patch la fabrique de clients et le clone pour les tests GitHub."""
+    monkeypatch.setattr(
+        cred_module,
+        "make_provider",
+        lambda *args, **kwargs: _FakeGitHubProvider(),
+    )
 
 
 async def test_create_from_repo_requires_credential(
@@ -291,3 +298,54 @@ async def test_une_machine_eteinte_n_empeche_pas_la_suppression(
     await db_session.commit()
 
     assert await project_service.list_for_user(db_session, admin.id) == []
+
+
+async def test_cloner_un_depot_forgejo_garde_la_base_url_du_credential(
+    db_session: AsyncSession,
+    admin: User,
+    patch_clone: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La base_url d'une instance Forgejo vit sur le credential, pas sur le projet.
+
+    Le chemin qui liste les depots la relisait, celui qui en clone un ne la
+    relisait pas : la liste s'affichait et cocher un depot repondait
+    « Forgejo necessite une base_url ». Le test construit un VRAI
+    ForgejoProvider, donc il echoue tant que l'appel perd l'argument.
+    """
+    await git_credential_service.upsert(
+        db_session,
+        admin.id,
+        GitCredentialCreate(
+            provider="forgejo",
+            token="jeton-forgejo-de-test",
+            base_url="https://forgejo.exemple.lan",
+        ),
+    )
+    await db_session.commit()
+
+    vues: list[str] = []
+
+    async def _get_repo(self: ForgejoProvider, full_name: str) -> RepoRef:
+        vues.append(self._base_url)
+        return RepoRef(
+            full_name=full_name,
+            default_branch="main",
+            clone_url=f"https://forgejo.exemple.lan/{full_name}.git",
+            description=None,
+            is_private=True,
+        )
+
+    monkeypatch.setattr(ForgejoProvider, "get_repo", _get_repo)
+
+    project = await project_service.create_from_repo(
+        db_session,
+        user_id=admin.id,
+        provider="forgejo",
+        repo_full_name="john/Skali",
+    )
+    await db_session.commit()
+
+    assert vues == ["https://forgejo.exemple.lan"]
+    assert project.provider == "forgejo"
+    assert project.workspace_path is not None

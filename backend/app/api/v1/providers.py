@@ -6,14 +6,13 @@ from fastapi import APIRouter, status
 
 from app.core.constants import SUPPORTED_PROVIDERS
 from app.core.deps import CurrentUserId, DbDep
-from app.core.exceptions import AuthenticationError, GitProviderError
+from app.core.exceptions import GitProviderError
 from app.schemas.project import (
     ProjectRead,
     RemoteRepoCreate,
     RemoteRepoRead,
 )
 from app.services.git_credential_service import git_credential_service
-from app.services.git_providers import make_provider
 from app.services.project_service import project_service
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -26,13 +25,8 @@ def _check_provider(name: str) -> None:
 
 async def _client_for(db, user_id: str, provider: str):  # type: ignore[no-untyped-def]
     _check_provider(provider)
-    token = await git_credential_service.get_active_token(db, user_id, provider)
-    if not token:
-        raise AuthenticationError(f"Aucun credential {provider} configuré. Va dans Settings > Git.")
-    # base_url uniquement pour Forgejo
-    cred = await git_credential_service.get_active(db, user_id, provider)
-    base_url = cred.base_url if cred and cred.base_url else None
-    return make_provider(provider, token=token, base_url=base_url)
+    _, client = await git_credential_service.get_active_client(db, user_id, provider)
+    return client
 
 
 @router.get(

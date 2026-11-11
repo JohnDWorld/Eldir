@@ -42,6 +42,10 @@ const HELPERS: Record<Provider, JSX.Element> = {
     <>
       Génère un Personal Access Token depuis ton instance Forgejo (Settings → Applications → Generate New Token).
       Renseigne aussi l'URL de l'instance (ex. <span className="font-mono">https://forgejo.example.com</span>).
+      Droits requis : <span className="font-mono">read:repository</span> pour lister et cloner,{' '}
+      <span className="font-mono">write:repository</span> pour pousser une branche, ouvrir une PR ou
+      créer un dépôt. Un jeton limité à un seul dépôt n'accepte que ces droits-là : c'est celui à
+      choisir pour le jeton d'un projet.
     </>
   ),
 };

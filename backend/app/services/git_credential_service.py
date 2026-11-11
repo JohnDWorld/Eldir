@@ -8,11 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import SUPPORTED_PROVIDERS
-from app.core.exceptions import GitProviderError, NotFoundError
+from app.core.exceptions import AuthenticationError, GitProviderError, NotFoundError
 from app.core.security import decrypt_secret, encrypt_secret
 from app.db.models import GitCredential
 from app.schemas.git_credential import GitCredentialCreate
 from app.services.claude_credential_service import mask_value
+from app.services.git_providers import GitProviderInterface, make_provider
 
 
 class GitCredentialService:
@@ -84,6 +85,32 @@ class GitCredentialService:
         if cred is None:
             return None
         return decrypt_secret(cred.encrypted_token)
+
+    async def get_active_client(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        provider: str,
+        project_id: str | None = None,
+    ) -> tuple[str, GitProviderInterface]:
+        """Le jeton actif et le client d'API qui va avec, lus d'un seul coup.
+
+        Un client Forgejo a besoin de l'URL de l'instance, qui vit sur le
+        credential et nulle part ailleurs. Lire le jeton d'un côté et
+        construire le client de l'autre, c'est l'oublier : trois appelants
+        assemblaient le client à la main, deux ne passaient pas la `base_url`,
+        et aucun dépôt Forgejo n'était clonable ni « PRable » alors que la
+        liste des dépôts, elle, s'affichait. Passer par ici rend l'oubli
+        impossible. Le jeton revient aussi parce que les appelants poussent
+        avec, juste avant ou juste après l'appel d'API.
+        """
+        cred = await self.get_active(db, user_id, provider, project_id)
+        if cred is None:
+            raise AuthenticationError(
+                f"Aucun credential {provider} configuré. Va dans Settings > Git."
+            )
+        token = decrypt_secret(cred.encrypted_token)
+        return token, make_provider(provider, token=token, base_url=cred.base_url)
 
     async def upsert(
         self,
