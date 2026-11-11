@@ -209,9 +209,7 @@ async def test_le_client_porte_la_base_url_du_credential(
     )
     await db_session.commit()
 
-    token, client = await git_credential_service.get_active_client(
-        db_session, admin.id, "forgejo"
-    )
+    token, client = await git_credential_service.get_active_client(db_session, admin.id, "forgejo")
 
     assert token == "jeton-forgejo-de-test"
     assert client.name == "forgejo"
