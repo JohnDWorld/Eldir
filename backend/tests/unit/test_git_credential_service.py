@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from app.core.exceptions import GitProviderError, NotFoundError
+from app.core.exceptions import AuthenticationError, GitProviderError, NotFoundError
 from app.db.models import Project, User
 from app.schemas.git_credential import GitCredentialCreate
 from app.services.git_credential_service import git_credential_service
@@ -184,3 +184,35 @@ async def test_remplacer_le_jeton_d_un_projet_ne_touche_que_le_sien(
         await git_credential_service.get_active_token(db_session, admin.id, "github", autre.id)
         == "jeton-deux-bbbb"
     )
+
+
+async def test_sans_credential_aucun_client_n_est_construit(
+    db_session: AsyncSession, admin: User
+) -> None:
+    """Les appelants comptaient sur cette erreur pour guider vers Settings > Git :
+    elle vit maintenant ici, une fois, plutot que recopiee a chaque appel."""
+    with pytest.raises(AuthenticationError):
+        await git_credential_service.get_active_client(db_session, admin.id, "forgejo")
+
+
+async def test_le_client_porte_la_base_url_du_credential(
+    db_session: AsyncSession, admin: User
+) -> None:
+    await git_credential_service.upsert(
+        db_session,
+        admin.id,
+        GitCredentialCreate(
+            provider="forgejo",
+            token="jeton-forgejo-de-test",
+            base_url="https://forgejo.exemple.lan/",
+        ),
+    )
+    await db_session.commit()
+
+    token, client = await git_credential_service.get_active_client(
+        db_session, admin.id, "forgejo"
+    )
+
+    assert token == "jeton-forgejo-de-test"
+    assert client.name == "forgejo"
+    assert client._base_url == "https://forgejo.exemple.lan"  # type: ignore[attr-defined]

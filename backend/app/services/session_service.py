@@ -42,7 +42,6 @@ from app.services.claude_credential_service import claude_credential_service
 from app.services.collect_service import collect_service
 from app.services.cost_service import cost_service
 from app.services.git_credential_service import git_credential_service
-from app.services.git_providers import make_provider
 from app.services.session_manager import SessionManager
 from app.services.worktree_service import worktree_service
 
@@ -565,14 +564,10 @@ class SessionService:
                 author_email=author_email,
             )
 
-        # 2. Récupère le token et push la branche.
-        token = await git_credential_service.get_active_token(
+        # 2. Récupère le token, son client d'API, et push la branche.
+        token, provider = await git_credential_service.get_active_client(
             db, user_id, project.provider, project.id
         )
-        if not token:
-            raise AuthenticationError(
-                f"Aucun credential {project.provider} configuré. Settings > Git."
-            )
 
         head_branch = await worktree_service.current_branch(repo_path)
         base_branch = base or project.default_branch
@@ -581,7 +576,6 @@ class SessionService:
         await worktree_service.push(repo_path, branch=head_branch, token=token)
 
         # 3. Crée la PR via le provider.
-        provider = make_provider(project.provider, token=token)
         try:
             pr = await provider.create_pr(
                 project.repo_full_name,

@@ -15,9 +15,10 @@ import pytest
 from app.core.exceptions import AuthenticationError, WorkspaceError
 from app.db.models import Project, Session, User
 from app.schemas.git_credential import GitCredentialCreate
-from app.services import session_service as svc_module
+from app.services import git_credential_service as cred_module
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers.base import PullRequestRef
+from app.services.git_providers.forgejo import ForgejoProvider
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -268,7 +269,7 @@ async def test_open_pr_calls_provider(
                 title=title,
             )
 
-    monkeypatch.setattr(svc_module, "make_provider", lambda *a, **kw: _FakeProvider())
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: _FakeProvider())
 
     pr = await service.open_pull_request(
         db_session,
@@ -308,3 +309,60 @@ async def test_open_pr_same_branch_as_base_fails(
             session_id=session.id,
             title="oops",
         )
+
+
+async def test_ouvrir_une_pr_forgejo_garde_la_base_url_du_credential(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Meme oubli que pour le clone, decouvert plus tard : la PR part sur une
+    instance Forgejo dont l'URL vit sur le credential. Sans elle, la session
+    travaille, commit, pousse, et echoue a la derniere etape."""
+    project, session = project_session
+    project.provider = "forgejo"
+    await git_credential_service.upsert(
+        db_session,
+        admin.id,
+        GitCredentialCreate(
+            provider="forgejo",
+            token="jeton-forgejo-de-test",
+            base_url="https://forgejo.exemple.lan",
+        ),
+    )
+    await db_session.commit()
+    Path(session.worktree_path).joinpath("pr.py").write_text("a = 1")  # type: ignore[arg-type]
+
+    vues: list[str] = []
+
+    async def _create_pr(
+        self: ForgejoProvider,
+        full_name: str,
+        *,
+        head: str,
+        base: str,
+        title: str,
+        body: str | None = None,
+    ) -> PullRequestRef:
+        vues.append(self._base_url)
+        return PullRequestRef(
+            number=7,
+            url=f"https://forgejo.exemple.lan/{full_name}/pulls/7",
+            head=head,
+            base=base,
+            title=title,
+        )
+
+    monkeypatch.setattr(ForgejoProvider, "create_pr", _create_pr)
+
+    pr = await service.open_pull_request(
+        db_session,
+        user_id=admin.id,
+        session_id=session.id,
+        title="Ajoute pr",
+    )
+
+    assert vues == ["https://forgejo.exemple.lan"]
+    assert pr.pr_number == 7
