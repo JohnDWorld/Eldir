@@ -26,6 +26,7 @@ import type {
   LoginResponse,
   OpenPullRequestRequest,
   OpenPullRequestResponse,
+  ProjectAutonomyUpdate,
   ProjectCreateFromRepo,
   ProjectRead,
   RemoteRepo,
@@ -245,6 +246,17 @@ export function useCreateProject() {
     mutationFn: (body: ProjectCreateFromRepo) =>
       apiClient.post<ProjectRead, ProjectCreateFromRepo>('/projects', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.projects }),
+  });
+}
+
+export function useUpdateProjectAutonomy(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ProjectAutonomyUpdate) =>
+      apiClient.patch<ProjectRead, ProjectAutonomyUpdate>(`/projects/${projectId}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+    },
   });
 }
 

@@ -22,6 +22,7 @@ import { GenerateTemplateDialog } from '@/features/projects/generate-template-di
 import { SkillsEditor } from '@/features/projects/skills-editor';
 import { SubAgentsEditor } from '@/features/projects/sub-agents-editor';
 import { TemplateHistory } from '@/features/projects/template-history';
+import { AutonomyPanel } from '@/features/projects/autonomy-panel';
 import { RemotePanel } from '@/features/projects/remote-panel';
 import { ToolchainPanel } from '@/features/projects/toolchain-panel';
 import { CLAUDE_MODELS } from '@/lib/models';
@@ -373,6 +374,7 @@ export function ProjectTemplatePage(): JSX.Element {
       />
 
       <RemotePanel projectId={projectId} />
+      <AutonomyPanel projectId={projectId} />
 
       <SkillsEditor projectId={projectId} />
       <SubAgentsEditor projectId={projectId} toolOptions={TOOL_OPTIONS} />
