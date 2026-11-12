@@ -12,7 +12,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from app.core.exceptions import AuthenticationError, WorkspaceError
+from app.core.exceptions import AuthenticationError, GitProviderError, WorkspaceError
 from app.db.models import Project, Session, User
 from app.schemas.git_credential import GitCredentialCreate
 from app.services import git_credential_service as cred_module
@@ -476,6 +476,71 @@ async def test_une_pr_mergee_est_remplacee_par_une_nouvelle(
 
     assert pr.pr_number == 43
     assert forge.creees == ["Suite"]
+
+
+class _ForgeQuiADejaLaPR(_ForgeQuiRetient):
+    """Une PR existe déjà sur la forge pour la branche, la base ne la connaît pas."""
+
+    def __init__(self, ouverte: PullRequestRef | None) -> None:
+        super().__init__()
+        self.ouverte = ouverte
+
+    async def create_pr(
+        self, full_name: str, *, head: str, base: str, title: str, body: str | None = None
+    ) -> PullRequestRef:
+        raise GitProviderError("GitHub API 422: A pull request already exists")
+
+    async def find_open_pr(self, full_name: str, head: str) -> PullRequestRef | None:
+        return self.ouverte if self.ouverte and self.ouverte.head == head else None
+
+
+async def test_une_pr_ouverte_inconnue_de_la_base_est_reprise(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Session d'avant la migration 0015 : sa PR existe, `pr_number` est vide.
+    Sans reprise, chaque publication butait sur « already exists »."""
+    _, session = project_session
+    await _avec_un_credential(db_session, admin)
+    Path(session.worktree_path).joinpath("fix.py").write_text("y = 2")  # type: ignore[arg-type]
+    ouverte = PullRequestRef(
+        number=12,
+        url="https://github.com/owner/repo/pull/12",
+        head="feat/eldir",
+        base="main",
+        title="Ancienne",
+        state="open",
+    )
+    forge = _ForgeQuiADejaLaPR(ouverte)
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: forge)
+
+    pr = await service.open_pull_request(
+        db_session, user_id=admin.id, session_id=session.id, title="Corrige"
+    )
+
+    assert pr.pr_number == 12
+    assert session.pr_number == 12
+
+
+async def test_un_refus_de_la_forge_sans_pr_ouverte_remonte(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, session = project_session
+    await _avec_un_credential(db_session, admin)
+    Path(session.worktree_path).joinpath("fix.py").write_text("y = 2")  # type: ignore[arg-type]
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: _ForgeQuiADejaLaPR(None))
+
+    with pytest.raises(GitProviderError, match="422"):
+        await service.open_pull_request(
+            db_session, user_id=admin.id, session_id=session.id, title="Corrige"
+        )
 
 
 async def test_sans_modification_ni_commit_il_n_y_a_rien_a_publier(

@@ -196,6 +196,15 @@ class ForgejoProvider(GitProviderInterface):
         response = await self._request("GET", f"/repos/{full_name}/pulls/{number}")
         return pr_depuis_payload(response.json())
 
+    async def find_open_pr(self, full_name: str, head: str) -> PullRequestRef | None:
+        """ponytail: une page de 50 PR ouvertes, sans filtre de branche côté API ; paginer
+        si un dépôt en garde plus d'ouvertes à la fois."""
+        response = await self._request(
+            "GET", f"/repos/{full_name}/pulls", params={"state": "open", "limit": 50}
+        )
+        prs = (pr_depuis_payload(p) for p in response.json())
+        return next((pr for pr in prs if pr.head == head), None)
+
     async def checks(self, full_name: str, sha: str) -> ChecksReport:
         """Le statut combiné du commit : c'est là que Forgejo Actions écrit."""
         response = await self._request("GET", f"/repos/{full_name}/commits/{sha}/status")

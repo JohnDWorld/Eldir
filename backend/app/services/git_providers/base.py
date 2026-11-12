@@ -145,6 +145,10 @@ class GitProviderInterface(ABC):
     async def get_pr(self, full_name: str, number: int) -> PullRequestRef: ...
 
     @abstractmethod
+    async def find_open_pr(self, full_name: str, head: str) -> PullRequestRef | None:
+        """La PR ouverte dont la branche source est `head`, ou `None`."""
+
+    @abstractmethod
     async def checks(self, full_name: str, sha: str) -> ChecksReport: ...
 
     @abstractmethod

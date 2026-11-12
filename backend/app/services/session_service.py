@@ -628,7 +628,13 @@ class SessionService:
                 body=body,
             )
         except GitProviderError:
-            raise
+            # La forge a déjà une PR ouverte pour cette branche, que la base ne
+            # connaît pas (session d'avant la migration 0015, ou numéro perdu) :
+            # on la reprend, sinon chaque publication bute sur « already exists ».
+            existante = await provider.find_open_pr(project.repo_full_name, head_branch)
+            if existante is None:
+                raise
+            pr = existante
 
         session.pr_number = pr.number
         await db.flush()
