@@ -32,8 +32,12 @@ _CR_RE: re.Pattern[str] = re.compile(r"<cr>(.*?)</cr>", re.DOTALL | re.IGNORECAS
 _CR_MAX_CHARS = 4_000
 
 _BLOCAGE_RE: re.Pattern[str] = re.compile(
-    r"^[^\S\n]*BLOCAGE[^\S\n]*:[^\S\n]*\S", re.IGNORECASE | re.MULTILINE
+    r"^[^\S\n]*BLOCAGE[^\S\n]*:(.*)$", re.IGNORECASE | re.MULTILINE
 )
+# Le protocole demande « aucun » quand rien ne bloque : la ligne est remplie,
+# mais ce n'est pas un blocage. La valeur entière est comparée, pas son début :
+# « aucun accès à la base » en est un.
+_SANS_BLOCAGE = frozenset({"", "aucun", "aucune", "rien", "néant", "none", "non", "-"})
 _PRET_OUI_RE: re.Pattern[str] = re.compile(
     r"^[^\S\n]*PRET[^\S\n]*:[^\S\n]*oui", re.IGNORECASE | re.MULTILINE
 )
@@ -51,7 +55,8 @@ def extract_cr(text: str) -> str | None:
 def state_after_turn(cr: str | None) -> str:
     """État d'une session quand son tour se termine.
 
-    - `BLOCAGE:` renseigné : la session est bloquée, John doit trancher ;
+    - `BLOCAGE:` renseigné (autrement que par « aucun ») : la session est
+      bloquée, John doit trancher ;
     - `PRET: oui` : le travail attend sa relecture et sa publication ;
     - sinon la session dort.
 
@@ -62,7 +67,10 @@ def state_after_turn(cr: str | None) -> str:
     """
     if cr is None:
         return SESSION_STATE_IDLE
-    if _BLOCAGE_RE.search(cr):
+    if any(
+        valeur.strip().strip("\"'«».").strip().lower() not in _SANS_BLOCAGE
+        for valeur in _BLOCAGE_RE.findall(cr)
+    ):
         return SESSION_STATE_BLOCKED
     if _PRET_OUI_RE.search(cr):
         return SESSION_STATE_WAITING_INPUT

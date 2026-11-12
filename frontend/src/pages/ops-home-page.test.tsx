@@ -152,3 +152,24 @@ describe('OpsHomePage, âge des sessions', () => {
     expect(screen.getByTitle('Dernière activité')).toHaveTextContent('il y a 10 min');
   });
 });
+
+describe('OpsHomePage, résumé du compte rendu', () => {
+  it('« BLOCAGE: aucun » ne prend pas la place de ce qui a été fait', () => {
+    donnees.sessions = [
+      session('s-calme', {
+        ouverteJours: 0,
+        activeMinutes: 5,
+        summary: 'FAIT: rangement de la branche\nBLOCAGE: aucun\nPRET: oui',
+      }),
+      session('s-coince', {
+        ouverteJours: 0,
+        activeMinutes: 6,
+        summary: 'FAIT: rien\nBLOCAGE: le registre refuse le jeton\nPRET: non',
+      }),
+    ];
+    renderPage();
+    expect(screen.getAllByText('rangement de la branche').length).toBeGreaterThan(0);
+    expect(screen.queryByText('aucun')).toBeNull();
+    expect(screen.getAllByText('le registre refuse le jeton').length).toBeGreaterThan(0);
+  });
+});
