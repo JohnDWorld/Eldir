@@ -22,12 +22,13 @@ from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
 from app.core.exceptions import EldirError
 from app.core.logging import get_logger
-from app.db.models import Project
+from app.db.models import MissionTemplate, Project
 from app.db.models import Session as SessionRow
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers.base import (
@@ -157,6 +158,8 @@ class PublicationService:
                     f"Refusé : {project.name} n'est pas autonome. John merge lui-même "
                     "ses PR : donne-lui le lien."
                 )
+            if await _source_externe(db, project.id):
+                return _refus_source_externe(project.name, "merge")
             if session.pr_number is None:
                 return "Refusé : cette session n'a pas de PR. Publie d'abord avec open_pr."
             _, forge = await git_credential_service.get_active_client(
@@ -247,11 +250,14 @@ class PublicationService:
         try:
             async with self._factory() as db:
                 project = await project_service.get(db, project_id, user_id)
+                externe = await _source_externe(db, project.id)
         except EldirError as exc:
             return f"Erreur : {exc.message}"
         nom, commande = project.name, project.deploy_command
         if not project.autonomous:
             return f"Refusé : {nom} n'est pas autonome. Le déploiement reste à John."
+        if externe:
+            return _refus_source_externe(nom, "déploie")
         if not commande:
             return (
                 f"{nom} n'a pas de commande de déploiement : "
@@ -312,6 +318,19 @@ class PublicationService:
             await coro
         except Exception:
             logger.exception("publication.tache.failed", tache=coro.__qualname__)
+
+
+async def _source_externe(db: AsyncSession, project_id: str) -> bool:
+    """Un projet alimenté par des tickets non fiables : John seul merge et déploie."""
+    return bool(
+        await db.scalar(
+            select(MissionTemplate.source_externe).where(MissionTemplate.project_id == project_id)
+        )
+    )
+
+
+def _refus_source_externe(nom: str, verbe: str) -> str:
+    return f"Refusé : {nom} est alimenté par une source externe, John {verbe} lui-même."
 
 
 def _etat_lisible(pr: PullRequestRef) -> str:

@@ -205,7 +205,9 @@ Une injection de prompt lue dans un dépôt peut désormais, par le superviseur 
 Elle ne peut toujours pas : pousser sur la branche principale, forcer un push,
 merger une CI rouge, lancer une autre commande distante que celle déclarée, ni
 rendre un projet autonome (seule l'API de John change le drapeau). C'est ce que
-John accepte projet par projet en cochant la case.
+John accepte projet par projet en cochant la case. Un projet dont le Mission
+Template est en `source_externe` (alimenté par des tickets non fiables) refuse
+le merge et le déploiement : John les fait lui-même, même si la case est cochée.
 
 Si le compte distant force une commande dans `authorized_keys` (`command=`, cf.
 `docs/acces-serveur.md`), la commande de déploiement doit être celle que ce

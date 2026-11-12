@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from app.core.config import get_settings
-from app.db.models import Project, Session, User
+from app.db.models import MissionTemplate, Project, Session, User
 from app.services.event_bus import EventBus
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers.base import (
@@ -189,6 +189,44 @@ async def test_merge_refuse_un_projet_non_autonome(
 
     assert reponse.startswith("Refusé : demo n'est pas autonome")
     assert forge.merges == []
+
+
+async def _source_externe(factory: async_sessionmaker[AsyncSession], project_id: str) -> None:
+    async with factory() as db:
+        db.add(MissionTemplate(project_id=project_id, source_externe=True))
+        await db.commit()
+
+
+async def test_merge_refuse_un_projet_alimente_par_une_source_externe(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _source_externe(session_factory, monde["project"])
+    forge = _Forge(ChecksReport(CHECKS_VERT))
+    _brancher(monkeypatch, forge)
+
+    reponse = await service.merge(monde["user"], session_id=monde["session"])
+
+    assert reponse == ("Refusé : demo est alimenté par une source externe, John merge lui-même.")
+    assert forge.merges == []
+
+
+async def test_deploy_refuse_un_projet_alimente_par_une_source_externe(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], deploy_command="./d.sh")
+    await _source_externe(session_factory, monde["project"])
+    executer = _machine(monkeypatch)
+
+    reponse = await service.deploy(monde["user"], project_id=monde["project"])
+
+    assert reponse == ("Refusé : demo est alimenté par une source externe, John déploie lui-même.")
+    executer.assert_not_awaited()
 
 
 async def test_merge_refuse_une_session_sans_pr(
