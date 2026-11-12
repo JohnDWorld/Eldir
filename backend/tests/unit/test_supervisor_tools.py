@@ -98,6 +98,9 @@ def test_chaque_outil_a_une_description_et_un_schema_objet() -> None:
         "dispatch",
         "allow_publish",
         "remember",
+        "open_pr",
+        "merge",
+        "deploy",
     }
     for nom, (description, schema) in SCHEMAS_OUTILS.items():
         assert description.strip(), nom

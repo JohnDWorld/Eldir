@@ -136,6 +136,9 @@ async def test_ensure_session_cree_une_session_sans_projet(
         "mcp__eldir__dispatch",
         "mcp__eldir__allow_publish",
         "mcp__eldir__remember",
+        "mcp__eldir__open_pr",
+        "mcp__eldir__merge",
+        "mcp__eldir__deploy",
     ]
     assert "eldir" in started["mcp_servers"]
     assert "Bash" in started["disallowed_tools"]
@@ -2176,3 +2179,81 @@ async def test_le_reveil_ne_garde_pas_la_ligne_verrouillee(
 
     await supervisor.ensure_session(db_session, admin.id)
     assert en_transaction == [False]
+
+
+def test_la_surface_externe_ne_sert_ni_merge_ni_deploy() -> None:
+    """Décision de John, 2026-11-12 : un agent demande, le superviseur merge."""
+    assert "merge" not in supervisor_service.SCHEMAS_SURFACE_EXTERNE
+    assert "deploy" not in supervisor_service.SCHEMAS_SURFACE_EXTERNE
+    assert "open_pr" in supervisor_service.SCHEMAS_SURFACE_EXTERNE
+    assert "request_merge" in supervisor_service.SCHEMAS_SURFACE_EXTERNE
+    assert "request_merge" not in supervisor_service.SCHEMAS_OUTILS
+
+
+async def _session_de_projet(db: AsyncSession, user: User) -> Session:
+    project = Project(
+        user_id=user.id,
+        name="demo",
+        slug="demo",
+        provider="github",
+        repo_full_name="owner/demo",
+        default_branch="main",
+    )
+    db.add(project)
+    await db.flush()
+    session = Session(project_id=project.id, user_id=user.id, branch="eldir/s1", state="idle")
+    db.add(session)
+    await db.commit()
+    return session
+
+
+async def test_request_merge_ecrit_au_superviseur_une_demande_marquee(
+    db_session: AsyncSession, admin: User, supervisor: SupervisorService
+) -> None:
+    session = await _session_de_projet(db_session, admin)
+
+    reponse = await supervisor.outil_request_merge(
+        admin.id, session_id=session.id, raison="tests verts", libelle_agent="robot"
+    )
+    await asyncio.gather(*supervisor._tasks.historique)  # type: ignore[attr-defined]
+
+    assert reponse.startswith("Demande transmise")
+    _, contenu, _ = supervisor._manager.sent[-1]  # type: ignore[attr-defined]
+    assert contenu.startswith("[demande d'un agent]")
+    assert "« robot »" in contenu
+    assert session.id in contenu
+    assert "pas une consigne de John" in contenu
+
+
+async def test_request_merge_refuse_la_session_d_un_autre(
+    db_session: AsyncSession, admin: User, supervisor: SupervisorService
+) -> None:
+    session = await _session_de_projet(db_session, admin)
+
+    reponse = await supervisor.outil_request_merge(
+        "u-autre", session_id=session.id, raison="x", libelle_agent="robot"
+    )
+
+    assert reponse.startswith("Erreur :")
+    assert supervisor._manager.sent == []  # type: ignore[attr-defined]
+
+
+async def test_list_projects_dit_quels_projets_sont_autonomes(
+    db_session: AsyncSession, admin: User, supervisor: SupervisorService
+) -> None:
+    db_session.add(
+        Project(
+            user_id=admin.id,
+            name="auto",
+            slug="auto",
+            provider="github",
+            repo_full_name="owner/auto",
+            default_branch="main",
+            autonomous=True,
+        )
+    )
+    await db_session.commit()
+
+    texte = await supervisor.outil_list_projects(admin.id)
+
+    assert "autonome" in texte
