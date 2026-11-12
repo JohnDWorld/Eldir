@@ -408,9 +408,13 @@ class SessionManager:
         return session_id in self._sessions
 
     def tour_en_cours(self, session_id: str) -> bool:
-        """True si la session a un tour en cours : son verrou de message est pris."""
+        """True si la session a un tour en cours ou un message accepté qui attend le sien.
+
+        Le verrou seul ne voit pas un message en file : publier entre deux tours
+        laisserait le suivant écrire pendant qu'Eldir lance git.
+        """
         active = self._sessions.get(session_id)
-        return active is not None and active.message_lock.locked()
+        return active is not None and (active.message_lock.locked() or active.en_attente > 0)
 
     def cr_du_tour(self, session_id: str) -> str | None:
         """Le compte rendu `<cr>` du tour en cours (ou qui vient de finir), ou `None`.

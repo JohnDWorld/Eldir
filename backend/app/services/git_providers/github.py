@@ -186,6 +186,14 @@ class GitHubProvider(GitProviderInterface):
         response = await self._request("GET", f"/repos/{full_name}/pulls/{number}")
         return pr_depuis_payload(response.json())
 
+    async def find_open_pr(self, full_name: str, head: str) -> PullRequestRef | None:
+        owner = full_name.split("/", 1)[0]
+        response = await self._request(
+            "GET", f"/repos/{full_name}/pulls", params={"state": "open", "head": f"{owner}:{head}"}
+        )
+        prs = (pr_depuis_payload(p) for p in response.json())
+        return next((pr for pr in prs if pr.head == head), None)
+
     async def checks(self, full_name: str, sha: str) -> ChecksReport:
         """Check runs (GitHub Actions) et statuts (les autres CI), réunis.
 

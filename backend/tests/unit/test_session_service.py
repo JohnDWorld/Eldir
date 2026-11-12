@@ -16,6 +16,7 @@ from app.services.claude_credential_service import claude_credential_service
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
 from app.services.worktree_service import worktree_service
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
@@ -166,6 +167,52 @@ async def test_create_session_happy_path(
     assert session.system_prompt is not None
     assert "<cr>" in session.system_prompt
     assert os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "sk-ant-oat01-test"
+
+
+async def test_la_session_est_validee_avant_le_demarrage_du_cli(
+    db_session: AsyncSession,
+    admin: User,
+    project: Project,
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le démarrage publie « idle » par une autre connexion : sans commit avant,
+    la clé étrangère de `session_events` refusait ce premier événement."""
+    await claude_credential_service.create(
+        db_session, admin.id, ClaudeCredentialCreate(kind="oauth_token", value="sk-ant-oat01-t")
+    )
+    await db_session.commit()
+    transaction_ouverte: list[bool] = []
+    demarrer = service._manager.start
+
+    async def start(**kwargs: Any) -> Any:
+        transaction_ouverte.append(db_session.in_transaction())
+        return await demarrer(**kwargs)
+
+    monkeypatch.setattr(service._manager, "start", start)
+    await service.create_and_start(db_session, user_id=admin.id, project_id=project.id)
+    assert transaction_ouverte == [False]
+
+
+async def test_un_demarrage_rate_ne_laisse_pas_de_session(
+    db_session: AsyncSession,
+    admin: User,
+    project: Project,
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await claude_credential_service.create(
+        db_session, admin.id, ClaudeCredentialCreate(kind="oauth_token", value="sk-ant-oat01-t")
+    )
+    await db_session.commit()
+
+    async def start(**_kwargs: Any) -> Any:
+        raise RuntimeError("le CLI ne démarre pas")
+
+    monkeypatch.setattr(service._manager, "start", start)
+    with pytest.raises(RuntimeError):
+        await service.create_and_start(db_session, user_id=admin.id, project_id=project.id)
+    assert (await db_session.execute(select(Session))).scalars().all() == []
 
 
 async def test_create_unknown_project_raises(

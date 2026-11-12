@@ -43,7 +43,7 @@ from app.core.logging import get_logger
 from app.db.models import Project, SystemPromptOverride
 from app.db.models import Session as SessionRow
 from app.services.claude_credential_service import claude_credential_service
-from app.services.publication_service import PublicationService
+from app.services.publication_service import REFUS_TOUR_EN_COURS, PublicationService
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
 from app.services.system_prompt_service import system_prompt_service
@@ -852,6 +852,10 @@ class SupervisorService:
         `libelle_agent` est inscrit au journal, comme pour `allow_publish` : une PR
         ouverte par un agent ne se confond pas avec celle du superviseur.
         """
+        # Une consigne dispatchée mais pas encore livrée (la session démarre, ou
+        # attend la fin d'un autre tour) n'est vue par aucun compteur du manager.
+        if self._attendues.get(session_id.strip()):
+            return REFUS_TOUR_EN_COURS
         reponse = await self._publication.open_pr(
             user_id, session_id=session_id, titre=titre, description=description
         )

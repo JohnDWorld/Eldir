@@ -17,7 +17,6 @@ dependencies = [
     "asyncpg>=0.29.0",
     "redis[hiredis]>=5.1.0",
     "python-jose[cryptography]>=3.3.0",
-    "passlib>=1.7.4",
     "bcrypt>=4.0,<5.0",
     "httpx>=0.27.2",
     "websockets>=13.1",
@@ -40,7 +39,6 @@ dev = [
     "httpx>=0.27.2",
     "asgi-lifespan>=2.1.0",
     "aiosqlite>=0.20.0",
-    "types-passlib>=1.7.7",
     "pyyaml>=6.0",
 ]
 
@@ -116,7 +114,7 @@ plugins = ["pydantic.mypy"]
 exclude = ["alembic/versions/"]
 
 [[tool.mypy.overrides]]
-module = ["claude_agent_sdk.*", "passlib.*", "jose.*"]
+module = ["claude_agent_sdk.*", "jose.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

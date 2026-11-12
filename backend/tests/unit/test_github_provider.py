@@ -173,6 +173,22 @@ async def test_get_pr_lit_l_etat_et_le_sha_de_la_tete() -> None:
     assert (pr.number, pr.state, pr.head_sha) == (7, "merged", "abc123")
 
 
+async def test_find_open_pr_cherche_par_branche_source() -> None:
+    vus: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vus.append(str(request.url.params))
+        return httpx.Response(200, json=[_pr()])
+
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, httpx.MockTransport(handler))
+
+    pr = await provider.find_open_pr("owner/demo", "eldir/s1")
+    assert pr is not None and pr.number == 7
+    assert "head=owner%3Aeldir%2Fs1" in vus[0] and "state=open" in vus[0]
+    assert await provider.find_open_pr("owner/demo", "autre") is None
+
+
 async def test_les_checks_reunissent_check_runs_et_statuts() -> None:
     """GitHub Actions écrit des check runs, d'autres CI des statuts : il faut les deux."""
 

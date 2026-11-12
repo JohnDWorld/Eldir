@@ -25,6 +25,14 @@ def test_password_hash_roundtrip() -> None:
     assert not verify_password("wrong", hashed)
 
 
+def test_un_mot_de_passe_hache_par_passlib_reste_valide() -> None:
+    """Les comptes créés avant l'abandon de passlib se connectent toujours."""
+    ancien = "$2b$12$X8Q.V3wLLzrAqAkQfH7OreyCisEBgxPgSOjPgZH.YsFGUlVRFLePq"
+    assert verify_password("mot-de-passe-de-john", ancien)
+    assert not verify_password("autre", ancien)
+    assert not verify_password("x", "pas-un-hachage")
+
+
 def test_jwt_roundtrip() -> None:
     token = create_access_token("user-123")
     payload = decode_session_token(token)

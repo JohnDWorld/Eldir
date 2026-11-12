@@ -88,6 +88,19 @@ async def test_get_pr_forgejo_lit_l_etat_et_le_sha() -> None:
     assert (pr.state, pr.head_sha) == ("open", "abc123")
 
 
+async def test_find_open_pr_forgejo_filtre_sur_la_branche_source() -> None:
+    """L'API de Forgejo ne filtre pas par branche : le tri se fait ici."""
+    autre = {**_pr_forgejo(), "number": 8, "head": {"ref": "autre", "sha": "def"}}
+    provider = ForgejoProvider(base_url="https://forgejo.exemple.lan", token="t")
+    _mount(
+        provider, httpx.MockTransport(lambda r: httpx.Response(200, json=[autre, _pr_forgejo()]))
+    )
+
+    pr = await provider.find_open_pr("owner/demo", "eldir/s1")
+    assert pr is not None and pr.number == 7
+    assert await provider.find_open_pr("owner/demo", "absente") is None
+
+
 async def test_les_checks_forgejo_viennent_du_statut_combine() -> None:
     vus: list[str] = []
 
