@@ -366,3 +366,124 @@ async def test_ouvrir_une_pr_forgejo_garde_la_base_url_du_credential(
 
     assert vues == ["https://forgejo.exemple.lan"]
     assert pr.pr_number == 7
+
+
+class _ForgeQuiRetient:
+    """Une forge qui rend la PR `existante` à `get_pr` et numérote les nouvelles."""
+
+    name = "github"
+
+    def __init__(self, existante: PullRequestRef | None = None) -> None:
+        self.existante = existante
+        self.creees: list[str] = []
+
+    async def get_pr(self, full_name: str, number: int) -> PullRequestRef:
+        assert self.existante is not None
+        return self.existante
+
+    async def create_pr(
+        self, full_name: str, *, head: str, base: str, title: str, body: str | None = None
+    ) -> PullRequestRef:
+        self.creees.append(title)
+        return PullRequestRef(
+            number=43,
+            url="https://github.com/owner/repo/pull/43",
+            head=head,
+            base=base,
+            title=title,
+        )
+
+
+async def _avec_un_credential(db: AsyncSession, admin: User) -> None:
+    await git_credential_service.upsert(
+        db, admin.id, GitCredentialCreate(provider="github", token="ghp_local_test")
+    )
+    await db.commit()
+
+
+async def test_ouvrir_une_pr_retient_son_numero(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, session = project_session
+    await _avec_un_credential(db_session, admin)
+    Path(session.worktree_path).joinpath("x.py").write_text("x = 1")  # type: ignore[arg-type]
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: _ForgeQuiRetient())
+
+    await service.open_pull_request(db_session, user_id=admin.id, session_id=session.id, title="X")
+
+    await db_session.refresh(session)
+    assert session.pr_number == 43
+
+
+async def test_une_seconde_publication_pousse_dans_la_pr_ouverte(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le chemin d'une correction après une CI rouge : pas de seconde PR."""
+    _, session = project_session
+    session.pr_number = 42
+    await _avec_un_credential(db_session, admin)
+    Path(session.worktree_path).joinpath("fix.py").write_text("y = 2")  # type: ignore[arg-type]
+    ouverte = PullRequestRef(
+        number=42,
+        url="https://github.com/owner/repo/pull/42",
+        head="feat/eldir",
+        base="main",
+        title="X",
+        state="open",
+    )
+    forge = _ForgeQuiRetient(existante=ouverte)
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: forge)
+
+    pr = await service.open_pull_request(
+        db_session, user_id=admin.id, session_id=session.id, title="Corrige"
+    )
+
+    assert pr.pr_number == 42
+    assert forge.creees == []
+
+
+async def test_une_pr_mergee_est_remplacee_par_une_nouvelle(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, session = project_session
+    session.pr_number = 42
+    await _avec_un_credential(db_session, admin)
+    Path(session.worktree_path).joinpath("suite.py").write_text("z = 3")  # type: ignore[arg-type]
+    mergee = PullRequestRef(
+        number=42, url="u", head="feat/eldir", base="main", title="X", state="merged"
+    )
+    forge = _ForgeQuiRetient(existante=mergee)
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: forge)
+
+    pr = await service.open_pull_request(
+        db_session, user_id=admin.id, session_id=session.id, title="Suite"
+    )
+
+    assert pr.pr_number == 43
+    assert forge.creees == ["Suite"]
+
+
+async def test_sans_modification_ni_commit_il_n_y_a_rien_a_publier(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+) -> None:
+    _, session = project_session
+
+    with pytest.raises(WorkspaceError, match="Rien à publier"):
+        await service.open_pull_request(
+            db_session, user_id=admin.id, session_id=session.id, title="Vide"
+        )
