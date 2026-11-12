@@ -26,7 +26,7 @@ Chaque session obéit en plus au **protocole enfant** d'Eldir : elle termine ses
    - Synchronise le repo (best-effort `git fetch origin`)
    - Crée la row `sessions` en DB
    - Crée un worktree sur `origin/{default_branch}`
-   - **Matérialise le Mission Template** du projet : écrit les `.claude/skills/{name}/SKILL.md` et `.claude/agents/{name}.md`
+   - **Matérialise le Mission Template** du projet : écrit les `.claude/skills/{name}/SKILL.md` et `.claude/agents/{name}.md`, puis les inscrit dans `.git/info/exclude` du clone : ils servent la session et ne partent jamais dans un commit (un fichier déjà suivi par le projet reste suivi)
    - Instancie `ClaudeSDKClient` avec le system_prompt + model + allowed_tools du template. Le prompt d'Eldir s'ajoute à celui de Claude Code (preset `claude_code`), il ne le remplace pas ; seul le superviseur, sans disque ni git, garde son prompt seul. Le `CLAUDE.md` du dépôt est chargé par le CLI (en mode `conteneur`, le CLI qu'il lance est le `docker run` de l'enrobage, et le conteneur démarre là)
    - Te redirige vers `/sessions/{id}`
 6. Tape ton premier message → l'UI affiche le streaming live (texte, outils utilisés, état).

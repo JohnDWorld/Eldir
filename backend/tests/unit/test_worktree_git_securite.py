@@ -6,6 +6,7 @@ qu'une session a pu réécrire, rien de plus.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -154,3 +155,45 @@ async def test_les_worktrees_se_creent_et_se_retirent_depuis_un_clone_aux_chemin
     assert (neuf / ".git").exists()
     await service._run_git("worktree", "remove", "--force", str(neuf), cwd=clone)
     assert not neuf.exists()
+
+
+async def test_ce_qu_eldir_depose_ne_part_pas_dans_un_commit(
+    depot: tuple[WorktreeService, Path, Path, Path],
+) -> None:
+    """Les skills du modèle de mission partaient dans la PR du projet."""
+    service, _, clone, worktree = depot
+    for fichier in (
+        ".claude/skills/lint/SKILL.md",
+        ".claude/agents/mask-data.md",
+        ".claude/skills/du-projet/SKILL.md",
+        "f.txt",
+    ):
+        (worktree / fichier).parent.mkdir(parents=True, exist_ok=True)
+        (worktree / fichier).write_text("x")
+    deposes = ["/.claude/skills/lint/", "/.claude/agents/mask-data.md"]
+
+    await service.exclure_localement(worktree, deposes)
+    await service.exclure_localement(worktree, deposes)  # deux sessions, une ligne
+    await service.commit_all(worktree, message="m", author_name="a", author_email="a@exemple.lan")
+
+    commite = _git("show", "--name-only", "--format=", "HEAD", cwd=worktree).splitlines()
+    assert sorted(commite) == [".claude/skills/du-projet/SKILL.md", "f.txt"]
+    lignes = (clone / ".git" / "info" / "exclude").read_text().splitlines()
+    assert [ligne for ligne in lignes if ligne in deposes] == deposes
+
+
+@pytest.mark.parametrize("lien", ["info", "info/exclude"])
+async def test_l_exclusion_ne_suit_pas_un_lien_pose_par_la_session(
+    depot: tuple[WorktreeService, Path, Path, Path], tmp_path: Path, lien: str
+) -> None:
+    service, _, clone, worktree = depot
+    ailleurs = tmp_path / "ailleurs"
+    ailleurs.mkdir()
+    (ailleurs / "exclude").write_text("intact\n")
+    cible = clone / ".git" / lien
+    shutil.rmtree(cible) if cible.is_dir() else cible.unlink(missing_ok=True)
+    cible.symlink_to(ailleurs if lien == "info" else ailleurs / "exclude")
+
+    with pytest.raises(OSError):
+        await service.exclure_localement(worktree, ["/.claude/skills/lint/"])
+    assert (ailleurs / "exclude").read_text() == "intact\n"

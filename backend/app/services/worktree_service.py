@@ -9,6 +9,7 @@ Layout disque :
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
 import shutil
@@ -107,6 +108,35 @@ _AIDE_CREDENTIEL = (
     '!f() { test "$1" = get && '
     'printf "username=x-access-token\\npassword=%s\\n" "$ELDIR_GIT_TOKEN"; }; f'
 )
+
+
+def _ajouter_aux_exclusions(git_commun: Path, lignes: list[str]) -> None:
+    """Ajoute à `info/exclude` les lignes absentes, sans suivre de lien symbolique.
+
+    `info/` est inscriptible par la session : un lien posé sur le dossier ou
+    sur le fichier ferait écrire le backend ailleurs. D'où `dir_fd` et
+    `O_NOFOLLOW` à chaque étage (un lien lève `OSError`).
+    """
+    lien_refuse = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    racine = os.open(git_commun, lien_refuse)
+    try:
+        with contextlib.suppress(FileExistsError):
+            os.mkdir("info", dir_fd=racine)
+        info = os.open("info", lien_refuse, dir_fd=racine)
+    finally:
+        os.close(racine)
+    try:
+        fd = os.open(
+            "exclude", os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o644, dir_fd=info
+        )
+    finally:
+        os.close(info)
+    with os.fdopen(fd, "r+", encoding="utf-8") as fichier:
+        contenu = fichier.read()
+        manquantes = [ligne for ligne in lignes if ligne not in contenu.splitlines()]
+        if manquantes:
+            debut = "\n" if contenu and not contenu.endswith("\n") else ""
+            fichier.write(debut + "".join(f"{ligne}\n" for ligne in manquantes))
 
 
 def _sans_identifiants(url: str) -> str:
@@ -234,6 +264,19 @@ class WorktreeService:
             else:
                 summary["modified"] += 1
         return summary
+
+    async def exclure_localement(self, repo_path: Path, motifs: list[str]) -> None:
+        """Cache `motifs` à `git status` et `git add -A`, pour ce dépôt seulement.
+
+        Pour ce qu'Eldir dépose dans un worktree et qui n'appartient pas au
+        projet (skills et sub-agents du modèle de mission). `info/exclude` est
+        commun à tous les worktrees du clone. Un fichier déjà suivi par le
+        projet n'est pas concerné : git ne l'ignore jamais.
+        """
+        commun = await self._run_git(
+            "rev-parse", "--path-format=absolute", "--git-common-dir", cwd=repo_path
+        )
+        await asyncio.to_thread(_ajouter_aux_exclusions, Path(commun), motifs)
 
     async def commit_all(
         self,
