@@ -18,8 +18,9 @@ export function SettingsAgentsPage(): JSX.Element {
         <p className="eldir-lede">
           Un agent extérieur se branche sur Eldir en MCP, à l'adresse{' '}
           <span className="font-mono">/api/mcp/</span> de ton instance, avec un jeton émis ici. Il
-          dispose des cinq outils du superviseur : lister tes projets et tes sessions, leur confier
-          une consigne, autoriser une session à publier, et enregistrer une préférence.{' '}
+          dispose de sept outils : lister tes projets et tes sessions, leur confier une consigne,
+          autoriser une session à publier, ouvrir une PR, demander un merge au superviseur, et
+          enregistrer une préférence. Il ne merge ni ne déploie.{' '}
           <strong className="font-semibold">
             Autoriser à publier en fait partie : un jeton peut donc pousser sur tes dépôts.
           </strong>{' '}
