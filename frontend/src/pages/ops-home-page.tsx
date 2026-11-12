@@ -461,6 +461,8 @@ function ProjectRailRow({
   );
 }
 
+const SANS_BLOCAGE = new Set(['', 'aucun', 'aucune', 'rien', 'néant', 'none', 'non', '-']);
+
 /**
  * Le compte rendu d'un agent est un bloc `FAIT: / FICHIERS: / RESTE: / PRET:`.
  * Tel quel sur deux lignes de carte, il se coupait en plein chemin de fichier
@@ -475,9 +477,19 @@ function resumeLisible(summary: string | null): string | null {
     .filter(Boolean);
   const prefixe = (p: string) => lignes.find((l) => l.toUpperCase().startsWith(p));
   // Le blocage d'abord (c'est le problème), puis ce qui a été fait. `RESTE:`
-  // en dernier : « RESTE: rien » est vrai mais ne dit rien.
+  // en dernier : « RESTE: rien » est vrai mais ne dit rien. « BLOCAGE: aucun »
+  // est ce que le protocole demande quand rien ne bloque (cf. child_report.py).
+  const blocage = prefixe('BLOCAGE:');
+  const sansBlocage =
+    blocage !== undefined &&
+    SANS_BLOCAGE.has(
+      blocage
+        .slice('BLOCAGE:'.length)
+        .replace(/^["'«»\s]+|["'«».\s]+$/g, '')
+        .toLowerCase(),
+    );
   const retenue =
-    prefixe('BLOCAGE:') ?? prefixe('FAIT:') ?? prefixe('RESTE:') ?? lignes[0];
+    (sansBlocage ? undefined : blocage) ?? prefixe('FAIT:') ?? prefixe('RESTE:') ?? lignes[0];
   if (!retenue) return null;
   return retenue.replace(/^(BLOCAGE|RESTE|FAIT|FICHIERS|PRET)\s*:\s*/i, '');
 }

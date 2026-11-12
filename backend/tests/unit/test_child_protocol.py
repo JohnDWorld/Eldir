@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from app.core.child_report import extract_cr, state_after_turn
 from app.services.session_manager import _denies_publish, _publish_denial, _remote_denial
 
@@ -191,3 +192,18 @@ def test_un_tour_ordinaire_laisse_la_session_au_repos() -> None:
     assert state_after_turn("FAIT: lecture du repo\nPRET: non") == "idle"
     # `BLOCAGE:` sans contenu ne bloque personne.
     assert state_after_turn("FAIT: x\nBLOCAGE:\nPRET: non") == "idle"
+
+
+@pytest.mark.parametrize(
+    "valeur", ["aucun", "Aucun.", '"aucun"', "aucune", "rien", "néant", "none"]
+)
+def test_blocage_aucun_n_est_pas_un_blocage(valeur: str) -> None:
+    """Le protocole demande « aucun » quand rien ne bloque : chaque session qui
+    le suivait finissait « bloquée », même avec `PRET: oui`."""
+    cr = f"FAIT: x\nBLOCAGE: {valeur}\nPRET: oui"
+    assert state_after_turn(cr) == "waiting_input"
+
+
+def test_un_blocage_qui_commence_par_aucun_reste_un_blocage() -> None:
+    cr = "FAIT: rien\nBLOCAGE: aucun accès à la base de test\nPRET: non"
+    assert state_after_turn(cr) == "blocked"

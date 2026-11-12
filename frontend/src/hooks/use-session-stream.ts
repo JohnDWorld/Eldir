@@ -20,6 +20,12 @@ type ConnectionState = 'idle' | 'connecting' | 'open' | 'closed';
 export interface UseSessionStreamOptions {
   enabled?: boolean;
   bufferSize?: number;
+  /**
+   * Appelé à chaque réouverture, pas à la première. La WebSocket ne rejoue pas
+   * ce qui s'est passé pendant la coupure (PWA en arrière-plan, réseau perdu) :
+   * c'est à l'historique de le ramener.
+   */
+  onReconnect?: () => void;
 }
 
 export interface UseSessionStreamResult {
@@ -30,7 +36,7 @@ export interface UseSessionStreamResult {
 
 export function useSessionStream(
   sessionId: string,
-  { enabled = true, bufferSize = 500 }: UseSessionStreamOptions = {},
+  { enabled = true, bufferSize = 500, onReconnect }: UseSessionStreamOptions = {},
 ): UseSessionStreamResult {
   const token = useAuthStore((s) => s.token);
   const [events, setEvents] = useState<SessionEvent[]>([]);
@@ -39,6 +45,11 @@ export function useSessionStream(
   const reconnectTimeout = useRef<number | null>(null);
   const reconnectDelay = useRef(1000);
   const keepalive = useRef<number | null>(null);
+  // Dans une ref : un rappel recréé à chaque rendu ne doit pas rouvrir la WS.
+  const onReconnectRef = useRef(onReconnect);
+  useEffect(() => {
+    onReconnectRef.current = onReconnect;
+  });
 
   useEffect(() => {
     if (!enabled || !sessionId || !token) {
@@ -47,6 +58,7 @@ export function useSessionStream(
     }
 
     let cancelled = false;
+    let ouvertures = 0;
 
     const connect = () => {
       if (cancelled) return;
@@ -59,6 +71,7 @@ export function useSessionStream(
       ws.onopen = () => {
         if (cancelled) return;
         setState('open');
+        if (ouvertures++ > 0) onReconnectRef.current?.();
         keepalive.current = window.setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('ping');
