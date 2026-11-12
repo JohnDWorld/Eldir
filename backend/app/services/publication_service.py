@@ -54,6 +54,8 @@ class _Cible:
     repo: str
     numero: int
     forge: GitProviderInterface
+    # Le commit dont la CI a été lue au moment du merge ; vide tant que la PR n'est pas lue.
+    head_sha: str = ""
 
 
 class PublicationService:
@@ -119,6 +121,7 @@ class PublicationService:
             pr = await cible.forge.get_pr(cible.repo, cible.numero)
             if pr.state != "open":
                 return f"Refusé : la PR nº {cible.numero} est {_etat_lisible(pr)}."
+            cible.head_sha = pr.head_sha
             rapport = await cible.forge.checks(cible.repo, pr.head_sha)
             if rapport.etat == CHECKS_VERT:
                 return await self._merger(cible)
@@ -176,6 +179,13 @@ class PublicationService:
         debut = horloge.time()
         try:
             message = await self._attendre_la_ci(cible, reglages, horloge, debut)
+        except Exception as exc:
+            # Réseau, base : sans ce filet le superviseur ne saurait jamais que le merge a cessé.
+            logger.exception("publication.surveillance.failed", session_id=cible.session_id)
+            message = (
+                f"Merge de la PR nº {cible.numero} abandonné : erreur inattendue "
+                f"({type(exc).__name__}). Redemande le merge."
+            )
         finally:
             self._surveillances.discard(cible.session_id)
         await self._prevenir(user_id, f"[merge de la session {cible.session_id}] {message}")
@@ -194,6 +204,11 @@ class PublicationService:
                 pr = await cible.forge.get_pr(cible.repo, numero)
                 if pr.state != "open":
                     return f"PR nº {numero} non mergée : elle est {_etat_lisible(pr)}."
+                if pr.head_sha != cible.head_sha:
+                    return (
+                        f"PR nº {numero} non mergée : un nouveau commit a été poussé pendant "
+                        "l'attente. Redemande le merge pour qu'Eldir surveille sa CI."
+                    )
                 rapport = await cible.forge.checks(cible.repo, pr.head_sha)
                 if rapport.etat == CHECKS_VERT:
                     return await self._merger(cible)

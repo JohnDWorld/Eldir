@@ -28,8 +28,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 class _Forge:
     """Une forge dont les checks défilent : le dernier état se répète."""
 
-    def __init__(self, *etats: ChecksReport, state: str = "open") -> None:
+    def __init__(
+        self, *etats: ChecksReport, state: str = "open", shas: tuple[str, ...] = ("abc123",)
+    ) -> None:
         self.etats = list(etats)
+        self.shas = list(shas)
         self.state = state
         self.merges: list[int] = []
 
@@ -41,7 +44,7 @@ class _Forge:
             base="main",
             title="X",
             state=self.state,
-            head_sha="abc123",
+            head_sha=self.shas.pop(0) if len(self.shas) > 1 else self.shas[0],
         )
 
     async def checks(self, full_name: str, sha: str) -> ChecksReport:
@@ -334,3 +337,47 @@ async def test_une_seule_surveillance_par_session(
     for tache in taches:
         tache.cancel()
     await asyncio.gather(*taches, return_exceptions=True)
+
+
+async def test_une_erreur_reseau_pendant_la_surveillance_previent_le_superviseur(
+    service: PublicationService,
+    monde: dict[str, str],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forge = _Forge(ChecksReport(CHECKS_EN_COURS))
+    appels = 0
+
+    async def checks(full_name: str, sha: str) -> ChecksReport:
+        nonlocal appels
+        appels += 1
+        if appels > 1:
+            raise RuntimeError("réseau coupé")
+        return ChecksReport(CHECKS_EN_COURS)
+
+    forge.checks = checks  # type: ignore[method-assign]
+    _brancher(monkeypatch, forge)
+
+    await service.merge(monde["user"], session_id=monde["session"])
+    await _fin_des_taches(service)
+
+    assert forge.merges == []
+    assert "abandonné" in prevenus[0][1]
+
+
+async def test_un_nouveau_commit_pendant_l_attente_ne_merge_pas(
+    service: PublicationService,
+    monde: dict[str, str],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forge = _Forge(
+        ChecksReport(CHECKS_EN_COURS), ChecksReport(CHECKS_AUCUN), shas=("abc123", "def456")
+    )
+    _brancher(monkeypatch, forge)
+
+    await service.merge(monde["user"], session_id=monde["session"])
+    await _fin_des_taches(service)
+
+    assert forge.merges == []
+    assert "nouveau commit" in prevenus[0][1]
