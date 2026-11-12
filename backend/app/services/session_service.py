@@ -554,6 +554,11 @@ class SessionService:
 
         head_branch = await worktree_service.current_branch(repo_path)
         base_branch = base or project.default_branch
+        if head_branch != session.branch:
+            raise WorkspaceError(
+                "La session n'est plus sur sa branche : Eldir ne publie que la "
+                "branche qu'il lui a créée."
+            )
         if head_branch == base_branch:
             raise WorkspaceError("Impossible d'ouvrir une PR : la branche courante == base.")
 

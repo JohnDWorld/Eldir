@@ -487,3 +487,91 @@ async def test_sans_modification_ni_commit_il_n_y_a_rien_a_publier(
         await service.open_pull_request(
             db_session, user_id=admin.id, session_id=session.id, title="Vide"
         )
+
+
+class _PrBidon:
+    name = "github"
+
+    async def create_pr(self, full_name: str, *, head: str, base: str, title: str, body=None):  # type: ignore[no-untyped-def]
+        return PullRequestRef(number=1, url="https://x/1", head=head, base=base, title=title)
+
+
+async def _jeton(db_session: AsyncSession, admin: User) -> None:
+    await git_credential_service.upsert(
+        db_session, admin.id, GitCredentialCreate(provider="github", token="ghp_local_test")
+    )
+    await db_session.commit()
+
+
+async def test_la_publication_ne_suit_ni_la_config_ni_les_hooks_de_la_session(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    repo_pair: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """La session écrit la config du clone : un refspec `+...:refs/heads/main` et
+    un hook pre-push ne doivent ni écraser main ni s'exécuter."""
+    remote, work = repo_pair
+    _, session = project_session
+    await _jeton(db_session, admin)
+    temoin = tmp_path / "temoin-pre-push"
+    hook = work / ".git" / "hooks" / "pre-push"
+    hook.write_text(f"#!/bin/sh\ntouch {temoin}\n")
+    hook.chmod(0o755)
+    await _run(
+        ["git", "config", "remote.origin.push", "+refs/heads/feat/eldir:refs/heads/main"], work
+    )
+    main_avant = await _run(["git", "rev-parse", "main"], cwd=remote)
+    (work / "pr.py").write_text("a = 1")
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: _PrBidon())
+
+    await service.open_pull_request(
+        db_session, user_id=admin.id, session_id=session.id, title="Add pr"
+    )
+
+    assert await _run(["git", "rev-parse", "main"], cwd=remote) == main_avant
+    assert "feat/eldir" in await _run(["git", "branch"], cwd=remote)
+    assert not temoin.exists()
+
+
+async def test_open_pr_refuse_une_session_hors_de_sa_branche(
+    db_session: AsyncSession,
+    admin: User,
+    project_session: tuple[Project, Session],
+    service: SessionService,
+    repo_pair: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote, work = repo_pair
+    _, session = project_session
+    await _jeton(db_session, admin)
+    await _run(["git", "checkout", "-b", "autre"], cwd=work)
+    (work / "pr.py").write_text("a = 1")
+    monkeypatch.setattr(cred_module, "make_provider", lambda *a, **kw: _PrBidon())
+
+    with pytest.raises(WorkspaceError, match="n'est plus sur sa branche"):
+        await service.open_pull_request(
+            db_session, user_id=admin.id, session_id=session.id, title="x"
+        )
+    assert "autre" not in await _run(["git", "branch"], cwd=remote)
+    assert "pr.py" in await _run(["git", "status", "--porcelain"], cwd=work)
+
+
+async def test_un_hook_pre_commit_de_la_session_ne_s_execute_pas(
+    repo_pair: tuple[Path, Path], tmp_path: Path
+) -> None:
+    from app.services.worktree_service import worktree_service
+
+    _, work = repo_pair
+    temoin = tmp_path / "temoin-pre-commit"
+    hook = work / ".git" / "hooks" / "pre-commit"
+    hook.write_text(f"#!/bin/sh\ntouch {temoin}\n")
+    hook.chmod(0o755)
+    (work / "n.py").write_text("n = 1")
+
+    await worktree_service.commit_all(work, message="m")
+
+    assert not temoin.exists()
