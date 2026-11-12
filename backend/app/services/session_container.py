@@ -26,6 +26,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.core.config import get_settings
+from app.core.exceptions import WorkspaceError
 from app.services.claude_home import maison_du_projet, sous_chemin_de_maison
 from app.services.collect_service import collect_service
 from app.services.toolchain_service import toolchain_service
@@ -72,6 +73,19 @@ def env_pour_enrobage(
 
     clone = chemin_du_clone(worktree_abs)
     if clone is not None:
+        # Ce qu'une session a posé avant ce lot n'est pas cru : un lien
+        # symbolique ici ferait monter un autre dossier du volume, ou laisserait
+        # la config pointer hors de la lecture seule.
+        for chemin in (
+            clone / ".git",
+            *(clone / ".git" / n for n in ("config", "hooks", "modules")),
+        ):
+            if chemin.is_symlink():
+                raise WorkspaceError(
+                    f"Le clone de ce projet a un `.git` modifié (lien symbolique sur "
+                    f"{chemin.name}) : Eldir ne démarre pas de session dessus. "
+                    "Vérifie le clone ou reclone le projet."
+                )
         # Un `volume-subpath` absent fait échouer `docker run` : les dossiers
         # montés en lecture seule doivent exister, même vides.
         for dossier in ("hooks", "modules"):

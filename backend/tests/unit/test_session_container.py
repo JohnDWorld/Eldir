@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 import yaml
 from app.core.config import Settings, get_settings
+from app.core.exceptions import WorkspaceError
 from app.services.session_container import (
     chemin_du_clone,
     env_pour_enrobage,
@@ -141,6 +142,23 @@ def test_les_dossiers_montes_en_lecture_seule_existent_avant_le_lancement(
 
     assert (workspaces / "u1" / "eldir" / ".git" / "hooks").is_dir()
     assert (workspaces / "u1" / "eldir" / ".git" / "modules").is_dir()
+
+
+@pytest.mark.parametrize("nom", ["", "config", "hooks", "modules"])
+def test_un_git_piege_par_lien_symbolique_bloque_le_demarrage(workspaces: Path, nom: str) -> None:
+    """Ce qu'une session a posé avant ce lot n'est pas cru : on ne démarre pas."""
+    clone = workspaces / "u1" / "eldir"
+    cible = workspaces / "u2" / "voisin"
+    if nom:
+        (clone / ".git" / nom).symlink_to(cible)
+    else:
+        (clone / ".git").rmdir()
+        (clone / ".git").symlink_to(cible)
+
+    with pytest.raises(WorkspaceError, match="lien symbolique"):
+        env_pour_enrobage(
+            project_id="p1", worktree_abs=workspaces / "u1" / "eldir.s1", ssh_subpath=None
+        )
 
 
 def test_un_cwd_sans_point_n_a_pas_de_clone(workspaces: Path) -> None:
