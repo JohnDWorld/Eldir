@@ -525,16 +525,14 @@ class SessionService:
                 pushed=False,
             )
 
-        token = await git_credential_service.get_active_token(
+        token, provider = await git_credential_service.get_active_client(
             db, user_id, project.provider, project.id
         )
-        if not token:
-            raise AuthenticationError(
-                f"Aucun credential {project.provider} configuré. Settings > Git."
-            )
 
         branch = await worktree_service.current_branch(repo_path)
-        await worktree_service.push(repo_path, branch=branch, token=token)
+        await worktree_service.push(
+            repo_path, branch=branch, token=token, origine=provider.origine_git
+        )
         logger.info("session.commit_push", session_id=session_id, branch=branch, sha=sha)
         return CommitPushResult(branch=branch, sha=sha, pushed=True)
 
@@ -589,7 +587,9 @@ class SessionService:
         token, provider = await git_credential_service.get_active_client(
             db, user_id, project.provider, project.id
         )
-        await worktree_service.push(repo_path, branch=head_branch, token=token)
+        await worktree_service.push(
+            repo_path, branch=head_branch, token=token, origine=provider.origine_git
+        )
 
         # 3. La PR déjà ouverte pour cette session reçoit le push : c'est le
         #    chemin d'une correction après une CI rouge. Mergée ou fermée, une

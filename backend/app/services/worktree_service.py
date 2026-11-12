@@ -36,6 +36,31 @@ def slugify(name: str) -> str:
     return s or "repo"
 
 
+def chemin_du_clone(worktree: Path) -> Path | None:
+    """Le clone canonique dont ce worktree est un worktree, s'il y en a un.
+
+    Layout de `WorktreeService` : le clone est `<user>/<repo_slug>`, ses
+    worktrees `<user>/<repo_slug>.<session_id>` (`SESSION_WORKTREE_TEMPLATE`).
+    `slugify` ne laisse passer ni point ni souligné dans `repo_slug`, donc le
+    dernier point du nom est forcément le séparateur, et la dérivation est
+    exacte.
+
+    Ce montage n'est pas un confort. Le `.git` d'un worktree est un fichier
+    qui pointe vers `<clone>/.git/worktrees/<nom>`, et `git commit` depuis un
+    worktree écrit ses objets dans le dépôt partagé. Mesuré : worktree monté
+    seul, `git status` répond « fatal: not a git repository » ; worktree plus
+    clone, branche, log et commit fonctionnent, et le projet voisin reste
+    introuvable.
+
+    Rend `None` pour un cwd qui n'est le worktree de rien, comme celui du
+    superviseur.
+    """
+    if "." not in worktree.name:
+        return None
+    candidat = worktree.parent / worktree.name.rsplit(".", 1)[0]
+    return candidat if candidat.is_dir() else None
+
+
 @dataclass(slots=True, frozen=True)
 class WorktreeRef:
     path: Path
@@ -128,6 +153,7 @@ class WorktreeService:
         repo_full_name: str,
         clone_url: str,
         token: str | None = None,
+        origine: str | None = None,
         default_branch: str | None = None,
     ) -> CloneResult:
         """Clone un repo dans /var/eldir/workspaces/{user_id}/{repo_slug}/.
@@ -147,7 +173,9 @@ class WorktreeService:
         logger.info("clone.start", repo=repo_full_name, dest=str(dest))
         # L'URL clonée est celle du dépôt, sans identifiant : c'est elle que
         # git écrit dans `.git/config`, et la session la lit.
-        await self._run_git("clone", clone_url, str(dest), cwd=dest.parent, token=token)
+        await self._run_git(
+            "clone", clone_url, str(dest), cwd=dest.parent, token=token, origine=origine
+        )
 
         branch = default_branch or await self._detect_default_branch(dest)
         logger.info("clone.done", repo=repo_full_name, branch=branch)
@@ -230,6 +258,7 @@ class WorktreeService:
         *,
         branch: str,
         token: str | None = None,
+        origine: str | None = None,
         remote: str = "origin",
         set_upstream: bool = True,
     ) -> None:
@@ -245,7 +274,7 @@ class WorktreeService:
         # Refspec explicite et sans `+` : ni la config du clone (écrite par la
         # session), ni un nom de branche ambigu ne peuvent viser autre chose.
         args += [remote, f"refs/heads/{branch}:refs/heads/{branch}"]
-        await self._run_git(*args, cwd=repo_path, token=token)
+        await self._run_git(*args, cwd=repo_path, token=token, origine=origine)
 
     async def fetch_remote(
         self,
@@ -253,6 +282,7 @@ class WorktreeService:
         *,
         remote: str = "origin",
         token: str | None = None,
+        origine: str | None = None,
     ) -> None:
         """Fetch un remote, le jeton passant par le credential helper.
 
@@ -266,7 +296,7 @@ class WorktreeService:
         C'est maintenant l'inverse : chaque sync assainit le dépôt.
         """
         await self._nettoyer_identifiants(repo_path)
-        await self._run_git("fetch", remote, "--prune", cwd=repo_path, token=token)
+        await self._run_git("fetch", remote, "--prune", cwd=repo_path, token=token, origine=origine)
 
     async def branch_ahead_behind(
         self,
@@ -398,32 +428,80 @@ class WorktreeService:
             await self._run_git("config", "--local", "--replace-all", cle, propre, cwd=repo_path)
             logger.info("remote.identifiant.retire", repo=str(repo_path), cle=cle)
 
-    async def _run_git(self, *args: str, cwd: Path, token: str | None = None) -> str:
-        # Le backend lance git dans des dossiers que la session écrit (risque
-        # nº 3 de docs/securite-sessions.md) : aucun hook ni fsmonitor ne doit
-        # s'exécuter côté backend.
+    @staticmethod
+    def _prefixe_git(token: str | None, origine: str | None) -> tuple[str, ...]:
+        """Les `-c` de chaque appel : rien de ce qu'une session écrit n'est exécuté.
+
+        Le backend lance git dans des dossiers que la session écrit (risque nº 3
+        de docs/securite-sessions.md). En mode conteneur, la config et les hooks
+        y sont en lecture seule ; ces options sont la défense en profondeur, et
+        la seule en mode processus.
+
+        Le jeton n'est confié qu'à l'origine de la forge : la valeur vide vide
+        la liste des helpers, puis le nôtre n'est déclaré que pour cette
+        origine. Une URL de remote réécrite vers un autre hôte ne le reçoit pas.
+        """
         prefixe: tuple[str, ...] = (
             "-c",
             "core.hooksPath=/dev/null",
             "-c",
             "core.fsmonitor=false",
+            "-c",
+            "submodule.recurse=false",
+            "-c",
+            "diff.ignoreSubmodules=all",
         )
-        env: dict[str, str] | None = None
         if token:
-            # La valeur vide réinitialise la liste des helpers : git n'utilise
-            # que le nôtre, et jamais un helper système qui, lui, stockerait le
-            # jeton dans un fichier.
+            if not origine:
+                raise ValueError("Un jeton git exige l'origine de la forge.")
             prefixe += (
                 "-c",
                 "credential.helper=",
                 "-c",
-                f"credential.helper={_AIDE_CREDENTIEL}",
+                f"credential.{origine}.helper={_AIDE_CREDENTIEL}",
             )
+        return prefixe
+
+    def _chemins_forces(self, cwd: Path) -> dict[str, str]:
+        """Les chemins git d'un clone ou d'un worktree de session, calculés par Eldir.
+
+        Reconnus à leur chemin (`<root>/<user>/<slug>` pour le clone,
+        `<user>/<slug>.<session>` pour le worktree), jamais à leur contenu :
+        le fichier `.git` du worktree et les `commondir` (celui de son dossier
+        d'administration comme celui du clone) sont écrits par la session.
+        Mesuré : chemins fixés, la config lue est celle du vrai clone, quoi
+        que disent ces fichiers.
+        """
+        clone = chemin_du_clone(cwd)
+        if clone is not None:
+            return {
+                "GIT_DIR": str(clone / ".git" / "worktrees" / cwd.name),
+                "GIT_COMMON_DIR": str(clone / ".git"),
+                "GIT_WORK_TREE": str(cwd),
+            }
+        if "." not in cwd.name and cwd.parent.parent == self._root:
+            return {
+                "GIT_DIR": str(cwd / ".git"),
+                "GIT_COMMON_DIR": str(cwd / ".git"),
+                "GIT_WORK_TREE": str(cwd),
+            }
+        return {}
+
+    async def _run_git(
+        self,
+        *args: str,
+        cwd: Path,
+        token: str | None = None,
+        origine: str | None = None,
+    ) -> str:
+        prefixe = self._prefixe_git(token, origine)
+        env = {**os.environ, **self._chemins_forces(cwd)}
+        if token:
             # Le jeton passe par l'environnement de ce seul sous-processus : ni
             # dans la ligne de commande (lisible dans /proc), ni sur le disque.
             # `GIT_TERMINAL_PROMPT=0` pour qu'un refus d'authentification sorte
             # en erreur au lieu d'attendre une saisie qui ne viendra jamais.
-            env = {**os.environ, "ELDIR_GIT_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+            env |= {"ELDIR_GIT_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
         process = await asyncio.create_subprocess_exec(
             "git",
             *prefixe,

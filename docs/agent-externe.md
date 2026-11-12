@@ -56,9 +56,10 @@ le jeton d'un autre utilisateur ne peut pas) dans
 
 Ouvrir une PR (`open_pr`) est en revanche fait par le code d'Eldir, qui ne pousse
 que la branche de la session, sans `+` et sans hook ni `fsmonitor` côté backend.
-Une limite reste : le risque nº 3 de `securite-sessions.md` (l'aide de credential
-répond à tout hôte, et l'URL du remote vit dans une configuration que la session
-écrit). Un lot séparé est prévu.
+Une limite était nommée ici : le risque nº 3 de `securite-sessions.md` (l'aide de
+credential répondait à tout hôte, et l'URL du remote vit dans une configuration
+que la session écrit). Elle est fermée en mode `conteneur` depuis le 2026-11-12 et
+reste ouverte en mode `processus`.
 
 Enfin, la réécriture d'historique (`git push --force`, `--mirror`, `-f`) reste
 refusée **même quand la publication est autorisée** : c'est la seule opération

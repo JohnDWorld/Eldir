@@ -149,9 +149,10 @@ que ce compte autorise.
 
 **Ce que la publication ne garantit pas.** Eldir pousse la branche de la session
 avec un refspec explicite, sans `+`, et sans hook ni `fsmonitor` côté backend. La
-limite qui reste est le risque nº 3 de [`securite-sessions.md`](./securite-sessions.md) :
-l'aide de credential répond à tout hôte, et l'URL du remote vit dans une
-configuration que la session écrit. Un lot séparé est prévu.
+limite qui était nommée ici, le risque nº 3 de [`securite-sessions.md`](./securite-sessions.md)
+(l'aide de credential répondait à tout hôte, et l'URL du remote vit dans une
+configuration que la session écrit), est fermée en mode `conteneur` depuis le
+2026-11-12 et reste ouverte en mode `processus`.
 
 Une surveillance de merge en cours est perdue si le backend redémarre : un nouveau
 `merge` la relance.

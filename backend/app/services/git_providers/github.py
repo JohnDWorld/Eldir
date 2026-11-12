@@ -49,6 +49,10 @@ def _repo_from_payload(p: dict[str, Any]) -> RepoRef:
 class GitHubProvider(GitProviderInterface):
     name = "github"
 
+    @property
+    def origine_git(self) -> str:
+        return "https://github.com"
+
     def __init__(self, token: str) -> None:
         if not token:
             raise GitProviderError("Token GitHub manquant.")

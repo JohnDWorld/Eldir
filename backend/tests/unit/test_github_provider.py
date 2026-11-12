@@ -294,3 +294,7 @@ async def test_github_l_etat_global_en_attente_sert_de_plancher_mais_pas_sans_st
     assert (await en_attente.checks("owner/demo", "abc123")).etat == CHECKS_EN_COURS
     assert (await runs_verts.checks("owner/demo", "abc123")).etat == CHECKS_VERT
     assert (await vide.checks("owner/demo", "abc123")).etat == CHECKS_AUCUN
+
+
+def test_l_origine_git_de_github_est_son_site() -> None:
+    assert GitHubProvider(token="ghp_test").origine_git == "https://github.com"

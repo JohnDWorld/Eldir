@@ -78,6 +78,16 @@ montages=""
 if [ -n "${ELDIR_CLONE_SUBPATH:-}" ]; then
     : "${ELDIR_CLONE_ABS:?manque pour monter le clone du projet}"
     montages="$montages --mount type=volume,src=$ELDIR_WORKSPACES_VOLUME,dst=$ELDIR_CLONE_ABS,volume-subpath=$ELDIR_CLONE_SUBPATH"
+    # Ce que git lit comme des ordres, hors de portée de la session (risque
+    # nº 3) : le backend lance git dans ce clone. `.git` monté à part ne se
+    # renomme ni ne se remplace (mesuré : refusé) ; sa config, ses hooks et le
+    # dossier des dépôts de sous-modules sont en lecture seule. Le reste de
+    # `.git` (objets, refs, index du worktree) reste inscriptible : un commit
+    # dans le worktree passe toujours (mesuré).
+    montages="$montages --mount type=volume,src=$ELDIR_WORKSPACES_VOLUME,dst=$ELDIR_CLONE_ABS/.git,volume-subpath=$ELDIR_CLONE_SUBPATH/.git"
+    for ordres in config hooks modules; do
+        montages="$montages --mount type=volume,src=$ELDIR_WORKSPACES_VOLUME,dst=$ELDIR_CLONE_ABS/.git/$ordres,volume-subpath=$ELDIR_CLONE_SUBPATH/.git/$ordres,readonly"
+    done
 fi
 
 # Le toolchain du projet, en lecture seule : la session l'exécute, elle n'a pas

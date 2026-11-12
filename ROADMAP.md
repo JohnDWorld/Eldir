@@ -344,13 +344,19 @@ sortant, a sa propre spec.
       contre 150 à 450 Mo pour le process `claude`, dont le coût n'a pas changé. Moins
       que l'écart de l'estimation elle-même : valeur inchangée. Méthode et réserves
       dans le commentaire de `max_concurrent_sessions` (`backend/app/core/config.py`).
-- [ ] **Le backend lance git dans des dossiers qu'une session écrit**, et git exécute
-      la configuration et les hooks du dépôt (`core.fsmonitor`, `.git/hooks`) : une
-      session peut faire exécuter une commande au backend. Mesuré le 2026-11-06,
-      constaté à la fin du premier lot, non traité. Le conteneur par session ne le
-      sépare pas, et une liste noire de clés de configuration ne le ferme pas :
-      la réponse est d'architecture (ne pas lancer git dans un arbre qu'une
-      session écrit, ou le lancer dans un bac à sable). Cf.
+- [x] **Le git du backend ne lit plus ce qu'une session écrit (mode conteneur)**
+      (2026-11-12) : config, hooks et sous-modules du clone en lecture seule dans le
+      conteneur, chemins git fixés par Eldir, jeton réservé à la forge. Reste ouvert
+      en mode `processus`. Cf.
+      [`docs/specs/2026-11-12-risque-3-git-du-backend.md`](./docs/specs/2026-11-12-risque-3-git-du-backend.md).
+- [ ] **Le backend lance git dans des dossiers qu'une session écrit** (reste :
+      le mode `processus`, et le bac à sable pour un futur réglage git qui
+      exécuterait quelque chose). En mode `conteneur`, config et hooks sont
+      fermés (item ci-dessus) ; en mode `processus`, la session peut encore faire
+      exécuter une commande au backend par la config et les hooks du dépôt
+      (`core.fsmonitor`, `.git/hooks`). Une liste noire de clés de configuration
+      ne le ferme pas : la réponse est d'architecture (ne pas lancer git dans un
+      arbre qu'une session écrit, ou le lancer dans un bac à sable). Cf.
       [`docs/securite-sessions.md`](./docs/securite-sessions.md), risque nº 3.
 
 Ce que le premier lot laisse ouvert, nommément : le sortant complet (point 3), le

@@ -104,6 +104,11 @@ class GitProviderInterface(ABC):
 
     name: str
 
+    @property
+    @abstractmethod
+    def origine_git(self) -> str:
+        """L'origine HTTPS de la forge, la seule à recevoir le jeton git."""
+
     @abstractmethod
     async def list_repos(self) -> list[RepoRef]: ...
 

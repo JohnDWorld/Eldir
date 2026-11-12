@@ -465,6 +465,60 @@ def test_une_session_ne_lit_pas_le_worktree_voisin(image: str, volume: str) -> N
     assert _trouves(proc) == [f"{WORKSPACES}/projet-a/depot.s1/secret.txt"]
 
 
+def test_une_session_n_ecrit_ni_la_config_ni_les_hooks_du_clone(image: str, volume: str) -> None:
+    """Risque nº 3 : ce que git lit comme des ordres est hors de portée de la session.
+
+    Mutations qui doivent le faire tomber :
+
+    - retirer `,readonly` d'un des trois montages `config`, `hooks`, `modules`
+      (ici config et hooks, ceux qu'on tente d'écrire) ;
+    - ne plus monter `.git` à part : le renommage réussirait.
+
+    Et le montage ne doit pas casser le travail : `git add` puis `git commit`
+    dans le worktree passent.
+    """
+    clone = f"{WORKSPACES}/projet-a/depot"
+    # `modules` n'existe pas dans un dépôt neuf, et un `volume-subpath` absent
+    # fait échouer `docker run` : le backend le crée avant de lancer la session.
+    _docker(
+        "run",
+        "--rm",
+        "-v",
+        f"{volume}:{WORKSPACES}",
+        "--entrypoint",
+        "mkdir",
+        image,
+        "-p",
+        f"{clone}/.git/modules",
+    )
+    sous_chemin = "projet-a/depot"
+    proc = _run_session(
+        image,
+        f"type=volume,src={volume},dst={WORKSPACES}/projet-a/depot.s1,volume-subpath=projet-a/depot.s1",
+        f"type=volume,src={volume},dst={clone},volume-subpath={sous_chemin}",
+        f"type=volume,src={volume},dst={clone}/.git,volume-subpath={sous_chemin}/.git",
+        *[
+            f"type=volume,src={volume},dst={clone}/.git/{n},volume-subpath={sous_chemin}/.git/{n},readonly"
+            for n in ("config", "hooks", "modules")
+        ],
+        commande=f"""
+        cd {clone}
+        echo "[eldir] mesure = x" >> .git/config 2>/dev/null; echo "config : $?"
+        touch .git/hooks/pre-commit 2>/dev/null; echo "hooks : $?"
+        mv .git .git-renomme 2>/dev/null; echo "renommage : $?"
+        cd {WORKSPACES}/projet-a/depot.s1
+        echo neuf > neuf.txt
+        git add neuf.txt && git -c user.email=s@exemple.lan -c user.name=s commit -qm neuf
+        echo "commit : $?"
+        """,
+    )
+
+    codes = dict(re.findall(r"^(config|hooks|renommage|commit) : (\d+)$", proc.stdout, re.M))
+    assert codes["commit"] == "0", proc.stdout + proc.stderr
+    for echec in ("config", "hooks", "renommage"):
+        assert codes[echec] != "0", f"{echec} a réussi\n{proc.stdout}"
+
+
 def test_une_session_ne_lit_pas_la_cle_ssh_d_un_autre_projet(image: str, maisons: str) -> None:
     """Mutations qui doivent le faire tomber :
 
@@ -555,7 +609,7 @@ async def test_un_echec_de_demarrage_ne_retombe_pas_en_mode_processus(
     `test_une_decision_de_conteneur_qui_echoue_ne_retombe_pas_en_mode_processus`.
     """
     worktree = tmp_path / "workspaces" / "u1" / "depot.s1"
-    (tmp_path / "workspaces" / "u1" / "depot").mkdir(parents=True)
+    (tmp_path / "workspaces" / "u1" / "depot" / ".git").mkdir(parents=True)
     worktree.mkdir()
     monkeypatch.setenv("SESSION_RUNTIME", "conteneur")
     monkeypatch.setenv("SESSION_IMAGE", "localhost:1/eldir-session:absente")
