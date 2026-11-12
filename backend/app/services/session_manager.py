@@ -394,6 +394,11 @@ class SessionManager:
     def is_active(self, session_id: str) -> bool:
         return session_id in self._sessions
 
+    def tour_en_cours(self, session_id: str) -> bool:
+        """True si la session a un tour en cours : son verrou de message est pris."""
+        active = self._sessions.get(session_id)
+        return active is not None and active.message_lock.locked()
+
     def cr_du_tour(self, session_id: str) -> str | None:
         """Le compte rendu `<cr>` du tour en cours (ou qui vient de finir), ou `None`.
 
