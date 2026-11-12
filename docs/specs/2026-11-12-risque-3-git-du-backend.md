@@ -1,7 +1,7 @@
 # Le backend ne lit plus de git ce qu'une session écrit
 
-> Conception du 2026-11-12, lot demandé par John après la PR #56. Statut : à
-> implémenter. Ferme, en mode `conteneur`, le risque nº 3 de
+> Conception du 2026-11-12, lot demandé par John après la PR #56. Statut : implémenté
+> (2026-11-12). Ferme, en mode `conteneur`, le risque nº 3 de
 > [`securite-sessions.md`](../securite-sessions.md) pour ce que git exécute.
 
 ## Pourquoi
