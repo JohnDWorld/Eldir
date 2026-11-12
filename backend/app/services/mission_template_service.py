@@ -30,6 +30,7 @@ from app.schemas.mission_template import (
     TemplateSkillWrite,
     TemplateSubAgentWrite,
 )
+from app.services.worktree_service import worktree_service
 
 logger = get_logger(__name__)
 
@@ -634,6 +635,13 @@ class MissionTemplateService:
                     agent=extra.name,
                     worktree=str(worktree_path),
                 )
+            existing_agent_names.add(extra.name)
+        # Ces fichiers servent la session, pas le projet : sans exclusion, le
+        # `git add -A` de la publication les mettait dans la PR.
+        motifs = [f"/.claude/skills/{s.name}/" for s in template.skills]
+        motifs += [f"/.claude/agents/{nom}.md" for nom in sorted(existing_agent_names)]
+        if motifs:
+            await worktree_service.exclure_localement(worktree_path, motifs)
         return template
 
 
