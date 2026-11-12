@@ -9,6 +9,7 @@ la retrouver dans un `authorized_keys` distant.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -314,7 +315,7 @@ async def test_executer_lance_la_commande_par_l_alias_et_rend_code_et_sortie(
     faux = tmp_path / "bin"
     faux.mkdir()
     ssh = faux / "ssh"
-    ssh.write_text('#!/bin/sh\necho "$@"\nexit 3\n')
+    ssh.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\nexit 3\n")
     ssh.chmod(0o755)
     monkeypatch.setenv("PATH", f"{faux}:{os.environ['PATH']}")
     monkeypatch.setattr(get_settings(), "ssh_home", tmp_path / "ssh")
@@ -324,9 +325,9 @@ async def test_executer_lance_la_commande_par_l_alias_et_rend_code_et_sortie(
     )
 
     assert code == 3
-    assert "BatchMode=yes" in sortie
-    assert "eldir-demo" in sortie
-    assert "cd /srv/demo && ./deploy.sh" in sortie
+    assert "eldir-demo" in sortie.splitlines()
+    assert "BatchMode=yes" in sortie.splitlines()
+    assert "cd /srv/demo && ./deploy.sh" in sortie.splitlines()  # un seul argument
 
 
 async def test_executer_tue_une_commande_trop_longue(
@@ -340,6 +341,8 @@ async def test_executer_tue_une_commande_trop_longue(
     monkeypatch.setenv("PATH", f"{faux}:{os.environ['PATH']}")
     monkeypatch.setattr(get_settings(), "ssh_home", tmp_path / "ssh")
 
+    debut = time.monotonic()
     code, _ = await RemoteAccessService().executer("eldir-demo", "./deploy.sh", timeout_s=0.2)
 
     assert code is None
+    assert time.monotonic() - debut < 2  # le `sleep 5` meurt avec le groupe
