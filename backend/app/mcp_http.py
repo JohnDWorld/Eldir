@@ -5,10 +5,12 @@ aucune logique métier, seulement l'adaptation d'un transport et la garde du
 jeton. Toute règle qui vivrait ici seulement serait une règle que le
 superviseur interne n'applique pas, donc deux Eldir qui divergent.
 
-La surface sert donc les cinq outils, sans exception. `allow_publish` en avait
-été retiré le 2026-10-30, puis remis le même jour sur décision de John : il veut
-qu'un agent extérieur puisse publier directement. Ce que cela change, et les
-deux bornes qui restent mécaniques, sont écrits au-dessus de l'adaptateur.
+La surface sert les outils du superviseur à deux exceptions près, nommées dans
+`supervisor_service` (`RESERVES_AU_SUPERVISEUR`, `SCHEMAS_OUTILS_EXTERNES`) :
+`merge` et `deploy` n'y sont pas, `request_merge` n'existe qu'ici. Décision de
+John, 2026-11-12 : un agent extérieur publie (`open_pr`), mais c'est le
+superviseur qui merge et déploie. `allow_publish` y reste depuis le 2026-10-30 ;
+ce que cela change est écrit au-dessus de son adaptateur.
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ from app.core.security import extract_bearer
 from app.db.session import async_session_factory
 from app.services import agent_token_service
 from app.services.singletons import get_supervisor_service
-from app.services.supervisor_service import SCHEMAS_OUTILS
+from app.services.supervisor_service import SCHEMAS_SURFACE_EXTERNE
 
 logger = get_logger("eldir.mcp")
 
@@ -101,9 +103,9 @@ class GardeJeton:
         return identite
 
 
-# ── Les cinq outils : le corps est celui du superviseur, rien d'autre ──
+# ── Les outils : le corps est celui du superviseur, rien d'autre ──
 # Les annotations servent à valider les arguments reçus ; ce que le modèle lit
-# (descriptions, schéma) vient de SCHEMAS_OUTILS, cf. `_outil`. Elles sont
+# (descriptions, schéma) vient de SCHEMAS_SURFACE_EXTERNE, cf. `_outil`. Elles sont
 # STRICTES pour les booléens : le serveur MCP in-process valide contre la table,
 # où `"true"` n'est pas un booléen, alors que pydantic coerce par défaut. Avec
 # `bool`, `{"autoriser": "true"}` ouvrait la publication par HTTP seulement. Un
@@ -181,18 +183,32 @@ async def allow_publish(session_id: str, autoriser: StrictBool) -> str:
     )
 
 
-# La surface externe sert la table ENTIÈRE du superviseur.
-#
-# Il n'y a plus de retrait : `HORS_SURFACE_EXTERNE` a existé une journée, le
-# 2026-10-30, pour tenir `allow_publish` hors de ce transport. John le remet,
-# parce qu'il veut un agent qui publie sans l'attendre. Le raisonnement du
-# retrait et celui du retour sont écrits au-dessus de l'adaptateur
-# `allow_publish`, et dans `docs/securite-sessions.md`.
-#
-# Le mécanisme du retrait n'est pas conservé à vide : un ensemble vide ne garde
-# rien et aucun test ne peut le prouver. Rien n'est perdu, le geste se refait en
-# deux lignes (retirer le nom de cette table, retirer son adaptateur), et c'est
-# justement ce qui le rend sûr : une fonction absente ne s'appelle pas.
+async def open_pr(session_id: str, titre: str, description: str) -> str:
+    # Le libellé du jeton est inscrit au journal : une PR ouverte par un agent ne
+    # se confond pas avec celle du superviseur.
+    user_id, libelle = agent_courant()
+    return await get_supervisor_service().outil_open_pr(
+        user_id,
+        session_id=session_id,
+        titre=titre,
+        description=description,
+        libelle_agent=libelle,
+    )
+
+
+async def request_merge(session_id: str, raison: str) -> str:
+    # Un agent ne merge pas : il demande, et sa demande arrive au superviseur
+    # signée du libellé de son jeton, marquée comme une donnée.
+    user_id, libelle = agent_courant()
+    return await get_supervisor_service().outil_request_merge(
+        user_id, session_id=session_id, raison=raison, libelle_agent=libelle
+    )
+
+
+# La surface externe sert `SCHEMAS_SURFACE_EXTERNE` : la table du superviseur
+# moins `merge` et `deploy`, plus `request_merge`. Retirer un geste se fait en
+# deux lignes (le nom dans `RESERVES_AU_SUPERVISEUR`, l'adaptateur ici), et c'est
+# ce qui le rend sûr : une fonction absente ne s'appelle pas.
 #
 # `_NOTE_AGENTS` (`supervisor_service.py`) reste en place et garde son sens :
 # elle interdit au superviseur de lire une ligne de `remember` marquée d'un agent
@@ -205,6 +221,8 @@ OUTILS: dict[str, Callable[..., Awaitable[str]]] = {
     "dispatch": dispatch,
     "remember": remember,
     "allow_publish": allow_publish,
+    "open_pr": open_pr,
+    "request_merge": request_merge,
 }
 
 
@@ -216,7 +234,7 @@ def _outil(nom: str, fonction: Callable[..., Awaitable[str]]) -> Tool:
     ne voit pas ta conversation avec John ») disparaîtraient, alors que c'est
     ce que le modèle lit. D'où `Tool` construit à la main, schéma remplacé.
     """
-    description, schema = SCHEMAS_OUTILS[nom]
+    description, schema = SCHEMAS_SURFACE_EXTERNE[nom]
     # `structured_output=False` : le superviseur interne rend du texte seul, la
     # surface HTTP ne doit pas y ajouter un `structuredContent` que l'autre n'a pas.
     outil = Tool.from_function(fonction, name=nom, description=description, structured_output=False)
