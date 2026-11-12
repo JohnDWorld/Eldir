@@ -147,6 +147,65 @@ async def test_start_donne_au_sdk_un_env_masque_et_complete(
     assert env["JWT_SECRET"] == ""
 
 
+def _espionne_les_options(fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    recus: list[dict] = []
+    options_d_origine = fake_sdk.ClaudeAgentOptions
+
+    class OptionsEspion(options_d_origine):  # type: ignore[valid-type,misc]
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            recus.append(kwargs)
+
+    monkeypatch.setattr(fake_sdk, "ClaudeAgentOptions", OptionsEspion)
+    return recus
+
+
+async def test_une_session_de_projet_garde_le_prompt_de_claude_code(
+    manager: SessionManager, fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le prompt d'Eldir s'ajoute à celui de Claude Code, il ne le remplace pas.
+
+    Une chaîne brute devient `--system-prompt`, qui efface les consignes de
+    Claude Code sur ses outils et le travail sur du code.
+    """
+    recus = _espionne_les_options(fake_sdk, monkeypatch)
+
+    await manager.start(
+        session_id="s1", project_id="p1", user_id="u1", cwd="/tmp", system_prompt="Protocole"
+    )
+
+    assert recus[0]["system_prompt"] == {
+        "type": "preset",
+        "preset": "claude_code",
+        "append": "Protocole",
+    }
+
+
+async def test_une_session_de_projet_sans_prompt_garde_celui_de_claude_code(
+    manager: SessionManager, fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sans option, le SDK envoie `--system-prompt ""` : un prompt vide."""
+    recus = _espionne_les_options(fake_sdk, monkeypatch)
+
+    await manager.start(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp")
+
+    assert recus[0]["system_prompt"] == {"type": "preset", "preset": "claude_code"}
+
+
+async def test_le_superviseur_garde_son_prompt_seul(
+    manager: SessionManager, fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le superviseur n'a ni disque ni git : les consignes de code le tireraient
+    vers des outils qu'il n'a pas. Son prompt reste le seul."""
+    recus = _espionne_les_options(fake_sdk, monkeypatch)
+
+    await manager.start(
+        session_id="sup", project_id=None, user_id="u1", cwd="/tmp", system_prompt="Superviseur"
+    )
+
+    assert recus[0]["system_prompt"] == "Superviseur"
+
+
 async def test_deux_demarrages_concurrents_ne_montent_qu_un_client(
     manager: SessionManager, fake_sdk: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:

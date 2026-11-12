@@ -225,6 +225,7 @@ def env_pour_la_session(*, project_id: str | None, remote_host: str | None) -> d
 def _optional_options(
     *,
     system_prompt: str | None,
+    claude_code_preset: bool,
     model: str | None,
     resume_sdk_id: str | None,
     allowed_tools: list[str] | None,
@@ -238,7 +239,19 @@ def _optional_options(
     # `cache_control` sur ce bloc + sur la liste d'outils, ce qui rend les
     # tours suivants jusqu'à 90% moins coûteux côté tokens d'entrée (visible
     # dans la métrique `cache_read_tokens` du dashboard /costs).
-    if system_prompt:
+    #
+    # Une session de projet garde le prompt de Claude Code et le complète : une
+    # chaîne brute devient `--system-prompt`, qui remplace ses consignes sur les
+    # outils et le travail sur du code, et l'absence d'option devient
+    # `--system-prompt ""`, un prompt vide. Le superviseur (sans projet) garde
+    # son prompt seul : il n'a ni disque ni git, ces consignes le tireraient
+    # vers des outils qu'il n'a pas.
+    if claude_code_preset:
+        preset: dict[str, str] = {"type": "preset", "preset": "claude_code"}
+        if system_prompt:
+            preset["append"] = system_prompt
+        kwargs["system_prompt"] = preset
+    elif system_prompt:
         kwargs["system_prompt"] = system_prompt
     if model:
         kwargs["model"] = model
@@ -537,6 +550,7 @@ class SessionManager:
         options_kwargs.update(
             _optional_options(
                 system_prompt=system_prompt,
+                claude_code_preset=project_id is not None,
                 model=model,
                 resume_sdk_id=resume_sdk_id,
                 allowed_tools=allowed_tools,
