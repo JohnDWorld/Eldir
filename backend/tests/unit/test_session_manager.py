@@ -1027,3 +1027,13 @@ async def test_stop_sans_projet_n_efface_rien(manager: SessionManager, fake_sdk:
     await manager.stop("s1")
 
     assert not manager.is_active("s1")
+
+
+async def test_tour_en_cours_suit_le_verrou_de_message(manager: SessionManager) -> None:
+    active = ActiveSession(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp")
+    manager._sessions["s1"] = active
+
+    assert manager.tour_en_cours("s1") is False
+    async with active.message_lock:
+        assert manager.tour_en_cours("s1") is True
+    assert manager.tour_en_cours("inconnue") is False

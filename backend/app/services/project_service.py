@@ -17,6 +17,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from app.db.models import MissionTemplate, Project
+from app.schemas.project import ProjectAutonomyUpdate
 from app.services.collect_service import collect_service
 from app.services.git_credential_service import git_credential_service
 from app.services.remote_access_service import remote_access_service
@@ -67,6 +68,25 @@ class ProjectService:
         project = result.scalar_one_or_none()
         if project is None:
             raise NotFoundError(f"Projet {project_id} introuvable.")
+        return project
+
+    async def update_autonomy(
+        self, db: AsyncSession, project_id: str, user_id: str, payload: ProjectAutonomyUpdate
+    ) -> Project:
+        """Règle l'autonomie d'un projet de `user_id`. Un champ absent ne change pas."""
+        project = await self.get(db, project_id, user_id)
+        champs = payload.model_fields_set
+        if "autonomous" in champs and payload.autonomous is not None:
+            project.autonomous = payload.autonomous
+        if "deploy_command" in champs:
+            project.deploy_command = (payload.deploy_command or "").strip() or None
+        await db.flush()
+        logger.info(
+            "project.autonomy.changed",
+            project_id=project.id,
+            autonomous=project.autonomous,
+            deploy_command=project.deploy_command is not None,
+        )
         return project
 
     async def create_from_repo(

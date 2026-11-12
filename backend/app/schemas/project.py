@@ -30,6 +30,17 @@ class ProjectRead(TimestampedModel):
     # Le projet a-t-il un Mission Template ? Affiché dans la liste des
     # projets : sans template, une session part avec le prompt par défaut.
     has_template: bool = False
+    autonomous: bool = False
+    deploy_command: str | None = None
+
+
+class ProjectAutonomyUpdate(EldirModel):
+    """Ce que John règle de l'autonomie d'un projet. Un champ absent ne change pas."""
+
+    autonomous: bool | None = None
+    # Une ligne : une commande lancée telle quelle par SSH, pas un script.
+    # Vide efface la commande.
+    deploy_command: str | None = Field(default=None, max_length=1000, pattern=r"^[^\r\n]*$")
 
 
 class ProjectSummary(EldirModel):

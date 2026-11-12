@@ -119,6 +119,19 @@ class Settings(BaseSettings):
     # net à une requête HTTP qui pend.
     ssh_connect_timeout_s: int = 15
 
+    # ── Merge et déploiement par le superviseur ─────────────────
+    # Une CI en cours est relue à cet intervalle, jusqu'au délai : au-delà,
+    # rien n'est mergé et le superviseur est prévenu.
+    merge_watch_interval_s: int = 30
+    merge_watch_timeout_s: int = 1800
+    # Juste après un push, une PR peut n'avoir encore aucun check alors que sa
+    # CI va démarrer. Toujours aucun check après ce délai : le projet n'a pas de CI.
+    merge_no_checks_grace_s: int = 120
+    # Une commande de déploiement qui dépasse est tuée, et le superviseur ne
+    # reçoit que la fin de sa sortie.
+    deploy_timeout_s: int = 900
+    deploy_output_lines: int = 50
+
     # ── Maisons `.claude` des sessions ──────────────────────────
     # Point de montage, chez le backend, du volume qui porte les transcripts
     # du CLI. Une maison par projet dessous (cf. `claude_home.py`) : sans

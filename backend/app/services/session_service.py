@@ -552,7 +552,19 @@ class SessionService:
         project = await self._require_project(db, session)
         repo_path = self._require_workspace(session)
 
-        # 1. Commit s'il reste des changements, sinon on saute.
+        head_branch = await worktree_service.current_branch(repo_path)
+        base_branch = base or project.default_branch
+        if head_branch != session.branch:
+            raise WorkspaceError(
+                "La session n'est plus sur sa branche : Eldir ne publie que la "
+                "branche qu'il lui a créée."
+            )
+        if head_branch == base_branch:
+            raise WorkspaceError("Impossible d'ouvrir une PR : la branche courante == base.")
+
+        # 1. Commit s'il reste des changements. Sans changement ni commit
+        #    d'avance sur la base, il n'y a rien à publier : la forge refuserait
+        #    une PR vide, autant le dire avant de pousser.
         if await worktree_service.has_changes(repo_path):
             user = await db.get(User, user_id)
             author_name = (user.display_name if user else None) or "Eldir"
@@ -563,19 +575,38 @@ class SessionService:
                 author_name=author_name,
                 author_email=author_email,
             )
+        else:
+            avance, _ = await worktree_service.branch_ahead_behind(
+                repo_path, local=head_branch, remote=f"origin/{base_branch}"
+            )
+            if avance == 0:
+                raise WorkspaceError(
+                    "Rien à publier : la session n'a ni modification ni commit "
+                    f"d'avance sur {base_branch}."
+                )
 
         # 2. Récupère le token, son client d'API, et push la branche.
         token, provider = await git_credential_service.get_active_client(
             db, user_id, project.provider, project.id
         )
-
-        head_branch = await worktree_service.current_branch(repo_path)
-        base_branch = base or project.default_branch
-        if head_branch == base_branch:
-            raise WorkspaceError("Impossible d'ouvrir une PR : la branche courante == base.")
         await worktree_service.push(repo_path, branch=head_branch, token=token)
 
-        # 3. Crée la PR via le provider.
+        # 3. La PR déjà ouverte pour cette session reçoit le push : c'est le
+        #    chemin d'une correction après une CI rouge. Mergée ou fermée, une
+        #    nouvelle la remplace.
+        if session.pr_number is not None:
+            existante = await provider.get_pr(project.repo_full_name, session.pr_number)
+            if existante.state == "open":
+                logger.info("session.pr.updated", session_id=session_id, pr_number=existante.number)
+                return OpenPRResult(
+                    pr_number=existante.number,
+                    pr_url=existante.url,
+                    head=existante.head,
+                    base=existante.base,
+                    title=existante.title,
+                )
+
+        # 4. Crée la PR via le provider.
         try:
             pr = await provider.create_pr(
                 project.repo_full_name,
@@ -586,6 +617,9 @@ class SessionService:
             )
         except GitProviderError:
             raise
+
+        session.pr_number = pr.number
+        await db.flush()
 
         logger.info(
             "session.pr.opened",

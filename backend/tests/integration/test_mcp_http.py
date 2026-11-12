@@ -43,6 +43,7 @@ from app.services.supervisor_service import (
     PREFERENCE_LONGUEUR_MAX,
     PREFERENCES_AGENT_MAX,
     SCHEMAS_OUTILS,
+    SCHEMAS_SURFACE_EXTERNE,
     SUPERVISOR_PREFS_SLUG,
     SupervisorService,
 )
@@ -345,14 +346,13 @@ def test_un_outil_appele_hors_de_la_garde_n_agit_au_nom_de_personne() -> None:
 async def test_les_outils_publies_sont_exactement_la_table(url_mcp: str, jeton_agent: str) -> None:
     """Descriptions ET schémas, paramètre par paramètre : comme le serveur in-process.
 
-    La table ENTIÈRE, sans soustraction, depuis que John a remis `allow_publish`
-    sur cette surface (2026-10-30). L'égalité va dans les deux sens et c'est ce
-    qui compte : un outil qui disparaîtrait de la surface ferait tomber ce test
-    au même titre qu'un outil qui y apparaîtrait sans passer par la table.
+    La table de la surface externe : celle du superviseur moins `merge` et
+    `deploy`, plus `request_merge` (décision de John, 2026-11-12). L'égalité va
+    dans les deux sens.
     """
     async with _agent(url_mcp, jeton_agent) as session:
         outils = (await session.list_tools()).tools
-    assert {o.name: (o.description, o.inputSchema) for o in outils} == SCHEMAS_OUTILS
+    assert {o.name: (o.description, o.inputSchema) for o in outils} == SCHEMAS_SURFACE_EXTERNE
     # Le superviseur interne rend du texte seul : pas de contenu structuré en plus.
     assert all(o.outputSchema is None for o in outils)
 
@@ -373,13 +373,23 @@ async def test_la_surface_sert_allow_publish_annonce_et_route(
     assert "allow_publish" in annonces, "allow_publish n'est pas annoncé à l'agent"
     assert "allow_publish" in mcp_http.OUTILS, "allow_publish n'est pas routé"
     # Et la parité tient dans l'autre sens : rien ne se sert hors de la table.
-    assert set(mcp_http.OUTILS) == set(SCHEMAS_OUTILS)
+    assert set(mcp_http.OUTILS) == set(SCHEMAS_SURFACE_EXTERNE)
+
+
+async def test_un_agent_ne_voit_ni_merge_ni_deploy(url_mcp: str, jeton_agent: str) -> None:
+    """Annoncés nulle part, routés nulle part : un agent demande, le superviseur merge."""
+    async with _agent(url_mcp, jeton_agent) as session:
+        annonces = {o.name for o in (await session.list_tools()).tools}
+
+    assert {"merge", "deploy"}.isdisjoint(annonces)
+    assert {"merge", "deploy"}.isdisjoint(mcp_http.OUTILS)
+    assert {"open_pr", "request_merge"} <= annonces
 
 
 def test_le_schema_servi_est_une_copie_de_la_table() -> None:
     """La table sert deux transports : FastMCP ne doit pas pouvoir la modifier en place."""
     for nom, fonction in mcp_http.OUTILS.items():
-        _, schema = SCHEMAS_OUTILS[nom]
+        _, schema = SCHEMAS_SURFACE_EXTERNE[nom]
         outil = mcp_http._outil(nom, fonction)
         assert outil.parameters == schema
         assert outil.parameters is not schema
@@ -391,10 +401,10 @@ def test_chaque_fonction_d_outil_accepte_les_parametres_que_la_table_annonce() -
 
     Un paramètre ajouté à la table seule serait annoncé puis jeté en silence.
     """
-    assert set(mcp_http.OUTILS) == set(SCHEMAS_OUTILS)
+    assert set(mcp_http.OUTILS) == set(SCHEMAS_SURFACE_EXTERNE)
     types_json = {"string": str, "boolean": bool}
     for nom, fonction in mcp_http.OUTILS.items():
-        _, schema = SCHEMAS_OUTILS[nom]
+        _, schema = SCHEMAS_SURFACE_EXTERNE[nom]
         parametres = inspect.signature(fonction, eval_str=True).parameters
         assert set(parametres) == set(schema["properties"]), nom
         obligatoires = {n for n, p in parametres.items() if p.default is inspect.Parameter.empty}
@@ -782,7 +792,11 @@ def _arguments_invalides(nom: str) -> list[tuple[str, dict[str, Any]]]:
 
 @pytest.mark.parametrize(
     "nom",
-    [n for n, (_, schema) in SCHEMAS_OUTILS.items() if schema["properties"]],
+    [
+        n
+        for n, (_, schema) in SCHEMAS_OUTILS.items()
+        if schema["properties"] and n in SCHEMAS_SURFACE_EXTERNE
+    ],
 )
 async def test_http_et_in_process_refusent_les_memes_arguments(
     url_mcp: str, session_factory: Fabrique, monkeypatch: pytest.MonkeyPatch, nom: str
@@ -792,6 +806,8 @@ async def test_http_et_in_process_refusent_les_memes_arguments(
     Le serveur bas niveau de `mcp` valide contre la table avant le corps ; FastMCP
     valide d'après les annotations, et pydantic coerce : `"true"` ouvrait la
     publication par HTTP seulement. C'est l'argument de la porte qu'on compare.
+    `merge` et `deploy` n'ont pas de côté HTTP et `request_merge` pas de côté
+    in-process : ils ne sont pas comparés ici.
     """
     service = service_superviseur(session_factory)
     monkeypatch.setattr(singletons, "_supervisor", service)

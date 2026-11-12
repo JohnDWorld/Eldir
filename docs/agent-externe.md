@@ -1,6 +1,6 @@
 # Brancher un agent extérieur sur Eldir
 
-> Les cinq outils du superviseur, servis en MCP sur HTTP, derrière un
+> Sept outils du superviseur, servis en MCP sur HTTP, derrière un
 > jeton que tu révoques. **Publication comprise** : lis
 > [Ce que tu accordes](#ce-que-tu-accordes-en-émettant-un-jeton) avant d'en émettre un. De quoi laisser un autre assistant piloter tes
 > sessions Claude sans reconstruire la logique de dispatch ni conduire
@@ -14,7 +14,7 @@ ce qui n'est pas garanti. Si tu ne lis qu'une section, lis
 ## Ce que c'est
 
 Eldir a déjà un cerveau : la session **superviseur**, une session Claude sans
-projet ni worktree qui pilote les sessions enfants à travers cinq outils MCP
+projet ni worktree qui pilote les sessions enfants à travers ses outils MCP
 in-process. Voir [`docs/supervisor.md`](./supervisor.md).
 
 Ce contrat était jusqu'ici joignable depuis le seul processus d'Eldir. Il est
@@ -54,6 +54,12 @@ utilisateur, et un test d'intégration épingle les deux bords (il ouvre bien, e
 le jeton d'un autre utilisateur ne peut pas) dans
 `backend/tests/integration/test_mcp_http.py`.
 
+Ouvrir une PR (`open_pr`) est en revanche fait par le code d'Eldir, qui ne pousse
+que la branche de la session, sans `+` et sans hook ni `fsmonitor` côté backend.
+Une limite reste : le risque nº 3 de `securite-sessions.md` (l'aide de credential
+répond à tout hôte, et l'URL du remote vit dans une configuration que la session
+écrit). Un lot séparé est prévu.
+
 Enfin, la réécriture d'historique (`git push --force`, `--mirror`, `-f`) reste
 refusée **même quand la publication est autorisée** : c'est la seule opération
 git qui détruit du travail déjà publié, et aucune demande ne passe par un agent
@@ -78,13 +84,18 @@ dispatcher ce qu'il faut pour qu'une session publie. Un jeton d'agent vit dix
 ans. N'émets un jeton que pour un agent dont tu maîtrises le cerveau et le
 salon, et sur une instance dont les dépôts t'appartiennent.
 
+**Un jeton ouvre des PR, il ne merge ni ne déploie.** `open_pr` est servi ;
+`merge` et `deploy` ne le sont pas. Pour faire merger, l'agent appelle
+`request_merge` : le superviseur décide, et seul un projet que tu as coché
+« autonome » peut être mergé sans toi.
+
 **Les deux bornes qui restent sont des mécanismes.** Un jeton n'ouvre que les
 sessions de SON utilisateur (`set_publish_allowed` filtre sur `user_id` : la
 session d'un autre est introuvable), et le push forcé reste refusé porte ouverte
 comprise. Le libellé du jeton entre au journal à chaque ouverture, donc une
 publication décidée par un agent se relit après coup.
 
-Il n'existe pas de jeton en lecture seule : c'est les cinq outils ou rien. Si
+Il n'existe pas de jeton en lecture seule : c'est les sept outils ou rien. Si
 tu veux la porte fermée pour les agents, deux lignes de `app/mcp_http.py` la
 referment, et `docs/securite-sessions.md` dit lesquelles.
 
@@ -238,7 +249,7 @@ Si tu passes par le reverse proxy fourni (`docker/Caddyfile`), il transmet le
 `Host` d'origine tel quel : c'est donc le nom public qu'il faut déclarer, pas
 `backend:8000`.
 
-## Les cinq outils
+## Les sept outils
 
 | Outil | À quoi ça sert | Paramètres |
 |---|---|---|
@@ -247,6 +258,8 @@ Si tu passes par le reverse proxy fourni (`docker/Caddyfile`), il transmet le
 | `dispatch` | Transmet une consigne à une session projet et rend la main immédiatement. Reprend la session indiquée, sinon la plus récente du projet, sinon en démarre une. | `project_id` (requis), `consigne` (requis), `session_id` (optionnel), `nouveau_chantier` (booléen, optionnel) |
 | `remember` | Enregistre une préférence de travail durable dans les **Préférences apprises par le superviseur**. | `fait` (requis) |
 | `allow_publish` | ⚠️ Ouvre ou referme la porte de publication d'une session (commit, push, PR). N'agit que sur les sessions de l'utilisateur du jeton. Le push forcé reste refusé même porte ouverte. | `session_id` (requis), `autoriser` (booléen, requis) |
+| `open_pr` | Eldir commite le worktree de la session, pousse sa branche (jamais la base, jamais en force) et ouvre la PR, ou pousse dans la PR déjà ouverte. Refusé tant qu'un tour tourne ; « Rien à publier » s'il n'y a rien. | `session_id` (requis), `titre` (requis), `description` (requis) |
+| `request_merge` | Demande au superviseur de merger la PR d'une session. Il décide ; Eldir refuse de toute façon un projet non autonome ou une CI rouge. | `session_id` (requis), `raison` (requis, une phrase, 300 caractères au plus) |
 
 Trois précisions qui ne se devinent pas :
 
@@ -483,7 +496,7 @@ configuré, cette consigne-là est perdue en silence. Un dispatcheur autonome
 attend la fin d'un tour avant d'en demander un autre sur la même session, ou
 ouvre un `nouveau_chantier`.
 
-**Pas d'autorisation fine par outil.** Un jeton donne les cinq outils ou rien,
+**Pas d'autorisation fine par outil.** Un jeton donne les sept outils ou rien,
 publication comprise. Un jeton en lecture seule, ou un jeton sans
 `allow_publish`, sera utile le jour où un agent tiers, non maîtrisé, se branche.
 Ce jour-là, pas avant.
@@ -617,7 +630,7 @@ d'abaisser le niveau de `httpx` : tu réécrirais le jeton dans le journal.
 
 ## Pour aller plus loin
 
-- [`docs/supervisor.md`](./supervisor.md) : les cinq outils vus du superviseur
+- [`docs/supervisor.md`](./supervisor.md) : les huit outils vus du superviseur
   (il garde `allow_publish`, lui ne lit que tes consignes)
   interne, le protocole `<cr>`, la porte de validation humaine.
 - [`docs/sessions.md`](./sessions.md) : cycle de vie d'une session, worktrees,

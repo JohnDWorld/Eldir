@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 import httpx
 import pytest
 from app.core.exceptions import GitProviderError
 from app.services.git_providers import forgejo
+from app.services.git_providers.base import (
+    CHECKS_AUCUN,
+    CHECKS_EN_COURS,
+    CHECKS_ROUGE,
+    ChecksReport,
+)
 from app.services.git_providers.forgejo import ForgejoProvider
 
 from tests.unit.serveur_abonne import Journal
@@ -56,3 +65,107 @@ async def test_un_succes_ne_laisse_pas_de_trace(monkeypatch: pytest.MonkeyPatch)
 
     assert await provider.list_repos() == []
     assert journal.appels == []
+
+
+def _pr_forgejo(*, state: str = "open", merged: bool = False) -> dict[str, Any]:
+    return {
+        "number": 7,
+        "html_url": "https://forgejo.exemple.lan/owner/demo/pulls/7",
+        "head": {"ref": "eldir/s1", "sha": "abc123"},
+        "base": {"ref": "main"},
+        "title": "Ajoute x",
+        "state": state,
+        "merged": merged,
+    }
+
+
+async def test_get_pr_forgejo_lit_l_etat_et_le_sha() -> None:
+    provider = ForgejoProvider(base_url="https://forgejo.exemple.lan", token="t")
+    _mount(provider, httpx.MockTransport(lambda r: httpx.Response(200, json=_pr_forgejo())))
+
+    pr = await provider.get_pr("owner/demo", 7)
+
+    assert (pr.state, pr.head_sha) == ("open", "abc123")
+
+
+async def test_les_checks_forgejo_viennent_du_statut_combine() -> None:
+    vus: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vus.append(request.url.path)
+        return httpx.Response(
+            200,
+            json={
+                "state": "failure",
+                "statuses": [
+                    {"context": "ci / tests", "status": "success"},
+                    {"context": "ci / lint", "status": "failure"},
+                    {"context": "ci / docs", "status": "warning"},
+                ],
+            },
+        )
+
+    provider = ForgejoProvider(base_url="https://forgejo.exemple.lan", token="t")
+    _mount(provider, httpx.MockTransport(handler))
+
+    rapport = await provider.checks("owner/demo", "abc123")
+
+    assert vus == ["/api/v1/repos/owner/demo/commits/abc123/status"]
+    assert rapport == ChecksReport(CHECKS_ROUGE, ("ci / lint",))
+
+
+async def test_un_statut_forgejo_en_attente_rend_la_ci_en_cours() -> None:
+    provider = ForgejoProvider(base_url="https://forgejo.exemple.lan", token="t")
+    _mount(
+        provider,
+        httpx.MockTransport(
+            lambda r: httpx.Response(
+                200, json={"statuses": [{"context": "ci / tests", "status": "pending"}]}
+            )
+        ),
+    )
+
+    assert (await provider.checks("owner/demo", "abc123")).etat == CHECKS_EN_COURS
+
+
+async def test_merge_pr_forgejo_fait_un_commit_de_merge() -> None:
+    vus: list[tuple[str, str, bytes]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vus.append((request.method, request.url.path, request.content))
+        return httpx.Response(200)
+
+    provider = ForgejoProvider(base_url="https://forgejo.exemple.lan", token="t")
+    _mount(provider, httpx.MockTransport(handler))
+
+    await provider.merge_pr("owner/demo", 7, "abc123")
+
+    methode, chemin, corps = vus[0]
+    assert (methode, chemin) == ("POST", "/api/v1/repos/owner/demo/pulls/7/merge")
+    assert json.loads(corps) == {"Do": "merge", "head_commit_id": "abc123"}
+
+
+def _fournir_forgejo(corps: dict[str, Any]) -> ForgejoProvider:
+    provider = ForgejoProvider(base_url="https://forgejo.exemple.lan", token="t")
+    _mount(provider, httpx.MockTransport(lambda r: httpx.Response(200, json=corps)))
+    return provider
+
+
+async def test_forgejo_l_etat_global_en_echec_sert_de_plancher() -> None:
+    provider = _fournir_forgejo(
+        {"state": "failure", "statuses": [{"context": "ci / tests", "status": "success"}]}
+    )
+
+    rapport = await provider.checks("owner/demo", "abc123")
+
+    assert rapport == ChecksReport(CHECKS_ROUGE, ("statut combiné",))
+
+
+async def test_forgejo_l_etat_global_en_attente_sert_de_plancher_mais_pas_sans_statut() -> None:
+    en_attente = _fournir_forgejo(
+        {"state": "pending", "statuses": [{"context": "ci / tests", "status": "success"}]}
+    )
+    vide = _fournir_forgejo({"state": "pending", "statuses": []})
+
+    assert (await en_attente.checks("owner/demo", "abc123")).etat == CHECKS_EN_COURS
+    assert (await vide.checks("owner/demo", "abc123")).etat == CHECKS_AUCUN

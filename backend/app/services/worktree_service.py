@@ -242,7 +242,9 @@ class WorktreeService:
         args = ["push"]
         if set_upstream:
             args.append("-u")
-        args += [remote, branch]
+        # Refspec explicite et sans `+` : ni la config du clone (écrite par la
+        # session), ni un nom de branche ambigu ne peuvent viser autre chose.
+        args += [remote, f"refs/heads/{branch}:refs/heads/{branch}"]
         await self._run_git(*args, cwd=repo_path, token=token)
 
     async def fetch_remote(
@@ -397,13 +399,21 @@ class WorktreeService:
             logger.info("remote.identifiant.retire", repo=str(repo_path), cle=cle)
 
     async def _run_git(self, *args: str, cwd: Path, token: str | None = None) -> str:
-        prefixe: tuple[str, ...] = ()
+        # Le backend lance git dans des dossiers que la session écrit (risque
+        # nº 3 de docs/securite-sessions.md) : aucun hook ni fsmonitor ne doit
+        # s'exécuter côté backend.
+        prefixe: tuple[str, ...] = (
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "core.fsmonitor=false",
+        )
         env: dict[str, str] | None = None
         if token:
             # La valeur vide réinitialise la liste des helpers : git n'utilise
             # que le nôtre, et jamais un helper système qui, lui, stockerait le
             # jeton dans un fichier.
-            prefixe = (
+            prefixe += (
                 "-c",
                 "credential.helper=",
                 "-c",

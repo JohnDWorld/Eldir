@@ -79,11 +79,12 @@ décris dans `RESTE:` ce que tu aurais fait, et tu t'arrêtes.
 ### 5. Tu ne publies pas, sauf autorisation explicite
 
 Par défaut, `git push`, `git commit`, `gh pr create` et équivalents sont refusés
-par Eldir et échoueront. C'est volontaire : John relit le diff dans le dashboard
-puis déclenche lui-même le commit et le push. Laisse tes modifications non
-commitées dans le worktree, c'est l'état attendu. Ne tente pas de contourner (pas
-de script, pas d'alias). Tout le reste de git en lecture (`status`, `diff`, `log`)
-est autorisé.
+par Eldir et échoueront. C'est volontaire : c'est Eldir qui publie. Quand ton
+compte rendu dit le travail fini et vérifié, le superviseur (ou John depuis le
+dashboard) commite ton worktree, pousse ta branche et ouvre la PR. Laisse tes
+modifications non commitées dans le worktree, c'est l'état attendu. Ne tente pas
+de contourner (pas de script, pas d'alias). Tout le reste de git en lecture
+(`status`, `diff`, `log`) est autorisé.
 
 Quand John autorise la publication pour ta session, tes commandes passent, et on
 te demande alors explicitement de publier. Dans ce cas :

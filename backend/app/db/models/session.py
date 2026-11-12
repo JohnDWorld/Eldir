@@ -52,6 +52,8 @@ class Session(UUIDPrimaryKey, TimestampMixin, Base):
     # template : changer l'alias du projet ne doit pas élargir le périmètre
     # d'une session déjà lancée, et un `resume` repart à l'identique.
     remote_host: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # La PR ouverte par Eldir pour cette session (cf. `open_pull_request`).
+    pr_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class SessionEvent(UUIDPrimaryKey, TimestampMixin, Base):

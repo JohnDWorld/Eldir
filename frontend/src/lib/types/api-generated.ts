@@ -333,7 +333,8 @@ export interface paths {
         delete: operations["delete_project_api_v1_projects__project_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Project Autonomy */
+        patch: operations["update_project_autonomy_api_v1_projects__project_id__patch"];
         trace?: never;
     };
     "/api/v1/projects/{project_id}/remote": {
@@ -1692,6 +1693,16 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * ProjectAutonomyUpdate
+         * @description Ce que John règle de l'autonomie d'un projet. Un champ absent ne change pas.
+         */
+        ProjectAutonomyUpdate: {
+            /** Autonomous */
+            autonomous?: boolean | null;
+            /** Deploy Command */
+            deploy_command?: string | null;
+        };
         /** ProjectCostRead */
         ProjectCostRead: {
             /** Cost Usd */
@@ -1723,12 +1734,19 @@ export interface components {
         /** ProjectRead */
         ProjectRead: {
             /**
+             * Autonomous
+             * @default false
+             */
+            autonomous: boolean;
+            /**
              * Created At
              * Format: date-time
              */
             created_at: string;
             /** Default Branch */
             default_branch: string;
+            /** Deploy Command */
+            deploy_command?: string | null;
             /**
              * Has Template
              * @default false
@@ -2383,6 +2401,7 @@ export type SchemaOllamaTransformRequest = components['schemas']['OllamaTransfor
 export type SchemaOllamaTransformResponse = components['schemas']['OllamaTransformResponse'];
 export type SchemaOpenPullRequestRequest = components['schemas']['OpenPullRequestRequest'];
 export type SchemaOpenPullRequestResponse = components['schemas']['OpenPullRequestResponse'];
+export type SchemaProjectAutonomyUpdate = components['schemas']['ProjectAutonomyUpdate'];
 export type SchemaProjectCostRead = components['schemas']['ProjectCostRead'];
 export type SchemaProjectCreateFromRepo = components['schemas']['ProjectCreateFromRepo'];
 export type SchemaProjectRead = components['schemas']['ProjectRead'];
@@ -3128,6 +3147,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_project_autonomy_api_v1_projects__project_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectAutonomyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRead"];
+                };
             };
             /** @description Validation Error */
             422: {

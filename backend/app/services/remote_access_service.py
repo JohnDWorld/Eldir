@@ -40,10 +40,12 @@ sudo, côté machine.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
 import shlex
 import shutil
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -429,6 +431,41 @@ class RemoteAccessService:
         if proc.returncode == 0:
             return True, None
         return False, (sortie or b"").decode("utf-8", "replace").strip()[:300] or None
+
+    async def executer(
+        self, alias: str, commande: str, *, timeout_s: float
+    ) -> tuple[int | None, str]:
+        """Lance une commande déclarée sur la machine d'un projet, par son alias.
+
+        Rend (code de retour, sortie et erreurs fusionnées). `None` : la commande
+        a dépassé `timeout_s` et a été tuée. La commande est passée à ssh en un
+        seul argument, sans shell local : c'est le shell distant qui l'interprète.
+        ssh tourne dans son propre groupe de processus, tué en entier à l'échéance.
+        """
+        connexion = get_settings().ssh_connect_timeout_s
+        proc = await asyncio.create_subprocess_exec(
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            f"ConnectTimeout={connexion}",
+            "-F",
+            str(self._config_path()),
+            alias,
+            commande,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            start_new_session=True,
+        )
+        try:
+            sortie, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+        except TimeoutError:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            await proc.wait()
+            return None, ""
+        return proc.returncode, (sortie or b"").decode("utf-8", "replace")
 
     # ── suppression ─────────────────────────────────────────────
     async def revoke(self, project_id: str) -> bool:

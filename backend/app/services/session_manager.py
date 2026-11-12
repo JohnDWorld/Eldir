@@ -88,12 +88,11 @@ _PUBLISH_DENY_RE: re.Pattern[str] = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 _PUBLISH_DENY_REASON = (
-    "Refusé par Eldir : la publication est validée par un humain. "
-    "Laisse tes modifications non commitées dans le worktree, John relit le "
-    "diff dans le dashboard puis déclenche lui-même le commit et le push. "
-    "S'il te demande explicitement de publier, il autorise d'abord cette "
-    "session (bouton « publication » du dashboard, ou en le demandant au "
-    "superviseur). Termine ton tour avec ton bloc <cr>."
+    "Refusé par Eldir : c'est Eldir qui publie, pas la session. Laisse tes "
+    "modifications non commitées dans le worktree : le superviseur (outil "
+    "`open_pr`) ou John depuis le dashboard commite, pousse ta branche et ouvre "
+    "la PR. Termine ton tour avec ton bloc <cr>, en disant si le travail est fini "
+    "et vérifié."
 )
 
 # Même autorisée, la réécriture d'historique reste refusée : c'est la seule
@@ -393,6 +392,11 @@ class SessionManager:
 
     def is_active(self, session_id: str) -> bool:
         return session_id in self._sessions
+
+    def tour_en_cours(self, session_id: str) -> bool:
+        """True si la session a un tour en cours : son verrou de message est pris."""
+        active = self._sessions.get(session_id)
+        return active is not None and active.message_lock.locked()
 
     def cr_du_tour(self, session_id: str) -> str | None:
         """Le compte rendu `<cr>` du tour en cours (ou qui vient de finir), ou `None`.
