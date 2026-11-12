@@ -384,6 +384,59 @@ async def test_un_nouveau_commit_pendant_l_attente_ne_merge_pas(
     assert "nouveau commit" in prevenus[0][1]
 
 
+async def test_decocher_autonome_pendant_l_attente_ne_merge_pas(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forge = _Forge(ChecksReport(CHECKS_EN_COURS), ChecksReport(CHECKS_VERT))
+    _brancher(monkeypatch, forge)
+    lire = forge.checks
+
+    async def checks_puis_decoche(full_name: str, sha: str) -> ChecksReport:
+        rapport = await lire(full_name, sha)
+        await _rendre(session_factory, monde["project"], autonomous=False)
+        return rapport
+
+    monkeypatch.setattr(forge, "checks", checks_puis_decoche)
+
+    await service.merge(monde["user"], session_id=monde["session"])
+    await _fin_des_taches(service)
+
+    assert forge.merges == []
+    assert "n'est plus autonome" in prevenus[0][1]
+
+
+async def test_une_session_supprimee_pendant_la_surveillance_ne_merge_pas(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forge = _Forge(ChecksReport(CHECKS_EN_COURS), ChecksReport(CHECKS_VERT))
+    _brancher(monkeypatch, forge)
+    lire = forge.checks
+
+    async def checks_puis_supprime(full_name: str, sha: str) -> ChecksReport:
+        rapport = await lire(full_name, sha)
+        async with session_factory() as db:
+            ligne = await db.get(Session, monde["session"])
+            await db.delete(ligne)
+            await db.commit()
+        return rapport
+
+    monkeypatch.setattr(forge, "checks", checks_puis_supprime)
+
+    await service.merge(monde["user"], session_id=monde["session"])
+    await _fin_des_taches(service)
+
+    assert forge.merges == []
+    assert "supprimée" in prevenus[0][1]
+
+
 # ── deploy ───────────────────────────────────────────────────────
 def _machine(monkeypatch: pytest.MonkeyPatch, *, alias: str | None = "eldir-demo") -> AsyncMock:
     monkeypatch.setattr(

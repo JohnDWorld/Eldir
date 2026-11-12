@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import get_settings
 from app.core.exceptions import EldirError
 from app.core.logging import get_logger
+from app.db.models import Project
 from app.db.models import Session as SessionRow
 from app.services.git_credential_service import git_credential_service
 from app.services.git_providers.base import (
@@ -200,8 +201,14 @@ class PublicationService:
             ecoule = horloge.time() - debut
             try:
                 async with self._factory() as db:
-                    if await db.get(SessionRow, cible.session_id) is None:
+                    ligne = await db.get(SessionRow, cible.session_id)
+                    if ligne is None:
                         return f"PR nº {numero} non mergée : la session a été supprimée."
+                    # John a pu décocher la case pendant l'attente : la case
+                    # vaut au moment du merge, pas à celui de la demande.
+                    projet = await db.get(Project, ligne.project_id)
+                    if projet is None or not projet.autonomous:
+                        return f"PR nº {numero} non mergée : le projet n'est plus autonome."
                 pr = await cible.forge.get_pr(cible.repo, numero)
                 if pr.state != "open":
                     return f"PR nº {numero} non mergée : elle est {_etat_lisible(pr)}."
