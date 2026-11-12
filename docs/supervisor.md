@@ -5,7 +5,8 @@
 Au lieu d'ouvrir une session par repo et de jongler entre les onglets, tu parles à
 **Eldir**, une session Claude qui n'a ni éditeur ni terminal : elle sait seulement
 identifier tes projets, transmettre des consignes aux sessions qui travaillent
-dessus, et te restituer ce qu'elles ont fait.
+dessus, te restituer ce qu'elles ont fait et, sur les projets où tu l'as permis,
+publier, merger et déployer.
 
 Onglet **Eldir** dans la barre du haut, ou `/supervisor`.
 
@@ -28,6 +29,7 @@ Onglet **Eldir** dans la barre du haut, ou `/supervisor`.
    toi ◄──"voilà ce qu'elle a fait"──── superviseur (réveillé automatiquement)
     │
     └─► tu relis le diff dans la session, puis Commit & Push ou Ouvrir une PR
+        (ou le superviseur ouvre la PR lui-même : voir « Publier, merger, déployer »)
 ```
 
 Le superviseur n'attend pas la session enfant : `dispatch` lui rend la main tout de
@@ -87,18 +89,20 @@ Pour rendre une dépendance durable, dis-la une fois : *"quand Rempart Messenger
 change son protocole, Village Viking doit suivre"*. Le superviseur l'enregistre
 via `remember` et l'appliquera sans que tu la répètes.
 
-## Tu restes le seul à publier
+## Les sessions ne publient pas elles-mêmes
 
 Les sessions Claude tournent sans demande d'autorisation (pas de terminal côté
 serveur), donc rien ne les empêcherait de pousser toutes seules. Eldir refuse au
 niveau du hook `PreToolUse` toute commande `git commit`, `git push`, `gh pr` ou
 `glab mr` : la tentative apparaît dans le flux d'events, et l'agent reçoit
-l'explication à la place du résultat.
+l'explication à la place du résultat. Le drapeau `publish_allowed` est fermé par
+défaut.
 
-Les modifications restent donc non commitées dans le worktree de la session. Tu les
-relis dans l'onglet **diff**, puis tu déclenches toi-même **Commit & Push** ou
-**Ouvrir une PR**. Ces deux actions passent par le backend Eldir, pas par l'agent :
-elles ne sont pas concernées par le refus.
+Les modifications restent donc non commitées dans le worktree de la session. Elles
+sont publiées par Eldir, jamais par l'agent : soit toi depuis le dashboard, onglet
+**diff** puis **Commit & Push** ou **Ouvrir une PR**, soit le superviseur avec
+`open_pr`. Le merge reste à toi, sauf sur un projet autonome (voir
+[Publier, merger, déployer](#publier-merger-déployer)).
 
 Si tu veux qu'une session publie elle-même, tu lèves le refus pour elle seule, depuis
 le dashboard ou en le demandant au superviseur (`allow_publish`). Le drapeau est
@@ -159,7 +163,7 @@ le compte et un lien. Voir [`docs/agent-externe.md`](./agent-externe.md).
 | `list_projects` | Les repos branchés sur Eldir, avec pour chacun sa dernière activité et le nombre de sessions qui attendent un geste de ta part. Sert à identifier de quel projet tu parles, et à repérer ceux qui dorment |
 | `list_sessions` | Les sessions existantes, leur état et leur dernier compte rendu |
 | `dispatch` | Transmet une consigne à une session (reprise ou créée), sans attendre. Avec `nouveau_chantier`, ouvre une session neuve à côté des existantes plutôt que de reprendre la plus récente |
-| `allow_publish` | Autorise une session à publier (commit, push, PR) ou lui retire ce droit. Le superviseur ne s'en sert que si tu le lui demandes explicitement : c'est ta porte, pas la sienne |
+| `allow_publish` | Autorise une session à publier (commit, push, PR) ou lui retire ce droit. Laisse une session publier elle-même ; le superviseur ne s'en sert que si tu le lui demandes explicitement |
 | `remember` | Enregistre une préférence de travail durable |
 | `open_pr` | Commite le worktree de la session, pousse sa branche et ouvre la PR (ou pousse dans la PR déjà ouverte). Refusé tant qu'un tour tourne ; « Rien à publier » s'il n'y a rien |
 | `merge` | Merge la PR d'une session, projets autonomes seulement, CI verte exigée |
