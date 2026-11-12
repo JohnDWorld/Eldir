@@ -36,6 +36,7 @@ class _Forge:
         self.shas = list(shas)
         self.state = state
         self.merges: list[int] = []
+        self.sha_vises: list[str] = []
 
     async def get_pr(self, full_name: str, number: int) -> PullRequestRef:
         return PullRequestRef(
@@ -51,8 +52,9 @@ class _Forge:
     async def checks(self, full_name: str, sha: str) -> ChecksReport:
         return self.etats.pop(0) if len(self.etats) > 1 else self.etats[0]
 
-    async def merge_pr(self, full_name: str, number: int) -> None:
+    async def merge_pr(self, full_name: str, number: int, sha: str) -> None:
         self.merges.append(number)
+        self.sha_vises.append(sha)
         self.state = "merged"
 
 
@@ -308,6 +310,7 @@ async def test_une_ci_en_cours_merge_des_qu_elle_passe_et_previent(
     await _fin_des_taches(service)
 
     assert forge.merges == [7]
+    assert forge.sha_vises == ["abc123"]
     assert prevenus[0][0] == monde["user"]
     assert "mergée" in prevenus[0][1]
 

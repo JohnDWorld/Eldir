@@ -137,8 +137,8 @@ async def test_merge_pr_forgejo_fait_un_commit_de_merge() -> None:
     provider = ForgejoProvider(base_url="https://forgejo.exemple.lan", token="t")
     _mount(provider, httpx.MockTransport(handler))
 
-    await provider.merge_pr("owner/demo", 7)
+    await provider.merge_pr("owner/demo", 7, "abc123")
 
     methode, chemin, corps = vus[0]
     assert (methode, chemin) == ("POST", "/api/v1/repos/owner/demo/pulls/7/merge")
-    assert json.loads(corps) == {"Do": "merge"}
+    assert json.loads(corps) == {"Do": "merge", "head_commit_id": "abc123"}

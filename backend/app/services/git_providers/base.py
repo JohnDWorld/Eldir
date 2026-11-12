@@ -125,4 +125,5 @@ class GitProviderInterface(ABC):
     async def checks(self, full_name: str, sha: str) -> ChecksReport: ...
 
     @abstractmethod
-    async def merge_pr(self, full_name: str, number: int) -> None: ...
+    async def merge_pr(self, full_name: str, number: int, sha: str) -> None:
+        """Merge à condition que la tête de la PR soit encore `sha`, le commit vérifié."""

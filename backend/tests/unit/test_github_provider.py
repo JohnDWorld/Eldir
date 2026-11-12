@@ -237,11 +237,11 @@ async def test_merge_pr_fait_un_commit_de_merge() -> None:
     provider = GitHubProvider(token="ghp_test")
     _mount(provider, httpx.MockTransport(handler))
 
-    await provider.merge_pr("owner/demo", 7)
+    await provider.merge_pr("owner/demo", 7, "abc123")
 
     methode, chemin, corps = vus[0]
     assert (methode, chemin) == ("PUT", "/repos/owner/demo/pulls/7/merge")
-    assert json.loads(corps) == {"merge_method": "merge"}
+    assert json.loads(corps) == {"merge_method": "merge", "sha": "abc123"}
 
 
 async def test_un_merge_refuse_remonte_le_message_de_github() -> None:
@@ -254,4 +254,4 @@ async def test_un_merge_refuse_remonte_le_message_de_github() -> None:
     )
 
     with pytest.raises(GitProviderError, match="not mergeable"):
-        await provider.merge_pr("owner/demo", 7)
+        await provider.merge_pr("owner/demo", 7, "abc123")

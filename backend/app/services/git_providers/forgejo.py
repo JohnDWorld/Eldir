@@ -206,9 +206,11 @@ class ForgejoProvider(GitProviderInterface):
             etats.append((str(statut.get("context") or "?"), etat))
         return agreger(etats)
 
-    async def merge_pr(self, full_name: str, number: int) -> None:
+    async def merge_pr(self, full_name: str, number: int, sha: str) -> None:
         await self._request(
-            "POST", f"/repos/{full_name}/pulls/{number}/merge", json={"Do": "merge"}
+            "POST",
+            f"/repos/{full_name}/pulls/{number}/merge",
+            json={"Do": "merge", "head_commit_id": sha},
         )
 
     async def validate_token(self) -> dict[str, Any]:

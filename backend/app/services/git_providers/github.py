@@ -205,9 +205,11 @@ class GitHubProvider(GitProviderInterface):
             etats.append((str(statut.get("context") or "?"), etat))
         return agreger(etats)
 
-    async def merge_pr(self, full_name: str, number: int) -> None:
+    async def merge_pr(self, full_name: str, number: int, sha: str) -> None:
         await self._request(
-            "PUT", f"/repos/{full_name}/pulls/{number}/merge", json={"merge_method": "merge"}
+            "PUT",
+            f"/repos/{full_name}/pulls/{number}/merge",
+            json={"merge_method": "merge", "sha": sha},
         )
 
     async def validate_token(self) -> dict[str, Any]:

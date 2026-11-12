@@ -177,7 +177,7 @@ class PublicationService:
             )
 
     async def _merger(self, cible: _Cible) -> str:
-        await cible.forge.merge_pr(cible.repo, cible.numero)
+        await cible.forge.merge_pr(cible.repo, cible.numero, cible.head_sha)
         logger.info("publication.merge", session_id=cible.session_id, pr_number=cible.numero)
         return f"PR nº {cible.numero} mergée. Déploie si le changement le demande."
 
