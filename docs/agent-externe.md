@@ -187,7 +187,8 @@ dans le journal d'accès du serveur et du proxy, où elle reste. Le WebSocket
 d'Eldir prend son jeton de cette façon (`/ws/sessions/{id}?token=…`) parce que les
 WebSockets de navigateur n'acceptent pas d'en-tête `Authorization` sans
 contorsion, et c'est précisément pourquoi ce jeton-là est un jeton de connexion
-courte. Un identifiant qui vit dix ans et ouvre le dispatch n'est pas le même
+courte. Le backend masque `token=` dans ses propres journaux (uvicorn), pas dans
+ceux d'un proxy placé devant lui. Un identifiant qui vit dix ans et ouvre le dispatch n'est pas le même
 incident dans `docker logs` qu'un jeton d'une heure.
 
 Si c'est arrivé, le geste de secours est simple et il n'y en a pas d'autre :
