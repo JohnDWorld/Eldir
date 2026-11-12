@@ -135,7 +135,7 @@ place ; les commandes sont données pour qui ne l'utilise pas.
 
 **Ce que ça ne sépare pas** : le conteneur isole une session du disque des autres
 projets, pas du backend. Le backend lance git dans des dossiers que la session
-écrit, et git exécute ce qu'il y trouve (risque nº 3, fermé pour git en mode
+écrit, et git exécutait ce qu'il y trouvait (risque nº 3, fermé pour git en mode
 `conteneur` depuis le 2026-11-12 : config, hooks et dépôts de sous-modules en
 lecture seule pour la session, chemins git fixés par Eldir, jeton réservé à la
 forge ; toujours ouvert en mode `processus`, cf.

@@ -21,7 +21,11 @@ sur l'endroit où ils vivent.
 
 Git ne prend ses ordres que dans sa configuration (la config du dépôt, celle des
 sous-modules, l'extension `worktreeConfig` qui s'active depuis elle) et dans ses
-hooks. Les fichiers qu'une session écrit par ailleurs (`.gitattributes`, les
+hooks. Deux fichiers qu'une session peut écrire choisissent *quelle* config est
+lue : le fichier `.git` d'un worktree (une ligne `gitdir:`) et le `commondir`
+d'un dossier git, celui du clone comme celui d'un worktree ; Eldir fixe donc
+lui-même `GIT_DIR`, `GIT_COMMON_DIR` et `GIT_WORK_TREE`. Les fichiers qu'une
+session écrit par ailleurs (`.gitattributes`, les
 refs, l'index) ne font que désigner des pilotes que seule la configuration
 définit : sans config inscriptible, ils sont inertes.
 
@@ -50,11 +54,14 @@ jetable) : écrire, déplacer ou supprimer `.git/config` est refusé, écrire da
 
 ### 2. Côté backend : Eldir fixe les chemins de git
 
-Pour un worktree de session (reconnu à son chemin, `<user>/<slug>.<session>`,
-jamais à un fichier qu'il contient), `_run_git` passe `GIT_DIR`,
-`GIT_COMMON_DIR` et `GIT_WORK_TREE` calculés par Eldir. Le fichier `.git` du
-worktree et le `commondir` de son dossier d'administration, que la session peut
-réécrire, ne décident plus de la config lue.
+Pour le clone d'un projet (`<root>/<user>/<slug>`) et pour un worktree de
+session (`<user>/<slug>.<session>`), reconnus à leur chemin, jamais à un fichier
+qu'ils contiennent, `_run_git` passe `GIT_DIR`, `GIT_COMMON_DIR` et
+`GIT_WORK_TREE` calculés par Eldir. Le fichier `.git` du worktree et les
+`commondir` (celui de son dossier d'administration, celui du clone), que la
+session peut réécrire, ne décident plus de la config lue. Un `.git` du clone ou
+de ses `config`, `hooks`, `modules` qui est un lien symbolique empêche le
+démarrage de la session.
 
 **Mesuré le 2026-11-12** (git 2.56) : chemins fixés, un `.git` de worktree
 réécrit vers un dépôt leurre est ignoré, et la config lue est celle du vrai

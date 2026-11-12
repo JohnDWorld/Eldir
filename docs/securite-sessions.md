@@ -176,13 +176,22 @@ réglages un par un.
   `modules` s'ils manquent (un montage de sous-chemin absent fait échouer
   `docker run`). Conséquence voulue : dans une session, une commande git qui écrit
   `.git/config` (définir un amont, ajouter un remote) échoue en lecture seule.
-- **Chemins fixés par Eldir** : pour un worktree de session (reconnu à son chemin,
-  jamais à un fichier qu'il contient), `_run_git` passe `GIT_DIR`,
-  `GIT_COMMON_DIR` et `GIT_WORK_TREE`. Le fichier `.git` du worktree et son
-  `commondir`, que la session peut réécrire, ne décident plus de la config lue.
+- **Chemins fixés par Eldir** : pour le clone d'un projet et pour un worktree de
+  session (reconnus à leur chemin, jamais à un fichier qu'ils contiennent),
+  `_run_git` passe `GIT_DIR`, `GIT_COMMON_DIR` et `GIT_WORK_TREE`. Le fichier `.git`
+  du worktree et les `commondir` (celui de son dossier d'administration, celui du
+  clone), que la session peut réécrire, ne décident plus de la config lue.
   En profondeur, il passe toujours `-c core.hooksPath=/dev/null`,
   `core.fsmonitor=false`, `submodule.recurse=false` et
   `diff.ignoreSubmodules=all`.
+- **Pas de démarrage sur un `.git` piégé** : si `<clone>/.git`, `.git/config`,
+  `.git/hooks` ou `.git/modules` est un lien symbolique, Eldir refuse de lancer la
+  session (« Vérifie le clone ou reclone le projet »). Les clones existants ont été
+  audités une fois au déploiement de ce lot (instance de John, 2026-11-12 : un seul
+  clone, sain). Pour refaire l'audit, en lecture seule, sur chaque clone :
+  `find <clone>/.git -type l`, `ls <clone>/.git/commondir`,
+  `find <clone>/.git/hooks -type f ! -name '*.sample'` et
+  `git -C <clone> config --local --name-only --list`.
 - **Le jeton ne part que vers la forge** : l'aide de credential n'est déclarée que
   pour l'origine du provider (`https://github.com`, ou la `base_url` du credential
   Forgejo), jamais pour un hôte lu dans la config du dépôt.
@@ -192,7 +201,9 @@ réglages un par un.
 1. Docker 29.9, image `alpine/git`, uid 1000, volume jetable : écrire, déplacer ou
    supprimer `.git/config` est refusé, écrire dans `.git/hooks` est refusé,
    renommer `.git` est refusé, et `git add` puis `git commit` dans le worktree
-   passent. Le serveur est en Docker 29.8 : déduit, à vérifier après déploiement.
+   passent. Rejoué ensuite par un test sur un vrai démon
+   (`test_une_session_n_ecrit_ni_la_config_ni_les_hooks_du_clone`). Le serveur est
+   en Docker 29.8 : déduit, à vérifier après déploiement.
 2. Git 2.56, chemins fixés : un `.git` de worktree réécrit vers un dépôt leurre est
    ignoré, et la config lue est celle du vrai clone même quand `commondir` pointe
    ailleurs. Un `commondir` falsifié fait seulement échouer la résolution des refs
@@ -280,10 +291,11 @@ git, pas celle de nos tests.
 **Ce qu'il faudrait** : une réponse d'architecture. Soit le backend ne lance pas
 git dans un arbre qu'une session peut écrire, soit il le lance dans un bac à
 sable (par exemple un conteneur sans l'environnement du backend, sans la base ni
-le proxy, avec le dépôt monté). Le lot du 2026-11-12 a pris la première voie pour
-la configuration et les hooks, en mode `conteneur` (retirer à la session la main
-sur ce que git exécute). Le bac à sable reste la suite, à faire si une version de
-git ajoute un tel endroit, et le mode `processus` reste ouvert. Tant que ce mode
+le proxy, avec le dépôt monté). Le lot du 2026-11-12 en a pris une
+troisième pour la configuration et les hooks, en mode `conteneur` : le backend
+lance toujours git dans l'arbre, mais ce que git y obéit (config, hooks) est en
+lecture seule pour la session. Le bac à sable reste la suite, à faire si une
+version de git ajoute un tel endroit, et le mode `processus` reste ouvert. Tant que ce mode
 existe, n'héberge pas sur la même instance un projet sensible et un projet
 alimenté par des tickets publics, avec ou sans conteneur par session.
 
