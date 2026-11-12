@@ -27,6 +27,7 @@ from app.services.git_providers.base import (
     PullRequestRef,
     RepoRef,
     agreger,
+    ajouter_etat_global,
     pr_depuis_payload,
 )
 
@@ -204,6 +205,7 @@ class ForgejoProvider(GitProviderInterface):
                 "pending": CHECKS_EN_COURS,
             }.get(brut, CHECKS_ROUGE)
             etats.append((str(statut.get("context") or "?"), etat))
+        ajouter_etat_global(etats, response.json().get("state"), a_des_statuts=bool(etats))
         return agreger(etats)
 
     async def merge_pr(self, full_name: str, number: int, sha: str) -> None:

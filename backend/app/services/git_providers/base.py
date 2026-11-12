@@ -69,6 +69,24 @@ class ChecksReport:
     en_echec: tuple[str, ...] = ()
 
 
+def ajouter_etat_global(
+    etats: list[tuple[str, str]], global_brut: object, *, a_des_statuts: bool
+) -> None:
+    """Le `state` global du statut combiné sert de plancher aux états individuels.
+
+    Un `pending` global sans aucun statut individuel ne dit rien (GitHub le rend
+    ainsi, même quand tous ses check runs sont verts) : il ne devient pas « en cours ».
+    """
+    if global_brut in ("failure", "error") and not any(e == CHECKS_ROUGE for _, e in etats):
+        etats.append(("statut combiné", CHECKS_ROUGE))
+    elif (
+        global_brut == "pending"
+        and a_des_statuts
+        and not any(e == CHECKS_EN_COURS for _, e in etats)
+    ):
+        etats.append(("statut combiné", CHECKS_EN_COURS))
+
+
 def agreger(etats: list[tuple[str, str]]) -> ChecksReport:
     """(nom, état normalisé) vers un état unique. Un seul rouge suffit à tout rougir."""
     if not etats:

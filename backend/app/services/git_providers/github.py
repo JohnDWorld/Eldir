@@ -25,6 +25,7 @@ from app.services.git_providers.base import (
     PullRequestRef,
     RepoRef,
     agreger,
+    ajouter_etat_global,
     pr_depuis_payload,
 )
 
@@ -203,6 +204,10 @@ class GitHubProvider(GitProviderInterface):
             brut = statut.get("state")
             etat = {"success": CHECKS_VERT, "pending": CHECKS_EN_COURS}.get(brut, CHECKS_ROUGE)
             etats.append((str(statut.get("context") or "?"), etat))
+        combine = statuts.json()
+        ajouter_etat_global(
+            etats, combine.get("state"), a_des_statuts=bool(combine.get("statuses"))
+        )
         return agreger(etats)
 
     async def merge_pr(self, full_name: str, number: int, sha: str) -> None:

@@ -13,6 +13,7 @@ from app.services.git_providers.base import (
     CHECKS_AUCUN,
     CHECKS_EN_COURS,
     CHECKS_ROUGE,
+    CHECKS_VERT,
     ChecksReport,
 )
 from app.services.git_providers.github import GitHubProvider
@@ -255,3 +256,41 @@ async def test_un_merge_refuse_remonte_le_message_de_github() -> None:
 
     with pytest.raises(GitProviderError, match="not mergeable"):
         await provider.merge_pr("owner/demo", 7, "abc123")
+
+
+def _fournir_github(runs: list[dict[str, Any]], combine: dict[str, Any]) -> GitHubProvider:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/check-runs"):
+            return httpx.Response(200, json={"check_runs": runs})
+        return httpx.Response(200, json=combine)
+
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, httpx.MockTransport(handler))
+    return provider
+
+
+async def test_github_l_etat_global_en_echec_sert_de_plancher() -> None:
+    provider = _fournir_github(
+        [{"name": "tests", "status": "completed", "conclusion": "success"}],
+        {"state": "failure", "statuses": [{"context": "ci/x", "state": "success"}]},
+    )
+
+    rapport = await provider.checks("owner/demo", "abc123")
+
+    assert rapport == ChecksReport(CHECKS_ROUGE, ("statut combiné",))
+
+
+async def test_github_l_etat_global_en_attente_sert_de_plancher_mais_pas_sans_statut() -> None:
+    en_attente = _fournir_github(
+        [{"name": "tests", "status": "completed", "conclusion": "success"}],
+        {"state": "pending", "statuses": [{"context": "ci/x", "state": "success"}]},
+    )
+    runs_verts = _fournir_github(
+        [{"name": "tests", "status": "completed", "conclusion": "success"}],
+        {"state": "pending", "statuses": []},
+    )
+    vide = _fournir_github([], {"state": "pending", "statuses": []})
+
+    assert (await en_attente.checks("owner/demo", "abc123")).etat == CHECKS_EN_COURS
+    assert (await runs_verts.checks("owner/demo", "abc123")).etat == CHECKS_VERT
+    assert (await vide.checks("owner/demo", "abc123")).etat == CHECKS_AUCUN
