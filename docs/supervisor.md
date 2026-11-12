@@ -5,8 +5,8 @@
 Au lieu d'ouvrir une session par repo et de jongler entre les onglets, tu parles à
 **Eldir**, une session Claude qui n'a ni éditeur ni terminal : elle sait seulement
 identifier tes projets, transmettre des consignes aux sessions qui travaillent
-dessus, te restituer ce qu'elles ont fait et, sur les projets où tu l'as permis,
-publier, merger et déployer.
+dessus, te restituer ce qu'elles ont fait, ouvrir leurs PR et, sur les projets où
+tu l'as permis, les merger et déployer.
 
 Onglet **Eldir** dans la barre du haut, ou `/supervisor`.
 
@@ -127,15 +127,31 @@ décochée par défaut, et seule ton API la modifie : un jeton d'agent ne le peu
   merger et demande de relancer le merge.
 - **Déploiement** : la commande est celle que tu déclares dans **Autonomie**, lancée
   sur la machine du projet en SSH. L'outil rend la main tout de suite ; le résultat
-  (succès, échec avec code de sortie, ou interruption au bout de 15 min, plus les
+  (succès, échec avec code de sortie, ou ssh coupé au bout de 15 min (la commande peut encore tourner), plus les
   50 dernières lignes de sortie) arrive au superviseur par message. Un déploiement
   à la fois par projet. Commande vide : la forge déploie au merge.
 - **Agent extérieur** : il ne merge pas, il appelle `request_merge`.
 
 **Déployer Eldir depuis Eldir.** Le backend redémarre pendant son propre
 déploiement : la connexion SSH tombe et le résultat est perdu. La commande doit se
-détacher, par exemple `cd ~/eldir && setsid nohup ./deploy.sh > deploy.log 2>&1 &`,
+détacher, par exemple `cd ~/eldir && setsid nohup ./deploy.sh > deploy.log 2>&1 < /dev/null &`,
 et le résultat se lit ensuite dans `deploy.log`.
+
+**Droits du jeton de forge.** Le jeton enregistré dans Settings > Git doit pouvoir
+pousser, ouvrir une PR, merger, et lire la CI. Forgejo : `write:repository`.
+GitHub à droits fins : Contents et Pull requests en écriture, Checks et Commit
+statuses en lecture. Un droit de lecture manquant ne se contourne pas : Eldir ne
+sait pas lire la CI, et refuse le merge.
+
+Si le compte distant force une commande dans `authorized_keys` (`command=`, cf.
+[`acces-serveur.md`](./acces-serveur.md)), la commande de déploiement doit être celle
+que ce compte autorise.
+
+**Ce que la publication ne garantit pas.** Eldir pousse la branche de la session
+avec un refspec explicite, sans `+`, et sans hook ni `fsmonitor` côté backend. La
+limite qui reste est le risque nº 3 de [`securite-sessions.md`](./securite-sessions.md) :
+l'aide de credential répond à tout hôte, et l'URL du remote vit dans une
+configuration que la session écrit. Un lot séparé est prévu.
 
 Une surveillance de merge en cours est perdue si le backend redémarre : un nouveau
 `merge` la relance.
@@ -176,9 +192,9 @@ La **dernière activité** de `list_projects` est la dernière écriture sur la 
 session, pas la date du dernier commit : un projet dont une session a bougé hier est
 « actif d'hier », quel que soit l'âge de son historique git.
 
-Sept de ces outils sont aussi servis en MCP sur HTTP (`list_projects`,
-`list_sessions`, `dispatch`, `remember`, `allow_publish`, `open_pr` et
-`request_merge`), pour qu'un agent extérieur puisse piloter Eldir comme le fait
+Six de ces outils, plus `request_merge`, sont aussi servis en MCP sur HTTP
+(`list_projects`, `list_sessions`, `dispatch`, `remember`, `allow_publish`,
+`open_pr`), pour qu'un agent extérieur puisse piloter Eldir comme le fait
 cette conversation. Un seul corps par outil et une seule table de descriptions :
 les deux transports ne peuvent pas diverger. `merge` et `deploy` restent
 réservés au superviseur interne : un agent extérieur ne merge pas, il demande

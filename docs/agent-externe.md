@@ -54,6 +54,12 @@ utilisateur, et un test d'intégration épingle les deux bords (il ouvre bien, e
 le jeton d'un autre utilisateur ne peut pas) dans
 `backend/tests/integration/test_mcp_http.py`.
 
+Ouvrir une PR (`open_pr`) est en revanche fait par le code d'Eldir, qui ne pousse
+que la branche de la session, sans `+` et sans hook ni `fsmonitor` côté backend.
+Une limite reste : le risque nº 3 de `securite-sessions.md` (l'aide de credential
+répond à tout hôte, et l'URL du remote vit dans une configuration que la session
+écrit). Un lot séparé est prévu.
+
 Enfin, la réécriture d'historique (`git push --force`, `--mirror`, `-f`) reste
 refusée **même quand la publication est autorisée** : c'est la seule opération
 git qui détruit du travail déjà publié, et aucune demande ne passe par un agent

@@ -11,8 +11,9 @@ events streamés, coûts comptés), à trois différences près :
 
 Boucle complète : John parle au superviseur → `dispatch` → la session enfant
 travaille en tâche de fond → son `<cr>` écrase le précédent → STOP → ping du
-superviseur → il traduit le compte rendu à John, qui valide (ou non) la
-publication depuis le dashboard.
+superviseur → il traduit le compte rendu à John. Il peut ensuite publier la
+session, et sur un projet autonome la merger et la déployer (cf.
+`PublicationService`) ; sinon John publie depuis le dashboard.
 """
 
 from __future__ import annotations

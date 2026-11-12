@@ -44,6 +44,11 @@ Les protections sont donc du code, pas des consignes :
 - la commande de déploiement est celle que John a déclarée, l'outil n'en prend
   aucune en argument.
 
+Une limite reste, et elle n'est pas du code : le risque nº 3 de
+`docs/securite-sessions.md`. L'aide de credential répond à tout hôte et l'URL du
+remote vit dans une configuration que la session écrit ; une session qui la
+détourne peut envoyer le jeton ailleurs. Un lot séparé est prévu.
+
 **Écartée : ouvrir la porte de publication par défaut** et laisser l'agent
 pousser lui-même. Interdire la branche principale demanderait de reconnaître ses
 commandes par expressions régulières, qui se contournent (`HEAD:refs/heads/main`,
