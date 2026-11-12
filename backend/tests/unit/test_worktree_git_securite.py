@@ -125,4 +125,32 @@ async def test_un_worktree_au_chemin_d_eldir_commite_et_pousse_toujours(
 
 
 def test_un_chemin_hors_convention_n_est_pas_force(tmp_path: Path) -> None:
-    assert WorktreeService._chemins_forces(tmp_path / "travail") == {}
+    service = WorktreeService(root=tmp_path / "workspaces")
+
+    assert service._chemins_forces(tmp_path / "travail") == {}
+    assert service._chemins_forces(tmp_path / "ailleurs" / "u1" / "depot") == {}
+
+
+async def test_un_clone_dont_commondir_est_pose_ne_choisit_pas_la_config_lue(
+    depot: tuple[WorktreeService, Path, Path, Path], tmp_path: Path
+) -> None:
+    service, _, clone, _ = depot
+    _git("config", "eldir.mesure", "vrai", cwd=clone)
+    leurre = tmp_path / "leurre.git"
+    _git("init", "-q", "--bare", str(leurre), cwd=tmp_path)
+    _git("config", "eldir.mesure", "leurre", cwd=leurre)
+    (clone / ".git" / "commondir").write_text(f"{leurre}\n")
+
+    assert await service._run_git("config", "eldir.mesure", cwd=clone) == "vrai"
+
+
+async def test_les_worktrees_se_creent_et_se_retirent_depuis_un_clone_aux_chemins_fixes(
+    depot: tuple[WorktreeService, Path, Path, Path],
+) -> None:
+    service, _, clone, _ = depot
+    neuf = clone.parent / f"depot.{uuid.uuid4()}"
+
+    await service._run_git("worktree", "add", "-q", "-b", "claude/s2", str(neuf), cwd=clone)
+    assert (neuf / ".git").exists()
+    await service._run_git("worktree", "remove", "--force", str(neuf), cwd=clone)
+    assert not neuf.exists()

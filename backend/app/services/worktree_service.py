@@ -462,23 +462,30 @@ class WorktreeService:
             )
         return prefixe
 
-    @staticmethod
-    def _chemins_forces(cwd: Path) -> dict[str, str]:
-        """Les chemins git d'un worktree de session, calculés par Eldir.
+    def _chemins_forces(self, cwd: Path) -> dict[str, str]:
+        """Les chemins git d'un clone ou d'un worktree de session, calculés par Eldir.
 
-        Reconnu à son chemin (`<user>/<slug>.<session>`), jamais à son contenu :
-        le fichier `.git` du worktree et le `commondir` de son dossier
-        d'administration sont écrits par la session. Mesuré : chemins fixés,
-        la config lue est celle du vrai clone, quoi que disent ces fichiers.
+        Reconnus à leur chemin (`<root>/<user>/<slug>` pour le clone,
+        `<user>/<slug>.<session>` pour le worktree), jamais à leur contenu :
+        le fichier `.git` du worktree et les `commondir` (celui de son dossier
+        d'administration comme celui du clone) sont écrits par la session.
+        Mesuré : chemins fixés, la config lue est celle du vrai clone, quoi
+        que disent ces fichiers.
         """
         clone = chemin_du_clone(cwd)
-        if clone is None:
-            return {}
-        return {
-            "GIT_DIR": str(clone / ".git" / "worktrees" / cwd.name),
-            "GIT_COMMON_DIR": str(clone / ".git"),
-            "GIT_WORK_TREE": str(cwd),
-        }
+        if clone is not None:
+            return {
+                "GIT_DIR": str(clone / ".git" / "worktrees" / cwd.name),
+                "GIT_COMMON_DIR": str(clone / ".git"),
+                "GIT_WORK_TREE": str(cwd),
+            }
+        if "." not in cwd.name and cwd.parent.parent == self._root:
+            return {
+                "GIT_DIR": str(cwd / ".git"),
+                "GIT_COMMON_DIR": str(cwd / ".git"),
+                "GIT_WORK_TREE": str(cwd),
+            }
+        return {}
 
     async def _run_git(
         self,
