@@ -17,9 +17,15 @@ import httpx
 from app.core.exceptions import GitProviderError
 from app.core.logging import get_logger, journaliser_le_refus
 from app.services.git_providers.base import (
+    CHECKS_EN_COURS,
+    CHECKS_ROUGE,
+    CHECKS_VERT,
+    ChecksReport,
     GitProviderInterface,
     PullRequestRef,
     RepoRef,
+    agreger,
+    pr_depuis_payload,
 )
 
 logger = get_logger(__name__)
@@ -169,13 +175,39 @@ class GitHubProvider(GitProviderInterface):
         if body:
             payload["body"] = body
         response = await self._request("POST", f"/repos/{full_name}/pulls", json=payload)
-        data = response.json()
-        return PullRequestRef(
-            number=int(data["number"]),
-            url=str(data["html_url"]),
-            head=str(data["head"]["ref"]),
-            base=str(data["base"]["ref"]),
-            title=str(data["title"]),
+        return pr_depuis_payload(response.json())
+
+    async def get_pr(self, full_name: str, number: int) -> PullRequestRef:
+        response = await self._request("GET", f"/repos/{full_name}/pulls/{number}")
+        return pr_depuis_payload(response.json())
+
+    async def checks(self, full_name: str, sha: str) -> ChecksReport:
+        """Check runs (GitHub Actions) et statuts (les autres CI), réunis.
+
+        ponytail: une page de 100 check runs ; au-delà, paginer.
+        """
+        runs = await self._request(
+            "GET", f"/repos/{full_name}/commits/{sha}/check-runs", params={"per_page": 100}
+        )
+        statuts = await self._request("GET", f"/repos/{full_name}/commits/{sha}/status")
+        etats: list[tuple[str, str]] = []
+        for run in runs.json().get("check_runs", []):
+            if run.get("status") != "completed":
+                etat = CHECKS_EN_COURS
+            elif run.get("conclusion") in ("success", "neutral", "skipped"):
+                etat = CHECKS_VERT
+            else:
+                etat = CHECKS_ROUGE
+            etats.append((str(run.get("name") or "?"), etat))
+        for statut in statuts.json().get("statuses", []):
+            brut = statut.get("state")
+            etat = {"success": CHECKS_VERT, "pending": CHECKS_EN_COURS}.get(brut, CHECKS_ROUGE)
+            etats.append((str(statut.get("context") or "?"), etat))
+        return agreger(etats)
+
+    async def merge_pr(self, full_name: str, number: int) -> None:
+        await self._request(
+            "PUT", f"/repos/{full_name}/pulls/{number}/merge", json={"merge_method": "merge"}
         )
 
     async def validate_token(self) -> dict[str, Any]:

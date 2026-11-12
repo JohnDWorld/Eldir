@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 import pytest
 from app.core.exceptions import GitProviderError
 from app.services.git_providers import github
+from app.services.git_providers.base import (
+    CHECKS_AUCUN,
+    CHECKS_EN_COURS,
+    CHECKS_ROUGE,
+    ChecksReport,
+)
 from app.services.git_providers.github import GitHubProvider
 
 from tests.unit.serveur_abonne import Journal
@@ -139,3 +146,112 @@ async def test_validate_token_returns_user() -> None:
     _mount(provider, _make_transport(handler))
     data = await provider.validate_token()
     assert data["login"] == "john"
+
+
+def _pr(number: int = 7, *, state: str = "open", merged: bool = False) -> dict[str, Any]:
+    return {
+        "number": number,
+        "html_url": f"https://github.com/owner/demo/pull/{number}",
+        "head": {"ref": "eldir/s1", "sha": "abc123"},
+        "base": {"ref": "main"},
+        "title": "Ajoute x",
+        "state": state,
+        "merged": merged,
+    }
+
+
+async def test_get_pr_lit_l_etat_et_le_sha_de_la_tete() -> None:
+    provider = GitHubProvider(token="ghp_test")
+    _mount(
+        provider,
+        httpx.MockTransport(lambda r: httpx.Response(200, json=_pr(state="closed", merged=True))),
+    )
+
+    pr = await provider.get_pr("owner/demo", 7)
+
+    assert (pr.number, pr.state, pr.head_sha) == (7, "merged", "abc123")
+
+
+async def test_les_checks_reunissent_check_runs_et_statuts() -> None:
+    """GitHub Actions écrit des check runs, d'autres CI des statuts : il faut les deux."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/check-runs"):
+            return httpx.Response(
+                200,
+                json={
+                    "check_runs": [
+                        {"name": "tests", "status": "completed", "conclusion": "success"},
+                        {"name": "lint", "status": "completed", "conclusion": "skipped"},
+                    ]
+                },
+            )
+        return httpx.Response(
+            200, json={"statuses": [{"context": "ci/externe", "state": "failure"}]}
+        )
+
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, httpx.MockTransport(handler))
+
+    rapport = await provider.checks("owner/demo", "abc123")
+
+    assert rapport == ChecksReport(CHECKS_ROUGE, ("ci/externe",))
+
+
+async def test_un_check_qui_tourne_rend_la_ci_en_cours() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/check-runs"):
+            return httpx.Response(
+                200,
+                json={
+                    "check_runs": [{"name": "tests", "status": "in_progress", "conclusion": None}]
+                },
+            )
+        return httpx.Response(200, json={"statuses": []})
+
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, httpx.MockTransport(handler))
+
+    assert (await provider.checks("owner/demo", "abc123")).etat == CHECKS_EN_COURS
+
+
+async def test_sans_check_ni_statut_la_ci_est_absente() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/check-runs"):
+            return httpx.Response(200, json={"check_runs": []})
+        return httpx.Response(200, json={"statuses": []})
+
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, httpx.MockTransport(handler))
+
+    assert (await provider.checks("owner/demo", "abc123")).etat == CHECKS_AUCUN
+
+
+async def test_merge_pr_fait_un_commit_de_merge() -> None:
+    vus: list[tuple[str, str, bytes]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vus.append((request.method, request.url.path, request.content))
+        return httpx.Response(200, json={"merged": True})
+
+    provider = GitHubProvider(token="ghp_test")
+    _mount(provider, httpx.MockTransport(handler))
+
+    await provider.merge_pr("owner/demo", 7)
+
+    methode, chemin, corps = vus[0]
+    assert (methode, chemin) == ("PUT", "/repos/owner/demo/pulls/7/merge")
+    assert json.loads(corps) == {"merge_method": "merge"}
+
+
+async def test_un_merge_refuse_remonte_le_message_de_github() -> None:
+    provider = GitHubProvider(token="ghp_test")
+    _mount(
+        provider,
+        httpx.MockTransport(
+            lambda r: httpx.Response(405, json={"message": "Pull Request is not mergeable"})
+        ),
+    )
+
+    with pytest.raises(GitProviderError, match="not mergeable"):
+        await provider.merge_pr("owner/demo", 7)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True, frozen=True)
@@ -28,6 +29,56 @@ class PullRequestRef:
     head: str
     base: str
     title: str
+    # `open`, `merged` ou `closed`. Les deux forges disent `closed` pour une PR
+    # mergée et ajoutent `merged: true` : c'est `pr_depuis_payload` qui sépare.
+    state: str = "open"
+    head_sha: str = ""
+
+
+def pr_depuis_payload(data: dict[str, Any]) -> PullRequestRef:
+    """Une PR telle que GitHub et Forgejo la rendent : les deux ont la même forme."""
+    if data.get("merged"):
+        state = "merged"
+    elif data.get("state") == "closed":
+        state = "closed"
+    else:
+        state = "open"
+    head = data["head"]
+    return PullRequestRef(
+        number=int(data["number"]),
+        url=str(data["html_url"]),
+        head=str(head["ref"]),
+        base=str(data["base"]["ref"]),
+        title=str(data["title"]),
+        state=state,
+        head_sha=str(head.get("sha") or ""),
+    )
+
+
+CHECKS_VERT = "vert"
+CHECKS_ROUGE = "rouge"
+CHECKS_EN_COURS = "en_cours"
+CHECKS_AUCUN = "aucun"
+
+
+@dataclass(slots=True, frozen=True)
+class ChecksReport:
+    """L'état agrégé des checks d'un commit, et le nom de ceux qui ont échoué."""
+
+    etat: str
+    en_echec: tuple[str, ...] = ()
+
+
+def agreger(etats: list[tuple[str, str]]) -> ChecksReport:
+    """(nom, état normalisé) vers un état unique. Un seul rouge suffit à tout rougir."""
+    if not etats:
+        return ChecksReport(CHECKS_AUCUN)
+    rouges = tuple(nom for nom, etat in etats if etat == CHECKS_ROUGE)
+    if rouges:
+        return ChecksReport(CHECKS_ROUGE, rouges)
+    if any(etat == CHECKS_EN_COURS for _, etat in etats):
+        return ChecksReport(CHECKS_EN_COURS)
+    return ChecksReport(CHECKS_VERT)
 
 
 class GitProviderInterface(ABC):
@@ -66,3 +117,12 @@ class GitProviderInterface(ABC):
         title: str,
         body: str | None = None,
     ) -> PullRequestRef: ...
+
+    @abstractmethod
+    async def get_pr(self, full_name: str, number: int) -> PullRequestRef: ...
+
+    @abstractmethod
+    async def checks(self, full_name: str, sha: str) -> ChecksReport: ...
+
+    @abstractmethod
+    async def merge_pr(self, full_name: str, number: int) -> None: ...
