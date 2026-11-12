@@ -430,6 +430,32 @@ class RemoteAccessService:
             return True, None
         return False, (sortie or b"").decode("utf-8", "replace").strip()[:300] or None
 
+    async def executer(
+        self, alias: str, commande: str, *, timeout_s: float
+    ) -> tuple[int | None, str]:
+        """Lance une commande déclarée sur la machine d'un projet, par son alias.
+
+        Rend (code de retour, sortie et erreurs fusionnées). `None` : la commande
+        a dépassé `timeout_s` et a été tuée. La commande est passée en un seul
+        argument : c'est le shell distant qui l'interprète, comme `ssh alias 'cmd'`.
+        """
+        connexion = get_settings().ssh_connect_timeout_s
+        ligne = (
+            f"ssh -o BatchMode=yes -o ConnectTimeout={connexion} "
+            f"-F {shlex.quote(str(self._config_path()))} {shlex.quote(alias)} "
+            f"{shlex.quote(commande)}"
+        )
+        proc = await asyncio.create_subprocess_shell(
+            ligne, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        )
+        try:
+            sortie, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return None, ""
+        return proc.returncode, (sortie or b"").decode("utf-8", "replace")
+
     # ── suppression ─────────────────────────────────────────────
     async def revoke(self, project_id: str) -> bool:
         """Retire la clé de la machine distante, puis localement.

@@ -305,3 +305,41 @@ def test_une_suppression_impossible_n_arrete_pas_la_session_mais_se_voit(
     assert [(e["event"], e["log_level"]) for e in journal] == [
         ("remote.materiel.suppression_impossible", "warning")
     ]
+
+
+async def test_executer_lance_la_commande_par_l_alias_et_rend_code_et_sortie(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Un faux `ssh` en tête du PATH : il rend ses arguments et sort en 3."""
+    faux = tmp_path / "bin"
+    faux.mkdir()
+    ssh = faux / "ssh"
+    ssh.write_text('#!/bin/sh\necho "$@"\nexit 3\n')
+    ssh.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{faux}:{os.environ['PATH']}")
+    monkeypatch.setattr(get_settings(), "ssh_home", tmp_path / "ssh")
+
+    code, sortie = await RemoteAccessService().executer(
+        "eldir-demo", "cd /srv/demo && ./deploy.sh", timeout_s=10
+    )
+
+    assert code == 3
+    assert "BatchMode=yes" in sortie
+    assert "eldir-demo" in sortie
+    assert "cd /srv/demo && ./deploy.sh" in sortie
+
+
+async def test_executer_tue_une_commande_trop_longue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    faux = tmp_path / "bin"
+    faux.mkdir()
+    ssh = faux / "ssh"
+    ssh.write_text("#!/bin/sh\nsleep 5\n")
+    ssh.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{faux}:{os.environ['PATH']}")
+    monkeypatch.setattr(get_settings(), "ssh_home", tmp_path / "ssh")
+
+    code, _ = await RemoteAccessService().executer("eldir-demo", "./deploy.sh", timeout_s=0.2)
+
+    assert code is None

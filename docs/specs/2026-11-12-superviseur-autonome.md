@@ -143,8 +143,10 @@ Superviseur interne seulement.
   où le configurer.
 - Sinon Eldir lance la commande par l'alias SSH du projet (`RemoteAccessService`,
   `ssh -o BatchMode=yes -F <config> <alias> <commande>`), comme `_test` le fait
-  déjà. Délai : `deploy_timeout_s` (900). Le superviseur reçoit le code de retour
-  et les 50 dernières lignes de la sortie.
+  déjà. Délai : `deploy_timeout_s` (900). L'outil rend la main tout de suite ; le code
+  de retour et les 50 dernières lignes de la sortie arrivent au superviseur par
+  message, comme la fin d'une surveillance de merge. Un appel qui bloquerait
+  15 min risquerait le délai du transport MCP et figerait le superviseur.
 - Un seul déploiement à la fois par projet.
 
 Le superviseur décide quand déployer : après un merge, quand le changement le

@@ -37,6 +37,7 @@ from app.services.git_providers.base import (
     PullRequestRef,
 )
 from app.services.project_service import project_service
+from app.services.remote_access_service import remote_access_service
 from app.services.session_manager import SessionManager
 from app.services.session_service import SessionService
 
@@ -230,6 +231,67 @@ class PublicationService:
                     f"PR nº {numero} non mergée : la CI n'a pas fini en "
                     f"{reglages.merge_watch_timeout_s // 60} min. Redemande le merge plus tard."
                 )
+
+    # ── deploy ───────────────────────────────────────────────────
+    async def deploy(self, user_id: str, *, project_id: str) -> str:  # noqa: PLR0911
+        project_id = project_id.strip()
+        if not project_id:
+            return "Erreur : project_id est obligatoire."
+        try:
+            async with self._factory() as db:
+                project = await project_service.get(db, project_id, user_id)
+        except EldirError as exc:
+            return f"Erreur : {exc.message}"
+        nom, commande = project.name, project.deploy_command
+        if not project.autonomous:
+            return f"Refusé : {nom} n'est pas autonome. Le déploiement reste à John."
+        if not commande:
+            return (
+                f"{nom} n'a pas de commande de déploiement : "
+                "la forge déploie au merge, rien à lancer."
+            )
+        alias = remote_access_service.status(project_id).alias
+        if alias is None:
+            return (
+                f"Refusé : {nom} a une commande de déploiement mais pas d'accès distant. "
+                "John le configure dans la page du projet, section « Machine du projet »."
+            )
+        if project_id in self._deploiements:
+            return f"Un déploiement de {nom} est déjà en cours."
+        self._deploiements.add(project_id)
+        self._spawn(self._deployer(user_id, project_id, nom, alias, commande))
+        return f"Déploiement de {nom} lancé. Le résultat t'arrive par message quand il a fini."
+
+    async def _deployer(
+        self, user_id: str, project_id: str, nom: str, alias: str, commande: str
+    ) -> None:
+        reglages = get_settings()
+        try:
+            code, sortie = await remote_access_service.executer(
+                alias, commande, timeout_s=reglages.deploy_timeout_s
+            )
+        except Exception as exc:
+            # Même filet que la surveillance : le superviseur doit savoir qu'il a cessé.
+            logger.exception("publication.deploy.failed", project_id=project_id)
+            await self._prevenir(
+                user_id,
+                f"[déploiement de {nom}] abandonné : erreur inattendue ({type(exc).__name__}).",
+            )
+            return
+        finally:
+            self._deploiements.discard(project_id)
+        fin = "\n".join(sortie.strip().splitlines()[-reglages.deploy_output_lines :])
+        logger.info("publication.deploy", project_id=project_id, code=code)
+        if code is None:
+            etat = f"interrompu : plus de {reglages.deploy_timeout_s // 60} min"
+        elif code == 0:
+            etat = "réussi"
+        else:
+            etat = f"en échec (code {code})"
+        await self._prevenir(
+            user_id,
+            f"[déploiement de {nom}] {etat}. Fin de la sortie :\n{fin or '(aucune sortie)'}",
+        )
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> None:
         tache = asyncio.create_task(self._sans_lever(coro), name=coro.__qualname__)

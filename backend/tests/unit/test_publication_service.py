@@ -20,6 +20,7 @@ from app.services.git_providers.base import (
     PullRequestRef,
 )
 from app.services.publication_service import PublicationService
+from app.services.remote_access_service import RemoteStatus, remote_access_service
 from app.services.session_manager import ActiveSession, SessionManager
 from app.services.session_service import OpenPRResult, SessionService
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -381,3 +382,138 @@ async def test_un_nouveau_commit_pendant_l_attente_ne_merge_pas(
 
     assert forge.merges == []
     assert "nouveau commit" in prevenus[0][1]
+
+
+# ── deploy ───────────────────────────────────────────────────────
+def _machine(monkeypatch: pytest.MonkeyPatch, *, alias: str | None = "eldir-demo") -> AsyncMock:
+    monkeypatch.setattr(
+        remote_access_service,
+        "status",
+        lambda project_id: RemoteStatus(configured=alias is not None, alias=alias),
+    )
+    executer = AsyncMock(return_value=(0, "\n".join(f"ligne {i}" for i in range(60))))
+    monkeypatch.setattr(remote_access_service, "executer", executer)
+    return executer
+
+
+async def test_deploy_refuse_un_projet_non_autonome(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], autonomous=False, deploy_command="./d.sh")
+    executer = _machine(monkeypatch)
+
+    reponse = await service.deploy(monde["user"], project_id=monde["project"])
+
+    assert reponse.startswith("Refusé : demo n'est pas autonome")
+    executer.assert_not_awaited()
+
+
+async def test_sans_commande_la_forge_deploie_au_merge(
+    service: PublicationService, monde: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executer = _machine(monkeypatch)
+
+    reponse = await service.deploy(monde["user"], project_id=monde["project"])
+
+    assert "la forge déploie au merge" in reponse
+    executer.assert_not_awaited()
+
+
+async def test_une_commande_sans_acces_distant_est_refusee(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], deploy_command="./d.sh")
+    executer = _machine(monkeypatch, alias=None)
+
+    reponse = await service.deploy(monde["user"], project_id=monde["project"])
+
+    assert "pas d'accès distant" in reponse
+    executer.assert_not_awaited()
+
+
+async def test_deploy_lance_la_commande_declaree_et_previent_avec_la_fin_de_la_sortie(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], deploy_command="./d.sh")
+    executer = _machine(monkeypatch)
+
+    reponse = await service.deploy(monde["user"], project_id=monde["project"])
+    assert reponse.startswith("Déploiement de demo lancé")
+    await _fin_des_taches(service)
+
+    assert executer.await_args.args == ("eldir-demo", "./d.sh")
+    message = prevenus[0][1]
+    assert "réussi" in message
+    assert "ligne 59" in message
+    assert "ligne 9\n" not in message  # seules les 50 dernières lignes
+
+
+async def test_un_deploiement_trop_long_est_signale(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], deploy_command="./d.sh")
+    executer = _machine(monkeypatch)
+    executer.return_value = (None, "")
+
+    await service.deploy(monde["user"], project_id=monde["project"])
+    await _fin_des_taches(service)
+
+    assert "interrompu" in prevenus[0][1]
+
+
+async def test_un_seul_deploiement_a_la_fois_par_projet(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], deploy_command="./d.sh")
+    executer = _machine(monkeypatch)
+    libere = asyncio.Event()
+
+    async def lent(*_: Any, **__: Any) -> tuple[int, str]:
+        await libere.wait()
+        return 0, "ok"
+
+    executer.side_effect = lent
+
+    await service.deploy(monde["user"], project_id=monde["project"])
+    seconde = await service.deploy(monde["user"], project_id=monde["project"])
+    libere.set()
+    await _fin_des_taches(service)
+
+    assert "déjà en cours" in seconde
+
+
+async def test_une_erreur_inattendue_previent_et_libere_le_projet(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], deploy_command="./d.sh")
+    executer = _machine(monkeypatch)
+    executer.side_effect = RuntimeError("boom")
+
+    await service.deploy(monde["user"], project_id=monde["project"])
+    await _fin_des_taches(service)
+    seconde = await service.deploy(monde["user"], project_id=monde["project"])
+    await _fin_des_taches(service)
+
+    assert "erreur inattendue" in prevenus[0][1]
+    assert "déjà en cours" not in seconde
