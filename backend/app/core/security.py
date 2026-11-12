@@ -5,22 +5,27 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import bcrypt
 from cryptography.fernet import Fernet, InvalidToken
 from jose import ExpiredSignatureError, JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt directement : passlib n'est plus maintenu et ne sait plus lire la version
+# de bcrypt (un avertissement avec trace à chaque démarrage). Les hachages qu'il a
+# écrits (`$2b$12$...`) se vérifient tels quels.
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except ValueError:  # pas un hachage bcrypt
+        return False
 
 
 # ── JWT ─────────────────────────────────────────────────────────
