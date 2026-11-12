@@ -563,7 +563,28 @@ async def test_un_deploiement_trop_long_est_signale(
     await service.deploy(monde["user"], project_id=monde["project"])
     await _fin_des_taches(service)
 
-    assert "interrompu" in prevenus[0][1]
+    assert "ssh coupé après" in prevenus[0][1]
+    assert "la commande peut encore tourner sur la machine" in prevenus[0][1]
+
+
+async def test_la_sortie_du_deploiement_est_bornee_en_caracteres(
+    service: PublicationService,
+    monde: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+    prevenus: list[tuple[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _rendre(session_factory, monde["project"], deploy_command="./d.sh")
+    executer = _machine(monkeypatch)
+    executer.return_value = (0, "début\n" + "x" * 10_000 + "FIN")
+
+    await service.deploy(monde["user"], project_id=monde["project"])
+    await _fin_des_taches(service)
+
+    message = prevenus[0][1]
+    assert message.endswith("xFIN")
+    assert "début" not in message
+    assert len(message) < 4200
 
 
 async def test_un_seul_deploiement_a_la_fois_par_projet(

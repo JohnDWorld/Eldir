@@ -49,6 +49,10 @@ logger = get_logger(__name__)
 Prevenir = Callable[[str, str], Awaitable[None]]
 
 
+# Une ligne peut peser des Mo (barre de progression) : les lignes ne suffisent pas à borner.
+_SORTIE_MAX_CARS = 4000
+
+
 @dataclass(slots=True)
 class _Cible:
     """La PR qu'un merge vise, et la forge qui la porte."""
@@ -293,10 +297,15 @@ class PublicationService:
             return
         finally:
             self._deploiements.discard(project_id)
-        fin = "\n".join(sortie.strip().splitlines()[-reglages.deploy_output_lines :])
+        fin = "\n".join(sortie.strip().splitlines()[-reglages.deploy_output_lines :])[
+            -_SORTIE_MAX_CARS:
+        ]
         logger.info("publication.deploy", project_id=project_id, code=code)
         if code is None:
-            etat = f"interrompu : plus de {reglages.deploy_timeout_s // 60} min"
+            etat = (
+                f"ssh coupé après {reglages.deploy_timeout_s // 60} min : la commande peut "
+                "encore tourner sur la machine, vérifie avant de relancer"
+            )
         elif code == 0:
             etat = "réussi"
         else:
