@@ -1,6 +1,6 @@
 # Un superviseur qui publie, merge et déploie
 
-> Conception validée le 2026-11-12. Statut : à implémenter.
+> Conception validée le 2026-11-12. Statut : implémenté (2026-11-12).
 > Suite de la section « Superviseur » du ROADMAP. Tailscale, le retrait des
 > Mission Templates et le déplacement de l'alias SSH vers le projet restent hors
 > de cette spec.

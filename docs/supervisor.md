@@ -106,6 +106,36 @@ persistant : une session dormante le retrouve à son prochain démarrage, donc r
 quand le travail est relu. Même autorisée, une session ne peut pas réécrire
 l'historique distant : `git push --force` reste refusé dans tous les cas.
 
+## Publier, merger, déployer
+
+L'agent code, Eldir publie. `open_pr` marche sur tous les projets : Eldir commite
+le worktree de la session, pousse sa branche (jamais la base, jamais en force) et
+ouvre la PR. `merge` et `deploy` ne marchent que sur les projets **autonomes** :
+tu coches « Autonome : le superviseur peut merger et déployer seul » dans la page
+du projet, section **Autonomie**, juste sous **Machine du projet**. La case est
+décochée par défaut, et seule ton API la modifie : un jeton d'agent ne le peut pas.
+
+- **Merge** : seulement CI verte. Rouge, il refuse et nomme les checks en échec.
+  En cours, Eldir surveille en tâche de fond (toutes les 30 s, 30 min au plus),
+  merge dès que c'est vert, et prévient le superviseur dans tous les cas. Sans
+  aucun check 2 min après la demande, le projet est réputé sans CI et le merge a
+  lieu. Si un nouveau commit est poussé pendant l'attente, Eldir s'arrête sans
+  merger et demande de relancer le merge.
+- **Déploiement** : la commande est celle que tu déclares dans **Autonomie**, lancée
+  sur la machine du projet en SSH. L'outil rend la main tout de suite ; le résultat
+  (succès, échec avec code de sortie, ou interruption au bout de 15 min, plus les
+  50 dernières lignes de sortie) arrive au superviseur par message. Un déploiement
+  à la fois par projet. Commande vide : la forge déploie au merge.
+- **Agent extérieur** : il ne merge pas, il appelle `request_merge`.
+
+**Déployer Eldir depuis Eldir.** Le backend redémarre pendant son propre
+déploiement : la connexion SSH tombe et le résultat est perdu. La commande doit se
+détacher, par exemple `cd ~/eldir && setsid nohup ./deploy.sh > deploy.log 2>&1 &`,
+et le résultat se lit ensuite dans `deploy.log`.
+
+Une surveillance de merge en cours est perdue si le backend redémarre : un nouveau
+`merge` la relance.
+
 ## Eldir apprend tes habitudes
 
 Quand tu exprimes une préférence durable ("sur ce projet, toujours une PR",
@@ -122,7 +152,7 @@ elles sont plafonnées. Tu les vois et tu en fais le ménage ici même, sous l'�
 du prompt, dans **Settings > Prompts** ; **Settings > Agents extérieurs** en donne
 le compte et un lien. Voir [`docs/agent-externe.md`](./agent-externe.md).
 
-## Ses cinq outils
+## Ses huit outils
 
 | Outil | Ce qu'il fait |
 |---|---|
@@ -131,6 +161,9 @@ le compte et un lien. Voir [`docs/agent-externe.md`](./agent-externe.md).
 | `dispatch` | Transmet une consigne à une session (reprise ou créée), sans attendre. Avec `nouveau_chantier`, ouvre une session neuve à côté des existantes plutôt que de reprendre la plus récente |
 | `allow_publish` | Autorise une session à publier (commit, push, PR) ou lui retire ce droit. Le superviseur ne s'en sert que si tu le lui demandes explicitement : c'est ta porte, pas la sienne |
 | `remember` | Enregistre une préférence de travail durable |
+| `open_pr` | Commite le worktree de la session, pousse sa branche et ouvre la PR (ou pousse dans la PR déjà ouverte). Refusé tant qu'un tour tourne ; « Rien à publier » s'il n'y a rien |
+| `merge` | Merge la PR d'une session, projets autonomes seulement, CI verte exigée |
+| `deploy` | Lance la commande de déploiement du projet, projets autonomes seulement |
 
 Il n'a **aucun** autre outil : ni `Bash`, ni `Read`, ni `Write`, ni accès réseau.
 Ce n'est pas une consigne de prompt mais une restriction du SDK (`disallowed_tools`).
@@ -139,12 +172,13 @@ La **dernière activité** de `list_projects` est la dernière écriture sur la 
 session, pas la date du dernier commit : un projet dont une session a bougé hier est
 « actif d'hier », quel que soit l'âge de son historique git.
 
-Quatre de ces outils sont aussi servis en MCP sur HTTP, pour qu'un agent
-extérieur puisse piloter Eldir comme le fait cette conversation. Un seul corps
-par outil et une seule table de descriptions : les deux transports ne peuvent
-pas diverger. Le cinquième, `allow_publish`, reste réservé au superviseur
-interne et au dashboard : la publication ne s'ouvre pas sur une consigne venue
-du dehors. Voir [`docs/agent-externe.md`](./agent-externe.md), qui dit surtout
+Sept de ces outils sont aussi servis en MCP sur HTTP (`list_projects`,
+`list_sessions`, `dispatch`, `remember`, `allow_publish`, `open_pr` et
+`request_merge`), pour qu'un agent extérieur puisse piloter Eldir comme le fait
+cette conversation. Un seul corps par outil et une seule table de descriptions :
+les deux transports ne peuvent pas diverger. `merge` et `deploy` restent
+réservés au superviseur interne : un agent extérieur ne merge pas, il demande
+avec `request_merge`. Voir [`docs/agent-externe.md`](./agent-externe.md), qui dit surtout
 ce qu'un jeton d'agent accorde.
 
 ## Ce que ça coûte

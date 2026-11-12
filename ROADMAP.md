@@ -207,8 +207,9 @@ Remis à V2 :
       une consigne de prompt ne suffisait pas). Le commit et la PR restent
       déclenchés par l'utilisateur depuis le dashboard.
 - [x] **Session superviseur** : session Claude sans projet ni worktree
-      (`project_id` NULL, `system_kind='supervisor'`), avec 5 outils MCP in-process
-      (`list_projects`, `list_sessions`, `dispatch`, `allow_publish`, `remember`) et
+      (`project_id` NULL, `system_kind='supervisor'`), avec ses outils MCP in-process
+      (`list_projects`, `list_sessions`, `dispatch`, `allow_publish`, `remember`,
+      `open_pr`, `merge`, `deploy`) et
       rien d'autre (`disallowed_tools` sur tous les outils intégrés).
 - [x] **Ping de fin de tour** : `dispatch` rend la main immédiatement, la session
       enfant travaille en tâche de fond, et son STOP réveille le superviseur avec
@@ -231,6 +232,12 @@ Remis à V2 :
       champ de saisie, et une session n'accepte qu'un nombre borné de messages en
       attente (`SESSION_QUEUE_MAX`, 5 par défaut). Une file sans borne alimentée par
       un processus automatique n'est pas une file, c'est une fuite.
+- [x] **Autonomie par projet** : le superviseur ouvre les PR seul (`open_pr`,
+      Eldir commite et pousse la branche de la session, jamais la base). Sur un
+      projet que John coche « autonome », il merge quand la CI est verte et lance
+      la commande de déploiement déclarée (`merge`, `deploy`). Un agent
+      extérieur ne merge pas, il demande (`request_merge`).
+      Spec : [`docs/specs/2026-11-12-superviseur-autonome.md`](./docs/specs/2026-11-12-superviseur-autonome.md).
 
 ### Surface d'agent externe ✅
 
