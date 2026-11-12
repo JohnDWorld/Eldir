@@ -1037,3 +1037,15 @@ async def test_tour_en_cours_suit_le_verrou_de_message(manager: SessionManager) 
     async with active.message_lock:
         assert manager.tour_en_cours("s1") is True
     assert manager.tour_en_cours("inconnue") is False
+
+
+async def test_un_message_en_file_compte_comme_un_tour_en_cours(manager: SessionManager) -> None:
+    """Entre deux tours, le verrou est libre mais le message suivant est accepté :
+    publier là laisserait son tour écrire pendant qu'Eldir lance git."""
+    active = ActiveSession(session_id="s1", project_id="p1", user_id="u1", cwd="/tmp")
+    manager._sessions["s1"] = active
+
+    active.reserver_place(plafond=5)
+    assert manager.tour_en_cours("s1") is True
+    active.rendre_place()
+    assert manager.tour_en_cours("s1") is False

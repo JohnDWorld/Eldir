@@ -857,6 +857,24 @@ async def _dispatche_sans_lancer_le_tour(
     )
 
 
+async def test_open_pr_attend_la_livraison_d_une_consigne_dispatchee(
+    db_session: AsyncSession,
+    admin: User,
+    supervisor: SupervisorService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une consigne pas encore livrée (session qui démarre, ou qui finit un autre tour)
+    n'est dans aucun compteur du manager : publier là, c'est publier avant elle."""
+    project, child = await _projet_et_session_dispatchee(db_session, admin)
+    await _dispatche_sans_lancer_le_tour(supervisor, monkeypatch, admin, project, child, None)
+
+    reponse = await supervisor.outil_open_pr(
+        admin.id, session_id=child.id, titre="X", description="d"
+    )
+
+    assert reponse.startswith("Refusé : cette session a un tour en cours")
+
+
 async def _attendre(condition: Callable[[], Any], delai: float = 5.0) -> None:
     async with asyncio.timeout(delai):
         while not condition():  # noqa: ASYNC110 (on observe une liste, il n'y a pas d'événement)

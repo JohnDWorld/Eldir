@@ -65,6 +65,12 @@ class _Cible:
     head_sha: str = ""
 
 
+REFUS_TOUR_EN_COURS = (
+    "Refusé : cette session a un tour en cours. Attends son compte rendu, "
+    "puis publie : on ne publie pas un travail à moitié écrit."
+)
+
+
 class PublicationService:
     def __init__(
         self,
@@ -92,10 +98,7 @@ class PublicationService:
         if not session_id or not titre:
             return "Erreur : session_id et titre sont obligatoires."
         if self._manager.tour_en_cours(session_id):
-            return (
-                "Refusé : cette session a un tour en cours. Attends son compte rendu, "
-                "puis publie : on ne publie pas un travail à moitié écrit."
-            )
+            return REFUS_TOUR_EN_COURS
         try:
             async with self._factory() as db:
                 pr = await self._sessions.open_pull_request(
