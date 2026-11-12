@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +21,7 @@ from app.core.exceptions import (
 from app.core.logging import get_logger
 from app.db.models import MissionTemplate, Project
 from app.schemas.project import ProjectAutonomyUpdate
+from app.services.claude_home import maison_du_projet
 from app.services.collect_service import collect_service
 from app.services.git_credential_service import git_credential_service
 from app.services.remote_access_service import remote_access_service
@@ -197,6 +200,11 @@ class ProjectService:
             await collect_service.remove(project_id)
         except Exception:
             logger.exception("project.delete.collecte.failed", project_id=project_id)
+
+        # La maison Claude du projet : l'historique des sessions côté CLI.
+        # `project.id` et pas l'argument : un identifiant vide viserait la
+        # racine de toutes les maisons.
+        await asyncio.to_thread(shutil.rmtree, maison_du_projet(project.id), True)
 
         await db.delete(project)
 

@@ -212,6 +212,7 @@ async def test_supprimer_un_projet_nettoie_tout_le_serveur(
     admin: User,
     patch_provider_and_clone: None,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """Le disque et la machine distante ne se nettoient pas tout seuls.
 
@@ -252,10 +253,17 @@ async def test_supprimer_un_projet_nettoie_tout_le_serveur(
     monkeypatch.setattr(project_service_module.worktree_service, "remove_repo", _remove_repo)
     monkeypatch.setattr(project_service_module.toolchain_service, "remove", _remove_toolchain)
     monkeypatch.setattr(project_service_module.collect_service, "remove", _remove_collecte)
+    maison = tmp_path / "maisons" / project.id
+    (maison / "projects").mkdir(parents=True)
+    (maison / "projects" / "transcript.jsonl").write_text("{}")
+    monkeypatch.setattr(
+        project_service_module, "maison_du_projet", lambda pid: tmp_path / "maisons" / pid
+    )
 
     await project_service.delete(db_session, project.id, admin.id)
     await db_session.commit()
 
+    assert not maison.exists()
     assert nettoyes == [
         f"cle:{project.id}",
         "repo:my-repo",
