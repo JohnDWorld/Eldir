@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from typing import Any
 
@@ -24,6 +25,14 @@ def configure_logging() -> None:
     # httpx journalise chaque requête en INFO, URL complète comprise. Celle d'un
     # abonné au ping de fin de tour peut porter un jeton.
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    # Uvicorn écrit le chemin complet de chaque requête, et celui d'une WebSocket
+    # porte le jeton de session en paramètre (`?token=`, le navigateur n'a pas
+    # d'autre moyen). Les WebSocket passent par `uvicorn.error`, le HTTP par
+    # `uvicorn.access`.
+    for nom in ("uvicorn.access", "uvicorn.error"):
+        journal = logging.getLogger(nom)
+        if not any(isinstance(f, MasqueJeton) for f in journal.filters):
+            journal.addFilter(MasqueJeton())
 
     processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
@@ -42,6 +51,24 @@ def configure_logging() -> None:
         wrapper_class=structlog.make_filtering_bound_logger(level),
         cache_logger_on_first_use=True,
     )
+
+
+_JETON_RE = re.compile(r"(\btoken=)[^&\s\"]+", re.IGNORECASE)
+
+
+class MasqueJeton(logging.Filter):
+    """Remplace la valeur de `token=` dans les arguments d'une ligne de journal.
+
+    Les arguments gardent leur forme (un tuple de même longueur) : le formateur
+    d'accès d'uvicorn les dépaquette un par un.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                _JETON_RE.sub(r"\1***", a) if isinstance(a, str) else a for a in record.args
+            )
+        return True
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
