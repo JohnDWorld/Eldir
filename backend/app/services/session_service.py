@@ -251,9 +251,12 @@ class SessionService:
             project_id, template.collect_commands if template is not None else None
         )
 
-        # 5. Démarre le ClaudeSDKClient sur le worktree. Si ça échoue, on
-        # nettoie le worktree pour ne pas laisser de squelette orphelin sur
-        # disque (la row DB sera rollbackée par get_db).
+        # 5. Démarre le ClaudeSDKClient sur le worktree. `commit` d'abord, comme
+        # SupervisorService.ensure_session : le démarrage publie l'état de la
+        # session par une AUTRE connexion, qui ne voit pas une ligne encore en
+        # transaction ici (clé étrangère refusée, premier événement perdu). Si
+        # le démarrage échoue, on retire le worktree et la ligne, déjà validée.
+        await db.commit()
         try:
             await self._manager.start(
                 session_id=session.id,
@@ -267,15 +270,24 @@ class SessionService:
                 remote_host=session.remote_host,
             )
         except Exception:
-            try:
-                await worktree_service.remove_worktree(repo_path, worktree_ref.path)
-            except Exception:
-                logger.exception(
-                    "session.create.worktree.cleanup.failed",
-                    session_id=session.id,
-                )
+            await self._abandonner_la_creation(db, session, repo_path, worktree_ref.path)
             raise
         return session
+
+    @staticmethod
+    async def _abandonner_la_creation(
+        db: AsyncSession, session: Session, repo_path: Path, worktree: Path
+    ) -> None:
+        """Retire ce qu'une création ratée laisse : le worktree, puis la ligne."""
+        try:
+            await worktree_service.remove_worktree(repo_path, worktree)
+        except Exception:
+            logger.exception("session.create.worktree.cleanup.failed", session_id=session.id)
+        try:
+            await db.delete(session)  # ses événements suivent (CASCADE)
+            await db.commit()
+        except Exception:
+            logger.exception("session.create.row.cleanup.failed", session_id=session.id)
 
     async def resume(
         self,
