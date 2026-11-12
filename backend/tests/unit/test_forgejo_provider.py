@@ -169,3 +169,9 @@ async def test_forgejo_l_etat_global_en_attente_sert_de_plancher_mais_pas_sans_s
 
     assert (await en_attente.checks("owner/demo", "abc123")).etat == CHECKS_EN_COURS
     assert (await vide.checks("owner/demo", "abc123")).etat == CHECKS_AUCUN
+
+
+def test_l_origine_git_de_forgejo_est_son_instance_sans_slash_final() -> None:
+    provider = ForgejoProvider(base_url="https://forge.exemple.lan/", token="t")
+
+    assert provider.origine_git == "https://forge.exemple.lan"

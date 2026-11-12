@@ -51,6 +51,10 @@ def _repo_from_payload(p: dict[str, Any]) -> RepoRef:
 class ForgejoProvider(GitProviderInterface):
     name = "forgejo"
 
+    @property
+    def origine_git(self) -> str:
+        return self._base_url
+
     def __init__(self, base_url: str, token: str) -> None:
         if not base_url:
             raise GitProviderError("base_url Forgejo manquante.")

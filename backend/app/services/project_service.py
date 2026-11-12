@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import SUPPORTED_PROVIDERS
 from app.core.exceptions import (
+    AuthenticationError,
     ConflictError,
     GitProviderError,
     NotFoundError,
@@ -135,6 +136,7 @@ class ProjectService:
             repo_full_name=repo_full_name,
             clone_url=repo_ref.clone_url,
             token=token,
+            origine=provider_client.origine_git,
             default_branch=repo_ref.default_branch,
         )
 
@@ -223,14 +225,20 @@ class ProjectService:
             )
 
         repo_path = Path(project.workspace_path)
-        token = await git_credential_service.get_active_token(
-            db, user_id, project.provider, project.id
-        )
+        token: str | None = None
+        origine: str | None = None
+        try:
+            token, client = await git_credential_service.get_active_client(
+                db, user_id, project.provider, project.id
+            )
+            origine = client.origine_git
+        except AuthenticationError:
+            pass  # Sans credential, la sync tente un fetch anonyme (dépôt public).
         default_branch = project.default_branch
         upstream_ref = f"origin/{default_branch}"
 
         try:
-            await worktree_service.fetch_remote(repo_path, token=token)
+            await worktree_service.fetch_remote(repo_path, token=token, origine=origine)
         except WorkspaceError as exc:
             logger.warning(
                 "project.sync.fetch_failed",

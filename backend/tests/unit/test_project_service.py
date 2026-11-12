@@ -36,6 +36,8 @@ async def admin(db_session: AsyncSession) -> User:
 class _FakeGitHubProvider:
     """Stub minimal qui répond à get_repo."""
 
+    origine_git = "https://forge.exemple.lan"
+
     name = "github"
 
     def __init__(self, *_: Any, **__: Any) -> None:

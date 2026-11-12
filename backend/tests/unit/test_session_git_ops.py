@@ -249,6 +249,7 @@ async def test_open_pr_calls_provider(
     captured: dict[str, Any] = {}
 
     class _FakeProvider:
+        origine_git = "https://forge.exemple.lan"
         name = "github"
 
         async def create_pr(
@@ -371,6 +372,8 @@ async def test_ouvrir_une_pr_forgejo_garde_la_base_url_du_credential(
 class _ForgeQuiRetient:
     """Une forge qui rend la PR `existante` à `get_pr` et numérote les nouvelles."""
 
+    origine_git = "https://forge.exemple.lan"
+
     name = "github"
 
     def __init__(self, existante: PullRequestRef | None = None) -> None:
@@ -490,6 +493,7 @@ async def test_sans_modification_ni_commit_il_n_y_a_rien_a_publier(
 
 
 class _PrBidon:
+    origine_git = "https://forge.exemple.lan"
     name = "github"
 
     async def create_pr(self, full_name: str, *, head: str, base: str, title: str, body=None):  # type: ignore[no-untyped-def]

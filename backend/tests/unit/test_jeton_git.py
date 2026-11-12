@@ -36,6 +36,7 @@ from app.services.worktree_service import (
 # détecteur ne les prend pour un vrai jeton, et le préfixe dit ce qu'ils
 # imitent.
 JETON = "sentinelle-de-jeton-a-ne-jamais-retrouver"
+ORIGINE = "https://forge.exemple.lan"
 
 
 def git(*args: str, cwd: Path) -> str:
@@ -94,6 +95,7 @@ async def test_le_jeton_n_atterrit_nulle_part_dans_le_depot_clone(
         repo_full_name="owner/repo",
         clone_url=str(depot_source),
         token=JETON,
+        origine=ORIGINE,
     )
 
     assert JETON not in tout_ce_que_la_session_peut_lire(resultat.path)
@@ -130,6 +132,7 @@ async def test_l_url_du_clone_ne_porte_jamais_le_jeton(
             repo_full_name="owner/repo",
             clone_url="https://127.0.0.1:1/owner/repo.git",
             token=JETON,
+            origine=ORIGINE,
         )
 
     clones = [args for args in appels if "clone" in args]
@@ -235,7 +238,7 @@ async def test_le_jeton_passe_par_l_environnement_et_pas_par_la_ligne_de_command
     # push échouerait pour cette raison plutôt que pour ce qu'on teste.
     git("clone", "--bare", str(depot_source), str(nu), cwd=tmp_path)
     clone = await service.clone_repo(
-        user_id="u1", repo_full_name="owner/repo", clone_url=str(nu), token=JETON
+        user_id="u1", repo_full_name="owner/repo", clone_url=str(nu), token=JETON, origine=ORIGINE
     )
     git("config", "user.email", "eldir@local", cwd=clone.path)
     git("config", "user.name", "Eldir", cwd=clone.path)
@@ -243,7 +246,7 @@ async def test_le_jeton_passe_par_l_environnement_et_pas_par_la_ligne_de_command
     git("add", "-A", cwd=clone.path)
     git("commit", "-m", "travail", cwd=clone.path)
 
-    await service.push(clone.path, branch="main", token=JETON)
+    await service.push(clone.path, branch="main", token=JETON, origine=ORIGINE)
 
     pousses = [(args, kw) for args, kw in appels if "push" in args]
     assert pousses, "aucun push observé"
@@ -312,7 +315,7 @@ async def test_chaque_sync_assainit_le_depot(
     monkeypatch.setattr(service, "_nettoyer_identifiants", nettoyage_observe)
     monkeypatch.setattr(service, "_run_git", git_observe)
 
-    await service.fetch_remote(clone.path, token=JETON)
+    await service.fetch_remote(clone.path, token=JETON, origine=ORIGINE)
 
     assert ordre == ["nettoyage", "fetch"]
     assert JETON not in tout_ce_que_la_session_peut_lire(clone.path)

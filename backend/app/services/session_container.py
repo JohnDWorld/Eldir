@@ -29,31 +29,7 @@ from app.core.config import get_settings
 from app.services.claude_home import maison_du_projet, sous_chemin_de_maison
 from app.services.collect_service import collect_service
 from app.services.toolchain_service import toolchain_service
-
-
-def chemin_du_clone(worktree: Path) -> Path | None:
-    """Le clone canonique dont ce worktree est un worktree, s'il y en a un.
-
-    Layout de `WorktreeService` : le clone est `<user>/<repo_slug>`, ses
-    worktrees `<user>/<repo_slug>.<session_id>` (`SESSION_WORKTREE_TEMPLATE`).
-    `slugify` ne laisse passer ni point ni souligné dans `repo_slug`, donc le
-    dernier point du nom est forcément le séparateur, et la dérivation est
-    exacte.
-
-    Ce montage n'est pas un confort. Le `.git` d'un worktree est un fichier
-    qui pointe vers `<clone>/.git/worktrees/<nom>`, et `git commit` depuis un
-    worktree écrit ses objets dans le dépôt partagé. Mesuré : worktree monté
-    seul, `git status` répond « fatal: not a git repository » ; worktree plus
-    clone, branche, log et commit fonctionnent, et le projet voisin reste
-    introuvable.
-
-    Rend `None` pour un cwd qui n'est le worktree de rien, comme celui du
-    superviseur.
-    """
-    if "." not in worktree.name:
-        return None
-    candidat = worktree.parent / worktree.name.rsplit(".", 1)[0]
-    return candidat if candidat.is_dir() else None
+from app.services.worktree_service import chemin_du_clone
 
 
 def env_pour_enrobage(
