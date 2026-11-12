@@ -129,4 +129,24 @@ describe('useSessionStream, reconnexion', () => {
     });
     expect(result.current.state).toBe('open');
   });
+
+  it('prévient à chaque réouverture, pas à la première', () => {
+    // La WebSocket ne rejoue rien : un tour fini pendant que la PWA dormait
+    // n'apparaissait jamais, le fil restait sur le message envoyé.
+    const onReconnect = vi.fn();
+    renderHook(() => useSessionStream('session-1', { onReconnect }));
+    const ouvrir = () =>
+      act(() => {
+        const ws = dernier();
+        ws.readyState = FauxWebSocket.OPEN;
+        ws.onopen?.();
+      });
+
+    ouvrir();
+    expect(onReconnect).not.toHaveBeenCalled();
+    act(() => dernier().close());
+    attendre(1000);
+    ouvrir();
+    expect(onReconnect).toHaveBeenCalledTimes(1);
+  });
 });

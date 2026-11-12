@@ -52,7 +52,10 @@ export function SessionPage(): JSX.Element {
   const projects = useProjects();
   const historical = useSessionEvents(sessionId);
   const costs = useSessionCostTotals(sessionId, Boolean(sessionId));
-  const live = useSessionStream(sessionId, { enabled: Boolean(sessionId) });
+  const live = useSessionStream(sessionId, {
+    enabled: Boolean(sessionId),
+    onReconnect: () => void historical.refetch(),
+  });
   const sendMessage = useSendMessage(sessionId);
   const stopMut = useStopSession();
   const deleteMut = useDeleteSession();
