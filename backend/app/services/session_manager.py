@@ -80,10 +80,24 @@ MESSAGE_FLUX_SANS_RESULTAT = (
 # la seule action irréversible et non relisible : on la refuse au niveau du
 # hook, pas dans le prompt (une consigne se contourne, un hook non).
 # John relit le diff dans Eldir puis déclenche commit & push / PR lui-même.
+#
+# Seule la sous-commande de git décide, pas un mot qui traîne dans la ligne :
+# `git fetch origin rappels-push` ou `git diff push-sw.js` ne publient rien.
+# Les options globales (-C, -c, --git-dir…) peuvent la précéder, leur valeur
+# éventuellement entre guillemets. Groupes atomiques et boucle possessive : un
+# jeton ne se relit jamais d'une autre façon, sinon une suite de `-c` faisait
+# exploser le temps de la regex (et le hook avec).
+_GIT_VALEUR = r"""(?>"[^"]*"|'[^']*'|\S+)"""
+_GIT_SOUS_COMMANDE = (
+    rf"\bgit\b(?:\s+(?>-[Cc]\s+{_GIT_VALEUR}"
+    rf"|--(?:git-dir|work-tree|namespace|exec-path|config-env|super-prefix)\s+{_GIT_VALEUR}"
+    rf"|-[\w-]+(?:={_GIT_VALEUR})?))*+\s+[\"']?"
+)
 _PUBLISH_DENY_RE: re.Pattern[str] = re.compile(
-    r"""\bgit\b[^;&|]*\b(?:push|commit)\b   # git push / git commit (et variantes -C, -c…)
-      | \bgh\b\s+pr\b                     # gh pr create / gh pr merge
-      | \bglab\b\s+mr\b                    # équivalent GitLab
+    rf"""{_GIT_SOUS_COMMANDE}(?:push|commit)(?![\w-])     # git push / git commit
+      | \bgit\b[^;&|]*\balias\.[^;&|]*\b(?:push|commit)\b  # un alias vers push ou commit
+      | \bgh\b\s+pr\b                                       # gh pr create / gh pr merge
+      | \bglab\b\s+mr\b                                     # équivalent GitLab
     """,
     re.IGNORECASE | re.VERBOSE,
 )
@@ -99,7 +113,7 @@ _PUBLISH_DENY_REASON = (
 # opération git qui détruit du travail déjà publié, et aucune demande de John
 # ne passe par un agent pour ça.
 _FORCE_PUSH_RE: re.Pattern[str] = re.compile(
-    r"\bgit\b[^;&|]*\bpush\b[^;&|]*(?:--force|--mirror|(?<!-)\s-f\b)",
+    rf"{_GIT_SOUS_COMMANDE}push(?![\w-])[^;&|]*(?:--force|--mirror|(?<!-)\s-f\b)",
     re.IGNORECASE,
 )
 _FORCE_PUSH_REASON = (

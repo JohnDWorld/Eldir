@@ -6,6 +6,8 @@ superviseur relit du vide ; si le refus casse, un agent publie sans validation.
 
 from __future__ import annotations
 
+import time
+
 from app.core.child_report import extract_cr, state_after_turn
 from app.services.session_manager import _denies_publish, _publish_denial, _remote_denial
 
@@ -35,8 +37,30 @@ def test_denies_publish_bloque_push_commit_et_pr() -> None:
         "gh pr create --fill",
         "glab mr create",
         "GIT_AUTHOR_NAME=x git commit --amend",
+        "git --git-dir /tmp/repo/.git push",
+        "git -C '/tmp/un dossier' commit -m x",
+        "git -c user.name=x -c user.email=y commit -m z",
+        "git --no-pager push origin b",
+        "bash -c 'git push'",
+        "git -c alias.p=push p",
+        "git config --global alias.ci 'commit -m'",
     ):
         assert _denies_publish("Bash", {"command": command}), command
+
+
+def test_denies_publish_juge_la_sous_commande_pas_les_noms() -> None:
+    """Un nom de branche ou de fichier qui contient push ou commit ne publie rien."""
+    for command in (
+        "git fetch origin rappels-push",
+        "git checkout rappels-push",
+        "git log origin/rappels-push --oneline -5",
+        "git diff main origin/rappels-push --stat",
+        "git diff apps/web/public/push-sw.js",
+        "git stash push -m wip",
+        "git show --no-commit-id HEAD",
+        "git log --grep commit",
+    ):
+        assert not _denies_publish("Bash", {"command": command}), command
 
 
 def test_denies_publish_laisse_passer_la_lecture() -> None:
@@ -73,10 +97,25 @@ def test_push_force_refuse_meme_autorise() -> None:
         "git push -f origin claude/abc",
         "git push --force-with-lease",
         "git push --mirror autre-remote",
+        "git -C /tmp/repo push -f",
     ):
         assert _publish_denial("Bash", {"command": command}, publish_allowed=True) is not None, (
             command
         )
+
+
+def test_denies_publish_reste_rapide_sur_une_longue_suite_d_options() -> None:
+    """Une regex qui relit les jetons de deux façons explose en temps exponentiel."""
+    longue = "git" + " -c" * 2000 + ' -c "a b"' * 2000 + " status"
+    debut = time.perf_counter()
+    assert not _denies_publish("Bash", {"command": longue})
+    assert _denies_publish("Bash", {"command": longue.replace(" status", " push")})
+    assert time.perf_counter() - debut < 1
+
+
+def test_push_force_juge_la_sous_commande() -> None:
+    for command in ("git checkout rappels-push -f", "git checkout -f rappels-push"):
+        assert _publish_denial("Bash", {"command": command}, publish_allowed=True) is None, command
 
 
 # ── Accès serveur ───────────────────────────────────────────────

@@ -98,6 +98,11 @@ niveau du hook `PreToolUse` toute commande `git commit`, `git push`, `gh pr` ou
 l'explication à la place du résultat. Le drapeau `publish_allowed` est fermé par
 défaut.
 
+Seule la sous-commande de git compte, options globales (`-C`, `-c`, `--git-dir`)
+comprises : `git fetch origin rappels-push` ou `git diff push-sw.js` passent, un
+alias vers `push` ou `commit` est refusé. C'est un garde-fou contre l'écart, pas
+un bac à sable : un agent décidé passerait par un script intermédiaire.
+
 Les modifications restent donc non commitées dans le worktree de la session. Elles
 sont publiées par Eldir, jamais par l'agent : soit toi depuis le dashboard, onglet
 **diff** puis **Commit & Push** ou **Ouvrir une PR**, soit le superviseur avec
