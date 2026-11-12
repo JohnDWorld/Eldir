@@ -6,6 +6,7 @@ from fastapi import APIRouter, status
 
 from app.core.deps import CurrentUserId, DbDep
 from app.schemas.project import (
+    ProjectAutonomyUpdate,
     ProjectCreateFromRepo,
     ProjectRead,
     ProjectSyncRead,
@@ -28,6 +29,18 @@ async def list_projects(user_id: CurrentUserId, db: DbDep) -> list[ProjectRead]:
 @router.get("/{project_id}", response_model=ProjectRead)
 async def get_project(project_id: str, user_id: CurrentUserId, db: DbDep) -> ProjectRead:
     project = await project_service.get(db, project_id, user_id)
+    pourvus = await project_service.project_ids_with_template(db, user_id)
+    return ProjectRead.model_validate(project).model_copy(
+        update={"has_template": project.id in pourvus}
+    )
+
+
+@router.patch("/{project_id}", response_model=ProjectRead)
+async def update_project_autonomy(
+    project_id: str, payload: ProjectAutonomyUpdate, user_id: CurrentUserId, db: DbDep
+) -> ProjectRead:
+    project = await project_service.update_autonomy(db, project_id, user_id, payload)
+    await db.commit()
     pourvus = await project_service.project_ids_with_template(db, user_id)
     return ProjectRead.model_validate(project).model_copy(
         update={"has_template": project.id in pourvus}

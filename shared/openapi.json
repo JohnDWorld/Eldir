@@ -1445,6 +1445,37 @@
         "title": "OpenPullRequestResponse",
         "type": "object"
       },
+      "ProjectAutonomyUpdate": {
+        "description": "Ce que John règle de l'autonomie d'un projet. Un champ absent ne change pas.",
+        "properties": {
+          "autonomous": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Autonomous"
+          },
+          "deploy_command": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "pattern": "^[^\\r\\n]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploy Command"
+          }
+        },
+        "title": "ProjectAutonomyUpdate",
+        "type": "object"
+      },
       "ProjectCostRead": {
         "properties": {
           "cost_usd": {
@@ -1523,6 +1554,11 @@
       },
       "ProjectRead": {
         "properties": {
+          "autonomous": {
+            "default": false,
+            "title": "Autonomous",
+            "type": "boolean"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1531,6 +1567,17 @@
           "default_branch": {
             "title": "Default Branch",
             "type": "string"
+          },
+          "deploy_command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploy Command"
           },
           "has_template": {
             "default": false,
@@ -4270,6 +4317,72 @@
           }
         },
         "summary": "Get Project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "update_project_autonomy_api_v1_projects__project_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectAutonomyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Project Autonomy",
         "tags": [
           "projects"
         ]

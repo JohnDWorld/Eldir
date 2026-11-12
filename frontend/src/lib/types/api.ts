@@ -50,8 +50,17 @@ export interface ProjectRead {
   workspace_path: string | null;
   /** Le projet a-t-il un Mission Template ? */
   has_template: boolean;
+  /** Le superviseur merge (CI verte) et déploie seul sur ce projet. */
+  autonomous: boolean;
+  /** La commande de déploiement, lancée par SSH ; null : la forge déploie au merge. */
+  deploy_command: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectAutonomyUpdate {
+  autonomous?: boolean;
+  deploy_command?: string;
 }
 
 export interface ProjectSummary {
