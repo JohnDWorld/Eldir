@@ -555,7 +555,7 @@ async def test_un_echec_de_demarrage_ne_retombe_pas_en_mode_processus(
     `test_une_decision_de_conteneur_qui_echoue_ne_retombe_pas_en_mode_processus`.
     """
     worktree = tmp_path / "workspaces" / "u1" / "depot.s1"
-    (tmp_path / "workspaces" / "u1" / "depot").mkdir(parents=True)
+    (tmp_path / "workspaces" / "u1" / "depot" / ".git").mkdir(parents=True)
     worktree.mkdir()
     monkeypatch.setenv("SESSION_RUNTIME", "conteneur")
     monkeypatch.setenv("SESSION_IMAGE", "localhost:1/eldir-session:absente")

@@ -363,7 +363,7 @@ def mode_conteneur(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
     (`<user>/<repo>` et `<user>/<repo>.<session_id>`), sous `workspaces_root`.
     """
     worktree = tmp_path / "workspaces" / "u1" / "depot.s1"
-    (tmp_path / "workspaces" / "u1" / "depot").mkdir(parents=True)
+    (tmp_path / "workspaces" / "u1" / "depot" / ".git").mkdir(parents=True)
     worktree.mkdir()
     monkeypatch.setenv("SESSION_RUNTIME", "conteneur")
     monkeypatch.setenv("WORKSPACES_ROOT", str(tmp_path / "workspaces"))

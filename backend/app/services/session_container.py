@@ -72,6 +72,10 @@ def env_pour_enrobage(
 
     clone = chemin_du_clone(worktree_abs)
     if clone is not None:
+        # Un `volume-subpath` absent fait échouer `docker run` : les dossiers
+        # montés en lecture seule doivent exister, même vides.
+        for dossier in ("hooks", "modules"):
+            (clone / ".git" / dossier).mkdir(exist_ok=True)
         env["ELDIR_CLONE_ABS"] = str(clone)
         env["ELDIR_CLONE_SUBPATH"] = str(clone.relative_to(reglages.workspaces_root))
 

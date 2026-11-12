@@ -168,6 +168,37 @@ def test_le_clone_canonique_est_monte_en_ecriture(faux_docker: Path) -> None:
     assert clone in sortie
 
 
+def test_ce_que_git_lit_comme_des_ordres_est_en_lecture_seule(faux_docker: Path) -> None:
+    """Risque nº 3 : le backend lance git dans ce clone.
+
+    `.git` monté à part ne se renomme pas ; sa config, ses hooks et le dossier
+    des sous-modules sont en lecture seule.
+    """
+    sortie = lancer(
+        faux_docker,
+        {
+            **BASE,
+            "ELDIR_CLONE_ABS": "/var/eldir/workspaces/u1/depot",
+            "ELDIR_CLONE_SUBPATH": "u1/depot",
+        },
+    )
+
+    base = "type=volume,src=vol_ws,dst=/var/eldir/workspaces/u1/depot/.git"
+    assert f"{base},volume-subpath=u1/depot/.git" in sortie
+    assert f"{base},volume-subpath=u1/depot/.git,readonly" not in sortie
+    for nom in ("config", "hooks", "modules"):
+        assert (
+            f"type=volume,src=vol_ws,dst=/var/eldir/workspaces/u1/depot/.git/{nom},"
+            f"volume-subpath=u1/depot/.git/{nom},readonly"
+        ) in sortie
+
+
+def test_sans_clone_aucun_montage_de_git(faux_docker: Path) -> None:
+    sortie = lancer(faux_docker, BASE)
+
+    assert "/.git" not in sortie
+
+
 def test_ce_qui_n_est_pas_nomme_n_est_pas_monte(faux_docker: Path) -> None:
     """Un sous-chemin absent ferait échouer `docker run` en code 127.
 
@@ -439,7 +470,7 @@ def test_les_noms_que_l_enrobage_lit_sont_ceux_que_le_backend_produit(
     racine = tmp_path / "workspaces"
     worktree = racine / "u1" / "depot.s1"
     worktree.mkdir(parents=True)
-    (racine / "u1" / "depot").mkdir()
+    (racine / "u1" / "depot" / ".git").mkdir(parents=True)
     (tmp_path / "toolchains" / "p1").mkdir(parents=True)
     (tmp_path / "toolchains" / "p1" / ".eldir-state.json").write_text("{}", encoding="utf-8")
     (tmp_path / "collectes" / "p1").mkdir(parents=True)
@@ -468,6 +499,10 @@ def test_les_noms_que_l_enrobage_lit_sont_ceux_que_le_backend_produit(
     assert destinations == {
         str(worktree),
         str(racine / "u1" / "depot"),
+        *(
+            str(racine / "u1" / "depot" / ".git" / nom)
+            for nom in ("", "config", "hooks", "modules")
+        ),
         str(tmp_path / "toolchains" / "p1"),
         str(tmp_path / "collectes" / "p1"),
         "/eldir/maison",
